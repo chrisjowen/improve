@@ -1,0 +1,44 @@
+version: 1
+evaluators:
+  - name: core.file-exists
+    language: javascript
+    module: evaluators/file-exists.mjs
+    export: evaluate
+    version: 1.0.0
+    description: Check that configured repository-relative paths exist.
+    trust: deterministic
+  - name: core.grep
+    language: javascript
+    module: evaluators/grep.mjs
+    export: evaluate
+    version: 1.0.0
+    description: Match configured text or regular expressions in repository files.
+    trust: deterministic
+  - name: core.command
+    language: python
+    module: evaluators/command.py
+    export: evaluate
+    version: 1.0.0
+    description: Run an argv-form test or check and grade its exit code.
+    trust: executes-command
+  - name: llm.judge-command
+    language: python
+    module: evaluators/llm_judge.py
+    export: evaluate
+    version: 1.0.0
+    description: Send a rubric and context to an explicitly configured JSON-command LLM adapter.
+    trust: external-model
+  - name: example.python
+    language: python
+    module: evaluators/example_python.py
+    export: evaluate
+    version: 1.0.0
+    description: Minimal Python evaluator example.
+    trust: deterministic
+  - name: example.typescript
+    language: typescript
+    module: evaluators/example_typescript.ts
+    export: evaluate
+    version: 1.0.0
+    description: Minimal TypeScript evaluator example.
+    trust: deterministic

@@ -1,0 +1,50 @@
+version: 1
+id: repository-readiness
+objective:
+  id: maintainable-change
+  description: Agent changes leave the repository verifiable and documented.
+  baseline:
+    suite_score: null
+  success_criteria:
+    - The repository has a README.
+    - Changed source files do not contain unresolved merge markers.
+inputs:
+  prompts:
+    - Verify the repository after the candidate change.
+registries:
+  - ../registry.yaml
+steps:
+  - id: readme-present
+    evaluator: core.file-exists
+    threshold: 1.0
+    required: true
+    metadata:
+      paths: [README.md]
+  - id: no-merge-markers
+    evaluator: core.grep
+    threshold: 1.0
+    required: true
+    metadata:
+      paths_from: changed_files
+      pattern: "^(<<<<<<<|=======|>>>>>>>)"
+      regex: true
+      should_match: false
+  - id: python-contract
+    evaluator: example.python
+    threshold: 1.0
+    required: true
+  - id: typescript-contract
+    evaluator: example.typescript
+    threshold: 1.0
+    required: true
+  - id: command-contract
+    evaluator: core.command
+    threshold: 1.0
+    required: true
+    metadata:
+      argv: [python3, "-c", "print('evaluation command passed')"]
+      expected_exit_codes: [0]
+aggregation:
+  threshold: 1.0
+  require_all_required: true
+  fail_fast: false

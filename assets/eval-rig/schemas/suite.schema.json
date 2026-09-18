@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://improve.local/schemas/evaluation-suite-v1.json",
+  "title": "EvaluationSuite",
+  "type": "object",
+  "required": ["version", "id", "objective", "registries", "steps", "aggregation"],
+  "properties": {
+    "version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "objective": { "$ref": "#/$defs/objective" },
+    "inputs": { "type": "object" },
+    "registries": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "evaluator"],
+        "properties": {
+          "id": { "type": "string" },
+          "evaluator": { "type": "string" },
+          "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+          "weight": { "type": "number", "exclusiveMinimum": 0 },
+          "required": { "type": "boolean" },
+          "require_success": { "type": "boolean" },
+          "timeout_ms": { "type": "integer", "minimum": 1 },
+          "metadata": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "aggregation": {
+      "type": "object",
+      "required": ["threshold"],
+      "properties": {
+        "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "require_all_required": { "type": "boolean" },
+        "fail_fast": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "objective": {
+      "type": "object",
+      "required": ["id", "description", "success_criteria"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "baseline": { "type": "object" },
+        "success_criteria": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

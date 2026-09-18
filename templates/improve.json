@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "review": {
+    "every_days": 14,
+    "every_sessions": 20,
+    "tool_failure_threshold": 3
+  },
+  "capture": {
+    "enabled": true
+  },
+  "background_dreaming": {
+    "enabled": false,
+    "every_days": 30,
+    "command": "claude"
+  }
+}

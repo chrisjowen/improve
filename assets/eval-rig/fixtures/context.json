@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "project_root": "..",
+  "task": {
+    "id": "example",
+    "prompts": ["Verify the repository after the candidate change."]
+  },
+  "changes": {
+    "base_revision": null,
+    "head_revision": null,
+    "files": []
+  },
+  "transcript": {
+    "messages": [],
+    "tool_calls": [],
+    "agent_calls": [],
+    "events": [],
+    "redactions": [],
+    "truncated": false
+  },
+  "run": {
+    "id": "example-run",
+    "attempt": 1
+  },
+  "artifacts": [],
+  "metadata": {}
+}

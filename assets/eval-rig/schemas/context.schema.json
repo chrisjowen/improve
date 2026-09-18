@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://improve.local/schemas/evaluation-context-v1.json",
+  "title": "EvaluationContext",
+  "type": "object",
+  "required": ["schema_version", "project_root", "objective", "task", "changes", "transcript", "run", "artifacts", "step", "metadata"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "project_root": { "type": "string" },
+    "objective": {
+      "type": "object",
+      "required": ["id", "description", "success_criteria"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "success_criteria": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "task": {
+      "type": "object",
+      "required": ["id", "prompts"],
+      "properties": {
+        "id": { "type": "string" },
+        "prompts": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "changes": {
+      "type": "object",
+      "required": ["files"],
+      "properties": {
+        "base_revision": { "type": ["string", "null"] },
+        "head_revision": { "type": ["string", "null"] },
+        "patch": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path"],
+            "properties": { "path": { "type": "string" }, "status": { "type": "string" } },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "transcript": {
+      "type": "object",
+      "required": ["messages", "tool_calls", "agent_calls", "events"],
+      "properties": {
+        "messages": { "type": "array" },
+        "tool_calls": { "type": "array" },
+        "agent_calls": { "type": "array" },
+        "events": { "type": "array" },
+        "redactions": { "type": "array" },
+        "truncated": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "required": ["id", "attempt"],
+      "properties": {
+        "id": { "type": "string" },
+        "attempt": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "artifacts": { "type": "array" },
+    "step": {
+      "type": "object",
+      "required": ["id", "evaluator", "metadata"],
+      "properties": {
+        "id": { "type": "string" },
+        "evaluator": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "improve",
+  "displayName": "Improve",
+  "version": "0.1.0",
+  "description": "Governed, evidence-driven improvement of a repository's Claude Code coding harness.",
+  "author": {
+    "name": "Chris Owen"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "harness",
+    "evaluation",
+    "memory",
+    "skills",
+    "hooks"
+  ]
+}

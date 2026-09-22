@@ -98,7 +98,7 @@ def git_changes(root: Path, base: str | None, head: str | None, include_patch: b
         command = ["git", "diff", "--name-status", "--find-renames", range_spec]
         patch_command = ["git", "diff", range_spec]
     else:
-        command = ["git", "status", "--porcelain=v1"]
+        command = ["git", "status", "--porcelain=v1", "--untracked-files=all"]
         patch_command = ["git", "diff", "--binary", "HEAD"]
     completed = subprocess.run(command, cwd=root, text=True, capture_output=True, check=True)
     files = []

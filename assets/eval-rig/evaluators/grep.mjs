@@ -19,7 +19,8 @@ export async function evaluate(context) {
   const shouldMatch = cfg.should_match !== false;
   const matcher = cfg.regex ? new RegExp(cfg.pattern, cfg.flags ?? "m") : null;
   const root = resolve(context.project_root);
-  const evidence = [];
+  const violations = [];
+  const errors = [];
 
   for (const path of paths) {
     const target = resolve(root, path);
@@ -28,12 +29,15 @@ export async function evaluate(context) {
     try {
       content = await readFile(target, "utf8");
     } catch (error) {
-      evidence.push({ kind: "file", path, message: `Unreadable: ${error.code ?? error.message}` });
+      // An unreadable path is a tooling problem, not a content violation. Keep it
+      // visible but out of the score, so a directory or a deleted file cannot be
+      // reported as a failed pattern check.
+      errors.push({ kind: "error", path, message: `Unreadable: ${error.code ?? error.message}` });
       continue;
     }
     const matched = matcher ? matcher.test(content) : content.includes(cfg.pattern);
     if (matched !== shouldMatch) {
-      evidence.push({
+      violations.push({
         kind: "match",
         path,
         message: shouldMatch ? "Required pattern not found" : "Forbidden pattern found",
@@ -41,12 +45,18 @@ export async function evaluate(context) {
     }
   }
 
-  const score = paths.length === 0 ? 1 : (paths.length - evidence.length) / paths.length;
+  const readable = paths.length - errors.length;
+  const score = readable === 0 ? 1 : (readable - violations.length) / readable;
+  const notes = [];
+  if (violations.length) notes.push(`${violations.length} file checks failed.`);
+  else notes.push("All pattern checks passed.");
+  if (errors.length) notes.push(`${errors.length} path(s) were unreadable and were not checked.`);
+
   return {
-    success: evidence.length === 0,
+    success: violations.length === 0,
     score: Math.max(0, score),
-    notes: evidence.length ? [`${evidence.length} file checks failed.`] : ["All pattern checks passed."],
-    evidence,
-    metadata: { checked: paths.length, should_match: shouldMatch },
+    notes,
+    evidence: [...violations, ...errors],
+    metadata: { checked: readable, unreadable: errors.length, should_match: shouldMatch },
   };
 }

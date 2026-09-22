@@ -23,9 +23,11 @@ function run(script, args, input, extraEnv = {}) {
   });
 }
 
+// A repository that has never been reviewed is not overdue for review. Nudging on
+// a cold start trains the user to ignore the only channel we have.
 const start = run("session-start.mjs", [], { session_id: "s1", source: "startup" });
 assert.equal(start.status, 0, start.stderr);
-assert.match(start.stdout, /review is due/);
+assert.doesNotMatch(start.stdout, /review is due/);
 
 const capture = run("capture-event.mjs", ["PostToolUse"], {
   session_id: "s1",
@@ -59,5 +61,20 @@ assert.equal(failure.status, 0, failure.stderr);
 const statusAfterFailure = run("status.mjs", [project], {});
 const after = JSON.parse(statusAfterFailure.stdout);
 assert.equal(after.state.tool_failures_since_review, 1);
+
+// Once a real trigger fires, the nudge must still appear. Default threshold is 3.
+for (const attempt of [2, 3]) {
+  const repeated = run("capture-event.mjs", ["PostToolUseFailure"], {
+    session_id: "s1",
+    tool_name: "Bash",
+    error: `Command failed ${attempt}`
+  });
+  assert.equal(repeated.status, 0, repeated.stderr);
+}
+
+const triggered = run("session-start.mjs", [], { session_id: "s2", source: "startup" });
+assert.equal(triggered.status, 0, triggered.stderr);
+assert.match(triggered.stdout, /review is due/);
+assert.match(triggered.stdout, /3 captured tool failures/);
 
 console.log("hook tests passed");

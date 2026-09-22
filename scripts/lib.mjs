@@ -112,7 +112,7 @@ export function daysSince(value, now = Date.now()) {
 
 export function dueReasons(config, state, now = Date.now()) {
   const reasons = [];
-  if (daysSince(state.last_reviewed_at, now) >= config.review.every_days) {
+  if (state.last_reviewed_at && daysSince(state.last_reviewed_at, now) >= config.review.every_days) {
     reasons.push(`${config.review.every_days} days since the last harness review`);
   }
   if ((state.sessions_since_review || 0) >= config.review.every_sessions) {

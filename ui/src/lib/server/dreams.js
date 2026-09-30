@@ -3,6 +3,7 @@ import path from "node:path";
 import { pluginDataDir, projectId, projectRoot, readTextSafe, safeId } from "./paths.js";
 import { writeProposal } from "./proposals.js";
 import { redact } from "../../../../scripts/redact.mjs";
+import { checkProposal } from "../../../../scripts/proposal-check.mjs";
 
 /**
  * Findings produced by the background dream worker.
@@ -55,7 +56,15 @@ export function listDreams() {
         risks: Array.isArray(finding.risks) ? finding.risks : [],
         // The operating model requires a reviewer to look for reasons to reject,
         // so this is surfaced rather than hidden.
-        reasons_to_reject: Array.isArray(finding.reasons_to_reject) ? finding.reasons_to_reject : []
+        reasons_to_reject: Array.isArray(finding.reasons_to_reject) ? finding.reasons_to_reject : [],
+        // A finding lists no files, so only the writing check applies.
+        prose: checkProposal({
+          title: finding.title,
+          hypothesis: finding.hypothesis,
+          intervention: { summary: finding.intervention },
+          evidence: finding.evidence,
+          risks: finding.risks
+        }).prose
       }))
     });
   }

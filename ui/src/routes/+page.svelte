@@ -60,6 +60,13 @@
 
   $effect(() => { load(); });
 
+  const SCOPE_LABEL = {
+    harness: ["harness", "badge-success", "Changes only files that shape the agent."],
+    codebase: ["codebase change", "badge-danger", "Changes application files, not the agent's setup."],
+    mixed: ["mixed scope", "badge-warning", "Changes the agent's setup and application files."],
+    unknown: ["no files listed", "badge-warning", "The proposal does not say which files it changes."]
+  };
+
   /** Poll a background job to completion. Jobs are short and single-user. */
   async function waitFor(jobId) {
     for (;;) {
@@ -186,8 +193,39 @@
     {#if proposal.malformed}
       <div class="alert alert-danger">Could not parse: {proposal.malformed}</div>
     {:else}
+      {#if proposal.intervention?.summary}
+        <p class="small muted" style="margin:0 0 2px"><strong>What changes</strong></p>
+        <p style="margin:0 0 10px">{proposal.intervention.summary}</p>
+      {/if}
       {#if proposal.hypothesis}
-        <p style="margin:0 0 10px">{proposal.hypothesis}</p>
+        <p class="small muted" style="margin:0 0 2px"><strong>Why</strong></p>
+        <p class="small" style="margin:0 0 10px">{proposal.hypothesis}</p>
+      {/if}
+
+      {#if proposal.check}
+        {@const [label, tone, meaning] = SCOPE_LABEL[proposal.check.scope] ?? SCOPE_LABEL.unknown}
+        <div class="row small" style="margin-bottom:10px;gap:6px;flex-wrap:wrap">
+          <span class="badge {tone}" title={meaning}>{label}</span>
+          {#each proposal.scope?.files ?? [] as file}
+            <code class={proposal.check.outside.includes(file) ? "outside" : ""}>{file}</code>
+          {/each}
+        </div>
+        {#each proposal.check.findings as finding}
+          <div class="alert {finding.rule === 'scope-codebase' && proposal.check.scope === 'codebase' ? 'alert-danger' : ''}"
+               style="margin-bottom:10px">
+            <span class="small">{finding.detail}</span>
+          </div>
+        {/each}
+        {#if proposal.check.prose.length}
+          <details style="margin-bottom:10px">
+            <summary class="small muted">Writing: {proposal.check.prose.length} {proposal.check.prose.length === 1 ? "issue" : "issues"}</summary>
+            <ul class="small" style="margin:8px 0 0">
+              {#each proposal.check.prose as issue}
+                <li><code>{issue.rule}</code> in {issue.field}: "{issue.match}". {issue.fix}</li>
+              {/each}
+            </ul>
+          </details>
+        {/if}
       {/if}
       <div class="row small muted" style="margin-bottom:10px">
         <code>{proposal.source}</code>
@@ -201,7 +239,7 @@
           <summary class="small muted">Evidence ({proposal.evidence.length})</summary>
           <ul class="small" style="margin:8px 0 0">
             {#each proposal.evidence as item}
-              <li><strong>{item.source ?? "source"}</strong> — {item.observation ?? JSON.stringify(item)}</li>
+              <li><strong>{item.source ?? "source"}.</strong> {item.observation ?? JSON.stringify(item)}</li>
             {/each}
           </ul>
         </details>
@@ -211,7 +249,7 @@
         {#if proposal.skill_draft}
           <button onclick={() => openDiff(proposal.file)}>Review draft</button>
           <span class="badge badge-success">draft: {proposal.skill_draft.name}</span>
-        {:else}
+        {:else if proposal.check?.scope !== "codebase"}
           <button onclick={() => draft(proposal.file)} disabled={busy === proposal.file}>
             {busy === proposal.file ? "Drafting…" : "Draft skill"}
           </button>
@@ -247,7 +285,7 @@
               <strong>{diff.blocked ? "This draft cannot be applied." : "Findings."}</strong>
               <ul class="small" style="margin:6px 0 0">
                 {#each diff.findings as [family, detail]}
-                  <li><code>{family}</code> — {detail}</li>
+                  <li><code>{family}</code>: {detail}</li>
                 {/each}
               </ul>
               {#if diff.blocked}
@@ -317,9 +355,19 @@
           {#if finding.evidence.length}
             <ul class="small" style="margin:6px 0">
               {#each finding.evidence as item}
-                <li><strong>{item.source}</strong> — {item.observation}</li>
+                <li><strong>{item.source}.</strong> {item.observation}</li>
               {/each}
             </ul>
+          {/if}
+          {#if finding.prose?.length}
+            <details style="margin:6px 0">
+              <summary class="small muted">Writing: {finding.prose.length} {finding.prose.length === 1 ? "issue" : "issues"}</summary>
+              <ul class="small" style="margin:8px 0 0">
+                {#each finding.prose as issue}
+                  <li><code>{issue.rule}</code> in {issue.field}: "{issue.match}". {issue.fix}</li>
+                {/each}
+              </ul>
+            </details>
           {/if}
           {#if finding.reasons_to_reject.length}
             <div class="alert" style="margin:8px 0">

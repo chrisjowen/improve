@@ -142,3 +142,4 @@ pre.block {
 .alert { padding: 10px 12px; border-radius: var(--radius); border: 1px solid hsl(var(--warning) / 0.4); background: hsl(var(--warning) / 0.1); font-size: 13px; }
 .alert-danger { border-color: hsl(var(--destructive) / 0.4); background: hsl(var(--destructive) / 0.1); }
 .stat { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+code.outside { color: hsl(var(--destructive)); }

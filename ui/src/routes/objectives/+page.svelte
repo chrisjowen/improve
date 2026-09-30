@@ -117,38 +117,45 @@
   </div>
 {/if}
 
-{#if skills.length}
+{#if !loading}
   <div class="card" style="margin-top:16px">
     <h2 style="margin-bottom:6px">Applied skills</h2>
     <p class="small muted" style="margin:0 0 12px">
-      Used counts invocations. Viewed counts sessions that read the skill without
-      necessarily following it — being read is not being followed, so the two are
-      never merged. Neither shows whether the skill helped.
+      Used counts invocations. Viewed counts reads of the skill file. Being read is not
+      being followed, so the two are never merged. Neither shows whether the skill helped.
     </p>
-    <table>
-      <thead>
-        <tr><th>Skill</th><th>Used</th><th>Viewed</th><th>Revisions</th><th>From</th><th>Last used</th></tr>
-      </thead>
-      <tbody>
-        {#each skills as skill}
-          <tr>
-            <td><code>{skill.name}</code></td>
-            <td>
-              <span class="badge {skill.use > 0 ? 'badge-success' : ''}">{skill.use}</span>
-            </td>
-            <td><span class="badge">{skill.view}</span></td>
-            <td class="small">{skill.patch}{skill.archived_versions ? ` (${skill.archived_versions} archived)` : ""}</td>
-            <td class="small muted">{skill.proposal ?? "—"}</td>
-            <td class="small muted">{skill.use_last_at?.slice(0, 10) ?? "never"}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-    {#if skills.every((s) => s.use === 0)}
-      <p class="small muted" style="margin:10px 0 0">
-        Nothing has been invoked yet. A skill that is never used is a candidate for
-        rewriting or retiring, but there is no data to justify a policy yet.
+    {#if skills.length === 0}
+      <p class="small muted" style="margin:0">
+        No skill has been applied from this page yet. Skills applied here get a
+        <code>.improve.json</code> record beside them, and their counts show up here.
       </p>
+    {:else}
+      <table>
+        <thead>
+          <tr><th>Skill</th><th>Used</th><th>Viewed</th><th>Revisions</th><th>From</th><th>Last used</th><th>Last viewed</th></tr>
+        </thead>
+        <tbody>
+          {#each skills as skill}
+            <tr>
+              <td><code>{skill.name}</code></td>
+              <td>
+                <span class="badge {skill.use > 0 ? 'badge-success' : ''}">{skill.use}</span>
+              </td>
+              <td><span class="badge">{skill.view}</span></td>
+              <td class="small">{skill.patch}{skill.archived_versions ? ` (${skill.archived_versions} archived)` : ""}</td>
+              <td class="small muted">{skill.proposal ?? "unknown"}</td>
+              <td class="small muted">{skill.use_last_at?.slice(0, 10) ?? "never"}</td>
+              <td class="small muted">{skill.view_last_at?.slice(0, 10) ?? "never"}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      {#if skills.every((s) => s.use === 0)}
+        <p class="small muted" style="margin:10px 0 0">
+          Nothing has been invoked yet. A skill nobody uses may need rewriting or
+          retiring. There is not enough data yet to set a rule for that.
+        </p>
+      {/if}
     {/if}
   </div>
 {/if}

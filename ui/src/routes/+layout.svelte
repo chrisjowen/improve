@@ -1,6 +1,7 @@
 <script>
   import "../app.css";
   import { page } from "$app/state";
+  import StatusStrip from "$lib/components/StatusStrip.svelte";
 
   let { children } = $props();
   let status = $state(null);
@@ -17,7 +18,7 @@
   <strong>improve</strong>
   {#if status?.eval_rig?.drifted}
     <span class="badge badge-warning" title="The repository's copy of the eval rig is older than the plugin's">
-      rig {status.eval_rig.installed} → {status.eval_rig.available}
+      rig {status.eval_rig.installed}, plugin has {status.eval_rig.available}
     </span>
   {/if}
   {#if status && !status.harness_initialized}
@@ -31,5 +32,6 @@
 </header>
 
 <main class="shell">
+  <StatusStrip {status} />
   {@render children?.()}
 </main>

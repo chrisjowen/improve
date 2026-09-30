@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { contain, ensureDir, harnessDir, readDirSafe, readTextSafe, safeId } from "./paths.js";
+import { checkProposal } from "../../../../scripts/proposal-check.mjs";
 
 const PROPOSAL_STATUSES = new Set([
   "draft", "proposed", "approved", "applying", "validated", "rejected", "rolled-back"
@@ -45,6 +46,9 @@ function normalize(id, document, source) {
     approval: value.approval ?? null,
     outcome: value.outcome ?? null,
     skill_draft: value.skill_draft ?? null,
+    // Whether it changes the harness or the codebase, and how it reads. For
+    // the reviewer only: nothing is blocked on it.
+    check: checkProposal(value),
     source
   };
 }

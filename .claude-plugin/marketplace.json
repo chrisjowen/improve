@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "improve-marketplace",
+  "description": "Single-plugin marketplace for the improve harness plugin.",
+  "owner": {
+    "name": "Chris Owen"
+  },
+  "plugins": [
+    {
+      "name": "improve",
+      "source": ".",
+      "description": "Governed, evidence-driven improvement of a repository's Claude Code coding harness.",
+      "category": "development",
+      "tags": ["harness", "evaluation", "governance", "memory"]
+    }
+  ]
+}

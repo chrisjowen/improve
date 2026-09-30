@@ -7,6 +7,7 @@
   "author": {
     "name": "Chris Owen"
   },
+  "repository": "https://github.com/chrisjowen/improve",
   "license": "MIT",
   "keywords": [
     "claude-code",

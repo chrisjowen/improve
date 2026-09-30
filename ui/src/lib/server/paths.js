@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -61,4 +62,21 @@ export function readTextSafe(file) {
 
 export function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+/**
+ * Where the plugin keeps per-project observations, or undefined.
+ *
+ * Mirrors scripts/lib.mjs so the UI reads the location the hooks write. The
+ * directory name is derived from the plugin identifier by Claude Code, so it is
+ * not reconstructable; without the variable the honest answer is that there is
+ * no observation store to read rather than a guessed path.
+ */
+export function pluginDataDir() {
+  const configured = process.env.CLAUDE_PLUGIN_DATA;
+  return configured ? path.resolve(configured) : undefined;
+}
+
+export function projectId(root) {
+  return crypto.createHash("sha256").update(root).digest("hex").slice(0, 20);
 }

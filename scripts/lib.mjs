@@ -214,3 +214,17 @@ export function eventRecord(eventName, input, root) {
     permission_mode: typeof input.permission_mode === "string" ? input.permission_mode : undefined
   };
 }
+
+/**
+ * The skill named by a path under `.claude/skills/<name>/`, if any.
+ *
+ * Lives here rather than beside the hook that uses it: that file reads stdin at
+ * the top level, so importing it to reach a helper would block.
+ */
+export function skillFromPath(candidate) {
+  if (typeof candidate !== "string") return undefined;
+  const match = candidate.replaceAll("\\", "/").match(/\.claude\/skills\/([^/]+)\//);
+  if (!match) return undefined;
+  const name = match[1];
+  return name.startsWith(".") ? undefined : name;
+}

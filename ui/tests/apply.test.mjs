@@ -142,5 +142,66 @@ assert.ok(blocked.findings.some(([f]) => f.startsWith("safety:")));
 assert.equal(fs.existsSync(path.join(repo, ".claude", "skills", "unsafe-skill")), false,
   "a blocked apply creates no directory");
 
+// --- recorded corrections reach the drafting prompt ----------------------
+// A skill stating the happy path but not the traps is the weaker half of what
+// the evidence supports.
+const dataDir = path.join(repo, "plugin-data");
+const crypto = await import("node:crypto");
+const projectHash = crypto.createHash("sha256").update(repo).digest("hex").slice(0, 20);
+const observations = path.join(dataDir, "projects", projectHash);
+fs.mkdirSync(observations, { recursive: true });
+fs.writeFileSync(path.join(observations, "corrections.jsonl"), [
+  JSON.stringify({ category: "correction", fingerprint: "friday-deploy", excerpt: "never deploy on a Friday" }),
+  JSON.stringify({ category: "correction", fingerprint: "friday-deploy", excerpt: "no, not on a Friday" }),
+  JSON.stringify({ category: "approval", fingerprint: "nice", excerpt: "perfect" }),
+  "{ truncated",
+  ""
+].join("\n"));
+process.env.CLAUDE_PLUGIN_DATA = dataDir;
+
+// Capture the prompt the agent is handed.
+const promptSink = path.join(repo, "prompt.txt");
+const recorder = path.join(repo, "recorder");
+fs.writeFileSync(recorder, [
+  "#!/bin/sh",
+  `printf '%s' "$2" > ${promptSink}`,
+  "cat <<'JSON'",
+  JSON.stringify({ result: "```json\n" + JSON.stringify({
+    name: "guarded-skill",
+    description: "Use when deploying",
+    body: BODY.replace(/release-check/g, "guarded-skill") + "\n## Guardrails\n\n- Never deploy on a Friday (from a recorded correction)\n"
+  }) + "\n```" }),
+  "JSON",
+  ""
+].join("\n"), { mode: 0o755 });
+
+seed("t.yaml", "evidence:\n  - source: incident\n    observation: a Friday release needed a rollback");
+const guarded = await draftSkill("t.yaml", { command: recorder });
+assert.equal(guarded.ok, true, guarded.error);
+
+const seenPrompt = fs.readFileSync(promptSink, "utf8");
+assert.match(seenPrompt, /never deploy on a Friday/, "a recorded correction is offered to the drafter");
+assert.match(seenPrompt, /untrusted observation/, "corrections are framed as untrusted");
+assert.ok(!seenPrompt.includes("perfect"), "approvals are not offered as guardrails");
+
+// Evidence on the proposal makes a Guardrails section mandatory.
+assert.deepEqual(guarded.findings, [], guarded.findings);
+const ungarded = BODY.replace(/release-check/g, "bare-skill");
+fs.writeFileSync(recorder, [
+  "#!/bin/sh",
+  "cat <<'JSON'",
+  JSON.stringify({ result: "```json\n" + JSON.stringify({
+    name: "bare-skill", description: "Use when deploying", body: ungarded
+  }) + "\n```" }),
+  "JSON",
+  ""
+].join("\n"), { mode: 0o755 });
+seed("u.yaml", "evidence:\n  - source: incident\n    observation: something happened");
+const bare = await draftSkill("u.yaml", { command: recorder });
+assert.ok(
+  bare.findings.some(([f]) => f === "guardrails"),
+  "evidence without guardrails is reported"
+);
+
 fs.rmSync(repo, { recursive: true, force: true });
 console.log("apply path tests passed");

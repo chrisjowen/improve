@@ -43,6 +43,19 @@
             "async": true
           }
         ]
+      },
+      {
+        "matcher": "Skill|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/skill-usage.mjs"
+            ],
+            "async": true
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [

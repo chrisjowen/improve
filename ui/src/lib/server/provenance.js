@@ -102,6 +102,41 @@ export function archiveSkill(name) {
   return path.relative(projectRoot(), destination);
 }
 
+/**
+ * Every skill this plugin applied, with its counters.
+ *
+ * `use` and `view` stay separate: being read is not being followed. Neither is
+ * a claim that the skill helped, which nothing here can yet establish.
+ */
+export function listAppliedSkills() {
+  const root = skillsRoot();
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const skills = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+    const record = readSidecar(entry.name);
+    if (!record || record.created_by !== "improve") continue;
+    skills.push({
+      name: entry.name,
+      proposal: record.proposal ?? null,
+      created_at: record.created_at ?? null,
+      updated_at: record.updated_at ?? null,
+      use: record.use ?? 0,
+      view: record.view ?? 0,
+      patch: record.patch ?? 0,
+      use_last_at: record.use_last_at ?? null,
+      view_last_at: record.view_last_at ?? null,
+      archived_versions: listArchived(entry.name).length
+    });
+  }
+  return skills.sort((a, b) => b.use - a.use || a.name.localeCompare(b.name));
+}
+
 export function listArchived(name) {
   const dir = contain(archiveRoot(), name);
   try {

@@ -5,6 +5,7 @@ Propose this only after adapting it to the repository. Omit unused sections.
 ```text
 .harness/
   charter.md                 # objectives, constraints, autonomy, outcomes
+  objectives.yaml            # competence areas with stable ids, referenced by suites
   improve.json               # cadence and passive-capture configuration
   inventory.yaml             # current harness components and owners
   roadmap.md                 # ranked evidence-backed opportunities

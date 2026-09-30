@@ -71,6 +71,53 @@ function evalRig() {
   };
 }
 
+/**
+ * Objective coverage: an objective nobody measures cannot be improved
+ * deliberately. This is a set difference and was previously computed nowhere.
+ */
+function coverage() {
+  const harness = path.join(root, ".harness");
+  const declared = new Map();
+  const objectivesFile = path.join(harness, "objectives.yaml");
+  const text = readVersion(objectivesFile) !== undefined
+    ? fs.readFileSync(objectivesFile, "utf8")
+    : undefined;
+  if (text) {
+    // A deliberately small reader: ids only, so status needs no YAML parser.
+    for (const line of text.split("\n")) {
+      const match = line.match(/^\s*-\s+id:\s*(\S+)/);
+      if (match) declared.set(match[1], []);
+    }
+  }
+
+  const measured = new Set();
+  const suitesDir = path.join(harness, "evals", "suites");
+  let entries = [];
+  try {
+    entries = fs.readdirSync(suitesDir).filter((name) => /\.ya?ml$/i.test(name));
+  } catch {
+    entries = [];
+  }
+  for (const name of entries) {
+    const suite = fs.readFileSync(path.join(suitesDir, name), "utf8");
+    // objective: <id>, or an embedded block whose id is on the next line.
+    const named = suite.match(/^objective:\s*(\S+)\s*$/m);
+    const embedded = suite.match(/^objective:\s*\n\s+id:\s*(\S+)/m);
+    const id = named?.[1] ?? embedded?.[1];
+    if (!id) continue;
+    measured.add(id);
+    if (!declared.has(id)) declared.set(id, []);
+    declared.get(id).push(name);
+  }
+
+  const objectives = [...declared.entries()].map(([id, suites]) => ({ id, suites }));
+  return {
+    total: objectives.length,
+    uncovered: objectives.filter((o) => o.suites.length === 0).map((o) => o.id),
+    objectives
+  };
+}
+
 function countLines(file) {
   try {
     return fs.readFileSync(file, "utf8").split("\n").filter((line) => line.trim()).length;
@@ -104,6 +151,7 @@ try {
     harness_initialized: fs.existsSync(path.join(root, ".harness")),
     eval_rig: evalRig(),
     transcripts: transcripts(),
+    coverage: coverage(),
     review_due_reasons: dueReasons(config, state),
     repeated_correction: topRepeatedCorrection(state) ?? null,
     state,

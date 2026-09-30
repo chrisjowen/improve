@@ -98,10 +98,53 @@ def validate_result(value: Any) -> dict[str, Any]:
     return value
 
 
-def validate_suite(suite: dict[str, Any]) -> None:
+def load_objectives(suite_path: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Objectives declared in a registry, keyed by id.
+
+    An objective embedded in a suite cannot be recognised as the same objective
+    two suites both measure. A registry gives it a stable identity; embedding
+    still works, so existing suites keep running.
+    """
+    objectives: dict[str, dict[str, Any]] = {}
+    declared = suite.get("objectives")
+    candidates = [declared] if isinstance(declared, str) else list(declared or [])
+    if not candidates:
+        # Convention: .harness/objectives.yaml, two levels above suites/.
+        default = suite_path.parent.parent.parent / "objectives.yaml"
+        if default.exists():
+            candidates = [str(default)]
+    for relative in candidates:
+        path = Path(relative)
+        if not path.is_absolute():
+            path = (suite_path.parent / relative).resolve()
+        if not path.exists():
+            raise ValueError(f"Objectives file not found: {path}")
+        document = load_yaml(path)
+        for entry in document.get("objectives", []) or []:
+            if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+                raise ValueError(f"Every objective requires a string id: {path}")
+            if entry["id"] in objectives:
+                raise ValueError(f"Duplicate objective id: {entry['id']}")
+            objectives[entry["id"]] = entry
+    return objectives
+
+
+def resolve_objective(suite: dict[str, Any], objectives: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """An objective may be named by id or embedded in the suite."""
+    objective = suite.get("objective")
+    if isinstance(objective, str):
+        resolved = objectives.get(objective)
+        if resolved is None:
+            known = ", ".join(sorted(objectives)) or "none"
+            raise ValueError(f"Unknown objective id: {objective} (known: {known})")
+        return resolved
+    return objective
+
+
+def validate_suite(suite: dict[str, Any], objectives: dict[str, dict[str, Any]] | None = None) -> None:
     if suite.get("version") != 1 or not isinstance(suite.get("id"), str):
         raise ValueError("Suite requires version: 1 and a string id")
-    objective = suite.get("objective")
+    objective = resolve_objective(suite, objectives or {})
     if not isinstance(objective, dict) or not isinstance(objective.get("success_criteria"), list):
         raise ValueError("Suite objective requires success_criteria")
     steps = suite.get("steps")
@@ -150,13 +193,15 @@ def invoke(entry: dict[str, Any], context: dict[str, Any], timeout_ms: int) -> d
 def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
     suite_path = suite_path.resolve()
     suite = load_yaml(suite_path)
-    validate_suite(suite)
+    objectives = load_objectives(suite_path, suite)
+    validate_suite(suite, objectives)
+    objective = resolve_objective(suite, objectives)
     base = json.loads(context_path.read_text(encoding="utf-8"))
     project_root = Path(base["project_root"])
     if not project_root.is_absolute():
         project_root = (context_path.parent / project_root).resolve()
     base["project_root"] = str(project_root)
-    base["objective"] = suite["objective"]
+    base["objective"] = objective
     base.setdefault("task", {})["prompts"] = suite.get("inputs", {}).get("prompts", base.get("task", {}).get("prompts", []))
 
     registry: dict[str, dict[str, Any]] = {}
@@ -228,7 +273,7 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
         "registries": registry_digests,
         "context_digest": digest(context_path),
         "run": base.get("run", {}),
-        "objective": suite["objective"],
+        "objective": objective,
         "success": passed,
         "score": score,
         "threshold": float(aggregation.get("threshold", 1.0)),

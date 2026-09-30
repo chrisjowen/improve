@@ -3,16 +3,19 @@
 
   let objectives = $state([]);
   let skills = $state([]);
+  let cover = $state(null);
   let loading = $state(true);
 
   $effect(() => {
     Promise.all([
       fetch("/api/objectives").then((r) => r.json()),
-      fetch("/api/skills").then((r) => r.json())
+      fetch("/api/skills").then((r) => r.json()),
+      fetch("/api/coverage").then((r) => r.json())
     ])
-      .then(([o, s]) => {
+      .then(([o, s, c]) => {
         objectives = o.objectives ?? [];
         skills = s.skills ?? [];
+        cover = c;
       })
       .finally(() => { loading = false; });
   });
@@ -33,6 +36,14 @@
   </p>
 </div>
 
+{#if cover?.uncovered?.length}
+  <div class="alert" style="margin-bottom:14px">
+    <strong>{cover.uncovered.length} objective{cover.uncovered.length === 1 ? "" : "s"} with no suite.</strong>
+    An objective nobody measures cannot be improved deliberately:
+    {#each cover.uncovered as id, i}<code>{id}</code>{i < cover.uncovered.length - 1 ? ", " : ""}{/each}
+  </div>
+{/if}
+
 {#if loading}
   <p class="muted">Loading…</p>
 {:else if objectives.length === 0}
@@ -50,9 +61,21 @@
       <div class="card">
         <div class="card-header">
           <h2>{objective.id}</h2>
-          {#if !objective.encountered}
-            <span class="badge">not yet encountered</span>
-          {/if}
+          <span class="row" style="gap:5px">
+            {#if objective.regime}
+              <span class="badge" title={objective.regime === "observed"
+                ? "Graded from what happened; no counterfactual, one reading per run"
+                : "A fixed task that can be re-run against a changed harness"}>{objective.regime}</span>
+            {/if}
+            {#if !objective.registered}
+              <span class="badge badge-warning" title="Declared inside a suite rather than in .harness/objectives.yaml">unregistered</span>
+            {/if}
+            {#if !objective.covered}
+              <span class="badge badge-danger">no suite</span>
+            {:else if !objective.encountered}
+              <span class="badge">not yet encountered</span>
+            {/if}
+          </span>
         </div>
         {#if objective.description}
           <p class="small" style="margin:0 0 12px">{objective.description}</p>

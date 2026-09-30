@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://improve.local/schemas/objectives-v1.json",
+  "title": "Objectives",
+  "description": "Competence areas the harness is measured against. Scores attach to a run, and each run records the context it covered, so session-, PR- and occurrence-shaped measurements share one history.",
+  "type": "object",
+  "required": [
+    "version",
+    "objectives"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "objectives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "success_criteria"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime": {
+            "enum": [
+              "observed",
+              "replayable"
+            ],
+            "description": "observed has no counterfactual and is n=1 per run; replayable can be re-run against a changed harness."
+          },
+          "success_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "baseline": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "target": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "review_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

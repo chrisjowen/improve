@@ -90,5 +90,101 @@ class EvalRigTest(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(transcript))
 
 
+class ObjectiveRegistryTest(unittest.TestCase):
+    """A suite may name its objective by id so two suites can share one."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name).resolve()
+        self.harness = self.root / ".harness"
+        self.suites = self.harness / "evals" / "suites"
+        self.suites.mkdir(parents=True)
+        import shutil
+        shutil.copytree(ROOT, self.harness / "evals", dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        (self.harness / "objectives.yaml").write_text(
+            "version: 1\n"
+            "objectives:\n"
+            "  - id: verified-change\n"
+            "    description: Work is grounded and verified.\n"
+            "    regime: observed\n"
+            "    success_criteria:\n"
+            "      - The agent verified its work.\n",
+            encoding="utf-8",
+        )
+        (self.root / "README.md").write_text("# r\n", encoding="utf-8")
+        context = {
+            "schema_version": 1,
+            "project_root": str(self.root),
+            "task": {"id": "t", "prompts": []},
+            "changes": {"files": [{"path": "README.md", "status": "M"}]},
+            "transcript": {"messages": [], "tool_calls": [], "agent_calls": [], "events": []},
+            "run": {"id": "r", "attempt": 1},
+            "artifacts": [],
+            "metadata": {},
+        }
+        self.context = self.root / "context.json"
+        self.context.write_text(json.dumps(context), encoding="utf-8")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _suite(self, body: str) -> Path:
+        path = self.harness / "evals" / "suites" / "s.yaml"
+        path.write_text(body, encoding="utf-8")
+        return path
+
+    def test_objective_resolved_from_the_registry(self):
+        suite = self._suite(
+            "version: 1\n"
+            "id: by-reference\n"
+            "objective: verified-change\n"
+            "registries: ['../registry.yaml']\n"
+            "steps:\n"
+            "  - id: readme\n"
+            "    evaluator: core.file-exists\n"
+            "    metadata: { paths: [README.md] }\n"
+            "aggregation: { threshold: 1.0 }\n"
+        )
+        report = run(suite, self.context)
+        self.assertEqual(report["objective"]["id"], "verified-change")
+        self.assertEqual(report["objective"]["regime"], "observed")
+        self.assertTrue(report["success"])
+
+    def test_unknown_objective_id_is_rejected(self):
+        suite = self._suite(
+            "version: 1\n"
+            "id: bad-reference\n"
+            "objective: does-not-exist\n"
+            "registries: ['../registry.yaml']\n"
+            "steps:\n"
+            "  - id: readme\n"
+            "    evaluator: core.file-exists\n"
+            "    metadata: { paths: [README.md] }\n"
+            "aggregation: { threshold: 1.0 }\n"
+        )
+        with self.assertRaisesRegex(ValueError, "Unknown objective id"):
+            run(suite, self.context)
+
+    def test_embedded_objective_still_works(self):
+        """A repository that has not adopted a registry keeps functioning."""
+        suite = self._suite(
+            "version: 1\n"
+            "id: embedded\n"
+            "objective:\n"
+            "  id: inline-objective\n"
+            "  description: Declared in the suite.\n"
+            "  success_criteria: [Something.]\n"
+            "registries: ['../registry.yaml']\n"
+            "steps:\n"
+            "  - id: readme\n"
+            "    evaluator: core.file-exists\n"
+            "    metadata: { paths: [README.md] }\n"
+            "aggregation: { threshold: 1.0 }\n"
+        )
+        report = run(suite, self.context)
+        self.assertEqual(report["objective"]["id"], "inline-objective")
+
+
 if __name__ == "__main__":
     unittest.main()

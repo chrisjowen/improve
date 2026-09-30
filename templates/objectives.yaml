@@ -1,0 +1,30 @@
+# Objectives the harness is measured against.
+#
+# An objective is a competence area: how good this harness is at some kind of
+# work. It is the thing scores attach to, and suites reference it by id so two
+# suites measuring the same competence are recognisably about one objective.
+#
+# The unit a score attaches to is a run. Each run records the context it covered
+# — a session transcript, a revision range, or both — so a session-shaped, a
+# PR-shaped and an occurrence-shaped measurement can all sit in one history
+# without the objective having to choose between them.
+#
+# "Not yet encountered" is a first-class state. An objective with no runs is not
+# scoring badly; there is no reading at all.
+version: 1
+objectives:
+  - id: verified-change
+    description: An agent's change is grounded in the repository and verified before it is offered.
+    owner: null
+    # observed: graded from what actually happened, no counterfactual, n=1 per run.
+    # replayable: a fixed task that can be re-run against a changed harness.
+    regime: observed
+    success_criteria:
+      - The agent read relevant files before editing them.
+      - The agent ran a verification command rather than asserting success.
+      - Source changes arrive with test changes.
+    baseline:
+      suite_score: null
+    target:
+      suite_score: 1.0
+    review_by: null

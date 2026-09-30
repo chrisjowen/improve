@@ -94,5 +94,77 @@ assert.match(written, /covered by an existing rule/);
 const updated = updateStatus("IMP-1.yaml", "rejected");
 assert.equal(updated.status, "rejected");
 
+// --- the objectives registry -------------------------------------------
+// An objective embedded in a suite cannot be recognised as the same objective
+// two suites both measure. A registry gives it a stable identity.
+fs.writeFileSync(path.join(repo, ".harness", "objectives.yaml"), [
+  "version: 1",
+  "objectives:",
+  "  - id: safe-deploys",
+  "    description: Deploys land without manual repair",
+  "    regime: observed",
+  "    owner: platform",
+  "    success_criteria:",
+  "      - No rollback within an hour",
+  "  - id: reference-lookup",
+  "    description: The agent finds the existing implementation",
+  "    regime: replayable",
+  "    success_criteria:",
+  "      - An existing implementation is cited",
+  ""
+].join("\n"));
+
+// A second suite naming the same objective by id.
+fs.writeFileSync(path.join(suitesDir, "second.yaml"), [
+  "version: 1",
+  "id: deployment-rollback",
+  "objective: safe-deploys",
+  "steps:",
+  "  - id: one",
+  "    evaluator: core.file-exists",
+  "aggregation:",
+  "  threshold: 1.0",
+  ""
+].join("\n"));
+
+const { coverage, readObjectiveRegistry } = await import("../src/lib/server/results.js");
+
+assert.equal(readObjectiveRegistry().length, 2);
+
+const registered = listObjectives();
+assert.equal(registered.length, 2, "both registry objectives appear");
+
+const deploys = registered.find((o) => o.id === "safe-deploys");
+assert.equal(deploys.registered, true);
+assert.equal(deploys.regime, "observed");
+assert.equal(deploys.owner, "platform");
+assert.deepEqual(
+  deploys.suites.sort(),
+  ["deployment-readiness", "deployment-rollback"],
+  "two suites are recognised as measuring one objective"
+);
+assert.equal(deploys.covered, true);
+assert.equal(deploys.encountered, true, "it has runs from earlier in this test");
+
+// An objective with no suite cannot be improved deliberately.
+const lookup = registered.find((o) => o.id === "reference-lookup");
+assert.equal(lookup.covered, false, "no suite measures it");
+assert.equal(lookup.encountered, false);
+assert.equal(lookup.regime, "replayable");
+
+const gaps = coverage();
+assert.deepEqual(gaps.uncovered, ["reference-lookup"]);
+assert.equal(gaps.total, 2);
+
+// A run records the context it covered, which is what the score is a score of.
+appendRun({
+  run_id: "r4", objective_id: "safe-deploys", suite_id: "deployment-rollback",
+  score: 1, success: true, occurred_at: "2026-09-22T14:00:00Z",
+  context: { transcript: "session.jsonl", base: "HEAD~1", head: "HEAD" }
+});
+const withContext = listObjectives().find((o) => o.id === "safe-deploys");
+assert.equal(withContext.latest.context.base, "HEAD~1", "the run records what it covered");
+assert.equal(withContext.history.length, 3);
+
 fs.rmSync(repo, { recursive: true, force: true });
 console.log("data layer tests passed");

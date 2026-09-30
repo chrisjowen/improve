@@ -6,8 +6,13 @@ import json
 import subprocess
 import time
 import uuid
+import sys
 from pathlib import Path
 from typing import Any
+
+# Importable as runner.build_context as well as runnable as a script, so the
+# sibling module has to be reachable either way.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from redact import redact as redact_text
 

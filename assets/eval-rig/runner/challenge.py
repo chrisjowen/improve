@@ -22,6 +22,9 @@ from pathlib import Path
 
 import yaml
 
+# Runnable as a script and importable as runner.challenge.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from eval_runner import load_yaml, run
 
 MAX_CASES = 16

@@ -133,6 +133,20 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/capture-prompt.mjs"
+            ],
+            "async": true
+          }
+        ]
+      }
     ]
   }
 }

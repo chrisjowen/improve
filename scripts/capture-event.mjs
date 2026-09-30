@@ -23,10 +23,15 @@ try {
   const dir = projectDataDir(root);
   appendJsonl(path.join(dir, "events.jsonl"), eventRecord(eventName, input, root));
 
-  if (eventName === "PostToolUseFailure") {
+  // Tool calls are the opportunity denominator: review cadence should follow
+  // work done, not days elapsed.
+  if (eventName === "PostToolUse" || eventName === "PostToolUseFailure") {
     const stateFile = path.join(dir, "state.json");
     const state = readJson(stateFile, {});
-    state.tool_failures_since_review = (state.tool_failures_since_review || 0) + 1;
+    state.tool_calls_since_review = (state.tool_calls_since_review || 0) + 1;
+    if (eventName === "PostToolUseFailure") {
+      state.tool_failures_since_review = (state.tool_failures_since_review || 0) + 1;
+    }
     state.updated_at = new Date().toISOString();
     writeJsonAtomic(stateFile, state);
   }

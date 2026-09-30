@@ -41,12 +41,16 @@ Recommended initial `improve.json`:
 {
   "schema_version": 1,
   "review": {
-    "every_days": 14,
+    "every_days": 90,
     "every_sessions": 20,
-    "tool_failure_threshold": 3
+    "tool_failure_threshold": 3,
+    "every_tool_calls": 400,
+    "correction_threshold": 5,
+    "repeated_correction_threshold": 2
   },
   "capture": {
-    "enabled": true
+    "enabled": true,
+    "corrections": true
   },
   "background_dreaming": {
     "enabled": false,
@@ -55,5 +59,15 @@ Recommended initial `improve.json`:
   }
 }
 ```
+
+Review cadence is measured in opportunities rather than calendar time wherever
+possible: `every_tool_calls`, `correction_threshold` and
+`repeated_correction_threshold` advance only when work happens, so a repository
+nobody is touching never reports itself overdue. `every_days` remains as a
+long-stop and fires only once a review has actually happened.
+
+`capture.corrections` controls the `UserPromptSubmit` hook that records stated
+corrections. It is the only path that keeps prompt text, and every excerpt
+passes the shared redaction rules before it is written.
 
 Keep background dreaming disabled until the human reviews its command, runtime permissions, cost, data exposure, output location, and stopping conditions.

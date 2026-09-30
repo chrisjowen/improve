@@ -77,6 +77,67 @@ assert.equal(triggered.status, 0, triggered.stderr);
 assert.match(triggered.stdout, /review is due/);
 assert.match(triggered.stdout, /3 captured tool failures/);
 
+// --- corrections -------------------------------------------------------------
+// Tool metadata cannot show that the same correction repeats, which is a trigger
+// the skill documents. A prompt hook supplies it.
+const correction = run("capture-prompt.mjs", [], {
+  session_id: "s3",
+  prompt: "no, use the existing helper instead of a new one"
+});
+assert.equal(correction.status, 0, correction.stderr);
+
+const afterCorrection = JSON.parse(run("status.mjs", [project], {}).stdout);
+assert.equal(afterCorrection.observations.corrections, 1);
+assert.equal(afterCorrection.state.corrections_since_review, 1);
+
+// A question is not a correction and must not be stored.
+run("capture-prompt.mjs", [], { session_id: "s3", prompt: "how do I run the tests?" });
+assert.equal(
+  JSON.parse(run("status.mjs", [project], {}).stdout).observations.corrections,
+  1,
+  "a question must not be captured"
+);
+
+// A credential in a captured prompt must not reach disk.
+run("capture-prompt.mjs", [], {
+  session_id: "s3",
+  prompt: "no, use the token ghp_1234567890abcdefghijklmnopqrstuvwx instead"
+});
+const correctionsFile = path.join(
+  JSON.parse(run("status.mjs", [project], {}).stdout).data_location,
+  "corrections.jsonl"
+);
+const capturedText = fs.readFileSync(correctionsFile, "utf8");
+assert.ok(!capturedText.includes("ghp_1234567890abcdefghijklmnopqrstuvwx"), "the token must be redacted");
+// Which rule fires depends on which match starts first; "token ghp_..." is
+// caught by generic_assignment before github_token sees it. What matters is
+// that a secret rule fired and the value did not reach disk.
+assert.match(capturedText, /REDACTED:secret:/);
+
+// The same correction reworded must be recognised as a repeat, which is what
+// makes "the same correction repeats" a usable trigger.
+for (const phrasing of [
+  "actually you should use the existing helper instead",
+  "no, use the existing helper instead of writing one"
+]) {
+  run("capture-prompt.mjs", [], { session_id: "s4", prompt: phrasing });
+}
+const repeats = JSON.parse(run("status.mjs", [project], {}).stdout);
+assert.ok(repeats.repeated_correction, "a repeated correction is reported");
+// Grouping is by word overlap, so heavy rewording can still split a group.
+// Two of the three phrasings above group; that is enough to fire the trigger.
+assert.ok(repeats.repeated_correction.count >= 2, `expected >= 2, got ${repeats.repeated_correction.count}`);
+assert.ok(
+  repeats.review_due_reasons.some((reason) => /same correction/.test(reason)),
+  "a repeated correction makes a review due"
+);
+
+// --- transcript availability -------------------------------------------------
+// Observed evaluation reads session JSONL, and Claude Code prunes it, so the
+// substrate can disappear silently.
+assert.ok("transcripts" in repeats, "status reports transcript availability");
+assert.equal(typeof repeats.transcripts.count, "number");
+
 // Each repository keeps its own copy of the eval rig, so status has to show when
 // that copy has fallen behind the plugin's.
 const available = fs.readFileSync(

@@ -1,12 +1,16 @@
 {
   "schema_version": 1,
   "review": {
-    "every_days": 14,
+    "every_days": 90,
     "every_sessions": 20,
-    "tool_failure_threshold": 3
+    "tool_failure_threshold": 3,
+    "every_tool_calls": 400,
+    "correction_threshold": 5,
+    "repeated_correction_threshold": 2
   },
   "capture": {
-    "enabled": true
+    "enabled": true,
+    "corrections": true
   },
   "background_dreaming": {
     "enabled": false,

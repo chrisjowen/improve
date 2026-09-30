@@ -12,6 +12,8 @@
  * a sandboxed review pass; these families catch the stated attack shapes.
  */
 
+import { redact } from "../../../../scripts/redact.mjs";
+
 export const SAFETY_FAMILIES = {
   exfiltration: [
     /curl\s+[^\n]*\|\s*(sh|bash|zsh)/i,
@@ -124,6 +126,12 @@ export function lintSkill(body, { name, description, requireGuardrails = false }
 
   if (requireGuardrails && !/##+\s*Guardrails/i.test(body)) {
     findings.push(["guardrails", "proposal carries evidence but the skill declares no Guardrails section"]);
+  }
+
+  // A drafted skill is committed and shared, so a credential in it is published.
+  // The agent read the repository to write this, so it can carry one out.
+  for (const entry of redact(body).redactions) {
+    findings.push(["secret", `${entry.rule} appears in the body (${entry.count})`]);
   }
 
   return findings;

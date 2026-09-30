@@ -9,10 +9,32 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from redact import redact as redact_text
+
 
 def summarize(value: Any) -> dict[str, Any]:
     encoded = json.dumps(value, sort_keys=True, default=str).encode()
     return {"redacted": True, "bytes": len(encoded), "sha256": hashlib.sha256(encoded).hexdigest()}
+
+
+def scrub(value: Any, tally: dict[str, dict]) -> Any:
+    """Redact strings anywhere inside a captured value.
+
+    --include-content is the only way message and tool bodies reach an
+    evaluator, and it used to hand them over verbatim. Structure-only capture
+    was safe by construction; content capture needs the egress rules.
+    """
+    if isinstance(value, str):
+        cleaned, redactions = redact_text(value)
+        for entry in redactions:
+            existing = tally.setdefault(entry["rule"], {**entry, "count": 0})
+            existing["count"] += entry["count"]
+        return cleaned
+    if isinstance(value, list):
+        return [scrub(item, tally) for item in value]
+    if isinstance(value, dict):
+        return {key: scrub(item, tally) for key, item in value.items()}
+    return value
 
 
 def normalize_transcript(path: Path, include_content: bool) -> dict[str, Any]:
@@ -81,7 +103,8 @@ def normalize_transcript(path: Path, include_content: bool) -> dict[str, Any]:
 
     if not include_content:
         redactions.append({"scope": "messages, tool inputs/results, raw events", "reason": "content capture not enabled"})
-    return {
+
+    result = {
         "source": {"format": "claude-code-jsonl", "path": str(path), "malformed_lines": malformed},
         "messages": messages,
         "tool_calls": tool_calls,
@@ -90,6 +113,18 @@ def normalize_transcript(path: Path, include_content: bool) -> dict[str, Any]:
         "redactions": redactions,
         "truncated": False,
     }
+
+    if include_content:
+        tally: dict[str, dict] = {}
+        for key in ("messages", "tool_calls", "agent_calls", "events"):
+            result[key] = scrub(result[key], tally)
+        # Record what fired, so absent evidence is never read as clean evidence.
+        redactions.extend(
+            {"scope": "captured content", "rule": entry["rule"],
+             "category": entry["category"], "count": entry["count"]}
+            for entry in tally.values()
+        )
+    return result
 
 
 def git_changes(root: Path, base: str | None, head: str | None, include_patch: bool) -> dict[str, Any]:

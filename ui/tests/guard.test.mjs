@@ -99,3 +99,15 @@ assert.deepEqual(
 );
 
 console.log("guard tests passed");
+
+// A drafted skill is committed and shared, so a credential in it is published.
+const withSecret = CLEAN + "\n3. Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\n";
+const secretFindings = lintSkill(withSecret, { name: "release-check" });
+assert.ok(secretFindings.some(([f]) => f === "secret"), "a credential in the body must be caught");
+assert.equal(validateDraft({ body: withSecret, name: "release-check" }).ok, false);
+assert.deepEqual(
+  lintSkill(CLEAN, { name: "release-check" }).filter(([f]) => f === "secret"),
+  [],
+  "clean bodies report no secrets"
+);
+console.log("secret-in-skill checks passed");

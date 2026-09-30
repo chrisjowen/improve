@@ -1,0 +1,20 @@
+{
+  "$comment": "Egress rule set, shared by every path that persists captured text. One named regex per secret class; case-insensitivity is declared in flags rather than inline so both the Python and JavaScript consumers can compile the same pattern. The replacement names the rule that fired, so redaction is auditable rather than silent. Over-redaction is the safe side: dropping too much is preferable to leaking. Add a rule here rather than scattering patterns through the code.",
+  "schema_version": 1,
+  "rules": [
+    { "category": "secret", "name": "aws_access_key_id", "pattern": "AKIA[0-9A-Z]{16}" },
+    { "category": "secret", "name": "aws_secret_access_key", "pattern": "aws_secret_access_key[\"'\\s:=]+[A-Za-z0-9/+=]{40}", "flags": "i" },
+    { "category": "secret", "name": "private_key_block", "pattern": "-----BEGIN [A-Z ]*PRIVATE KEY-----" },
+    { "category": "secret", "name": "github_token", "pattern": "gh[posru]_[A-Za-z0-9]{20,}" },
+    { "category": "secret", "name": "slack_token", "pattern": "xox[abprs]-[A-Za-z0-9-]{10,}" },
+    { "category": "secret", "name": "bearer_token", "pattern": "bearer\\s+[A-Za-z0-9._\\-]{20,}", "flags": "i" },
+    { "category": "secret", "name": "anthropic_key", "pattern": "sk-ant-[A-Za-z0-9_\\-]{20,}" },
+    { "category": "secret", "name": "openai_key", "pattern": "sk-[A-Za-z0-9]{32,}" },
+    { "category": "secret", "name": "google_api_key", "pattern": "AIza[0-9A-Za-z_\\-]{35}" },
+    { "category": "secret", "name": "jwt", "pattern": "eyJ[A-Za-z0-9_\\-]{10,}\\.eyJ[A-Za-z0-9_\\-]{10,}\\.[A-Za-z0-9_\\-]{10,}" },
+    { "category": "secret", "name": "generic_assignment", "pattern": "\\b(?:api[_\\-]?key|secret|passwd|password|token|credential)\\b[\"'\\s:=]+[^\\s\"',;]{8,}", "flags": "i" },
+    { "category": "connection", "name": "url_with_credentials", "pattern": "[a-zA-Z][a-zA-Z0-9+.\\-]*://[^\\s/:@]+:[^\\s/@]+@" },
+    { "category": "personal", "name": "email_address", "pattern": "[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}" },
+    { "category": "path", "name": "home_directory", "pattern": "(?:/home/|/Users/|/root/)[^\\s\"'`)\\]]+" }
+  ]
+}

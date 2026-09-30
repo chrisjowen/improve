@@ -3,6 +3,7 @@
   import Diff from "$lib/components/Diff.svelte";
 
   let proposals = $state([]);
+  let dreams = $state([]);
   let loading = $state(true);
   let error = $state(null);
   let openFile = $state(null);
@@ -15,14 +16,45 @@
   async function load() {
     loading = true;
     try {
-      const response = await fetch("/api/proposals");
-      const body = await response.json();
-      proposals = body.proposals ?? [];
-      error = body.error ?? null;
+      const [p, d] = await Promise.all([
+        fetch("/api/proposals").then((r) => r.json()),
+        fetch("/api/dreams").then((r) => r.json())
+      ]);
+      proposals = p.proposals ?? [];
+      dreams = d.dreams ?? [];
+      error = p.error ?? null;
     } catch (cause) {
       error = cause.message;
     } finally {
       loading = false;
+    }
+  }
+
+  async function importFinding(file, index) {
+    busy = `${file}:${index}`;
+    try {
+      const body = await (await fetch(`/api/dreams/${file}/import`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ index })
+      })).json();
+      notice = body.ok
+        ? { text: `Imported as ${body.proposal}. It is a draft with no approval.` }
+        : { bad: true, text: body.error };
+      if (body.ok) await load();
+    } finally {
+      busy = null;
+    }
+  }
+
+  async function dismiss(file) {
+    busy = file;
+    try {
+      const body = await (await fetch(`/api/dreams/${file}/dismiss`, { method: "POST" })).json();
+      notice = body.ok ? { text: `Dismissed ${body.dismissed}.` } : { bad: true, text: body.error };
+      if (body.ok) await load();
+    } finally {
+      busy = null;
     }
   }
 
@@ -250,3 +282,72 @@
     {/if}
   </div>
 {/each}
+
+{#if dreams.length}
+  <div style="margin:28px 0 12px">
+    <h1>Background findings</h1>
+    <p class="muted small" style="margin:4px 0 0">
+      Produced by a read-only background agent. These are untrusted and unreviewed,
+      live outside the repository, and become proposals only when you import one.
+    </p>
+  </div>
+
+  {#each dreams as report (report.file)}
+    <div class="card">
+      <div class="card-header">
+        <h2><code>{report.file}</code></h2>
+        <span class="badge {report.status === 'completed' ? '' : 'badge-warning'}">{report.status}</span>
+        {#if report.cost_usd}<span class="badge">${report.cost_usd.toFixed(3)}</span>{/if}
+      </div>
+
+      {#if report.error}
+        <div class="alert alert-danger">{report.error}</div>
+      {/if}
+
+      {#each report.findings as finding}
+        <div style="padding:12px 0;border-top:1px solid hsl(var(--border))">
+          <div class="spread">
+            <h3>{finding.title}</h3>
+            <span class="badge badge-warning">untrusted</span>
+          </div>
+          {#if finding.hypothesis}<p class="small" style="margin:6px 0">{finding.hypothesis}</p>{/if}
+          {#if finding.intervention}
+            <p class="small muted" style="margin:0 0 6px"><strong>Smallest change:</strong> {finding.intervention}</p>
+          {/if}
+          {#if finding.evidence.length}
+            <ul class="small" style="margin:6px 0">
+              {#each finding.evidence as item}
+                <li><strong>{item.source}</strong> — {item.observation}</li>
+              {/each}
+            </ul>
+          {/if}
+          {#if finding.reasons_to_reject.length}
+            <div class="alert" style="margin:8px 0">
+              <strong class="small">Reasons to reject</strong>
+              <ul class="small" style="margin:6px 0 0">
+                {#each finding.reasons_to_reject as reason}<li>{reason}</li>{/each}
+              </ul>
+            </div>
+          {/if}
+          <div class="row">
+            <button onclick={() => importFinding(report.file, finding.index)}
+                    disabled={busy === `${report.file}:${finding.index}`}>
+              Import as draft proposal
+            </button>
+          </div>
+        </div>
+      {/each}
+
+      {#if report.findings.length === 0}
+        <p class="small muted" style="margin:0">This report contains no findings.</p>
+      {/if}
+
+      <div class="row" style="margin-top:12px;padding-top:12px;border-top:1px solid hsl(var(--border))">
+        <button class="danger" onclick={() => dismiss(report.file)} disabled={busy === report.file}>
+          Dismiss report
+        </button>
+        <span class="small muted">A dream may be deleted without action.</span>
+      </div>
+    </div>
+  {/each}
+{/if}

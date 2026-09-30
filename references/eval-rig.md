@@ -63,6 +63,39 @@ The runner validates and normalizes results. Exceptions, malformed output,
 timeouts, and process failures become runner errors; they never become a zero
 score that looks like a valid evaluator judgment.
 
+## Evaluator sensitivity
+
+A suite that cannot fail is not evidence. The shipped example suite once scored
+1.0 on a repository no agent had ever touched, because every check measured the
+repository rather than the work.
+
+A suite may therefore declare the faults it must detect:
+
+```yaml
+challenge:
+  must_fail:
+    - id: no-agent-involvement
+      description: An empty transcript must not pass.
+      context:
+        transcript: { messages: [], tool_calls: [], agent_calls: [], events: [] }
+    - id: missing-readme
+      description: Deleting the README must fail the readme step.
+      mutate: { delete: [README.md] }
+```
+
+Run it with `runner/challenge.py <suite> --context <context>`. Each case is
+applied over the base context, or to a disposable copy of the tree when it
+declares `mutate`, and the suite is expected to fail. A case that passes is a
+surviving mutant and the challenge fails.
+
+A step that errors or times out grades nothing, so such a case is reported as
+inconclusive rather than as a detection. Without that distinction a missing
+interpreter makes every suite look sensitive: the evaluator crashes, the suite
+fails, and the failure reads as the fault being caught.
+
+This tests sensitivity to declared faults. It does not prove a suite is
+complete, and it is not a sandbox.
+
 ## Registry
 
 Use a checked-in YAML manifest rather than language annotations. A manifest is

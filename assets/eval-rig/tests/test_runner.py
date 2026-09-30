@@ -15,16 +15,46 @@ from evaluators.llm_judge import evaluate as evaluate_judge
 
 
 class EvalRigTest(unittest.TestCase):
-    def test_example_suite(self) -> None:
-        context = json.loads((ROOT / "fixtures/context.json").read_text())
-        context["project_root"] = str(ROOT)
-        context["changes"]["files"] = [{"path": "README.md", "status": "modified"}]
+    def _run_example(self, context: dict) -> dict:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "context.json"
             path.write_text(json.dumps(context))
-            report = run(ROOT / "suites/example.yaml", path)
-        self.assertTrue(report["success"])
+            return run(ROOT / "suites/example.yaml", path)
+
+    def _good_context(self) -> dict:
+        context = json.loads((ROOT / "fixtures/context.json").read_text())
+        context["project_root"] = str(ROOT)
+        context["changes"]["files"] = [
+            {"path": "README.md", "status": "modified"},
+            {"path": "tests/test_runner.py", "status": "modified"},
+        ]
+        return context
+
+    def test_example_suite(self) -> None:
+        report = self._run_example(self._good_context())
+        self.assertTrue(report["success"], report)
         self.assertEqual(report["score"], 1.0)
+
+    def test_example_suite_fails_without_agent_involvement(self) -> None:
+        """The suite must be incapable of passing on a repository nobody worked in.
+
+        The previous version of this suite scored 1.0 on an untouched
+        repository, which made its passing score meaningless.
+        """
+        context = self._good_context()
+        context["transcript"] = {
+            "messages": [], "tool_calls": [], "agent_calls": [], "events": []
+        }
+        report = self._run_example(context)
+        self.assertFalse(report["success"], "an empty transcript must not pass")
+
+    def test_example_suite_fails_without_verification(self) -> None:
+        context = self._good_context()
+        context["transcript"]["tool_calls"] = [
+            call for call in context["transcript"]["tool_calls"] if call["name"] != "Bash"
+        ]
+        report = self._run_example(context)
+        self.assertFalse(report["success"], "unverified work must not pass")
 
     def test_rejects_invalid_score(self) -> None:
         with self.assertRaisesRegex(ValueError, "between 0 and 1"):

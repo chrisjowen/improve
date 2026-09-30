@@ -3,39 +3,147 @@
   "$id": "https://improve.local/schemas/evaluation-suite-v1.json",
   "title": "EvaluationSuite",
   "type": "object",
-  "required": ["version", "id", "objective", "registries", "steps", "aggregation"],
+  "required": [
+    "version",
+    "id",
+    "objective",
+    "registries",
+    "steps",
+    "aggregation"
+  ],
   "properties": {
-    "version": { "const": 1 },
-    "id": { "type": "string", "minLength": 1 },
-    "objective": { "$ref": "#/$defs/objective" },
-    "inputs": { "type": "object" },
-    "registries": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "$ref": "#/$defs/objective"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "registries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
     "steps": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "evaluator"],
+        "required": [
+          "id",
+          "evaluator"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "evaluator": { "type": "string" },
-          "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
-          "weight": { "type": "number", "exclusiveMinimum": 0 },
-          "required": { "type": "boolean" },
-          "require_success": { "type": "boolean" },
-          "timeout_ms": { "type": "integer", "minimum": 1 },
-          "metadata": { "type": "object" }
+          "id": {
+            "type": "string"
+          },
+          "evaluator": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "weight": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "require_success": {
+            "type": "boolean"
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "metadata": {
+            "type": "object"
+          }
         },
         "additionalProperties": false
       }
     },
     "aggregation": {
       "type": "object",
-      "required": ["threshold"],
+      "required": [
+        "threshold"
+      ],
       "properties": {
-        "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
-        "require_all_required": { "type": "boolean" },
-        "fail_fast": { "type": "boolean" }
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "require_all_required": {
+          "type": "boolean"
+        },
+        "fail_fast": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "challenge": {
+      "type": "object",
+      "description": "Cases the suite must fail. A surviving case means the suite cannot detect a fault it should.",
+      "required": [
+        "must_fail"
+      ],
+      "properties": {
+        "must_fail": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "description"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "context": {
+                "type": "object",
+                "description": "Context fragment merged over the base context."
+              },
+              "mutate": {
+                "type": "object",
+                "description": "Filesystem mutations applied in a disposable copy.",
+                "properties": {
+                  "delete": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "write": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     }
@@ -43,12 +151,27 @@
   "$defs": {
     "objective": {
       "type": "object",
-      "required": ["id", "description", "success_criteria"],
+      "required": [
+        "id",
+        "description",
+        "success_criteria"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "description": { "type": "string" },
-        "baseline": { "type": "object" },
-        "success_criteria": { "type": "array", "items": { "type": "string" } }
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "baseline": {
+          "type": "object"
+        },
+        "success_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": true
     }

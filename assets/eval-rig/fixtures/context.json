@@ -1,27 +1,75 @@
 {
-  "schema_version": 1,
-  "project_root": "..",
-  "task": {
-    "id": "example",
-    "prompts": ["Verify the repository after the candidate change."]
-  },
+  "artifacts": [],
   "changes": {
     "base_revision": null,
-    "head_revision": null,
-    "files": []
+    "files": [],
+    "head_revision": null
+  },
+  "metadata": {},
+  "project_root": "..",
+  "run": {
+    "attempt": 1,
+    "id": "example-run"
+  },
+  "schema_version": 1,
+  "task": {
+    "id": "example",
+    "prompts": [
+      "Verify the repository after the candidate change."
+    ]
   },
   "transcript": {
-    "messages": [],
-    "tool_calls": [],
     "agent_calls": [],
     "events": [],
+    "messages": [
+      {
+        "id": "m1",
+        "role": "assistant",
+        "timestamp": "2026-09-30T10:00:00Z"
+      },
+      {
+        "id": "m2",
+        "role": "assistant",
+        "timestamp": "2026-09-30T10:01:00Z"
+      },
+      {
+        "id": "m3",
+        "role": "assistant",
+        "timestamp": "2026-09-30T10:02:00Z"
+      }
+    ],
     "redactions": [],
+    "source": {
+      "format": "claude-code-jsonl",
+      "malformed_lines": 0,
+      "path": "fixtures/session.jsonl"
+    },
+    "tool_calls": [
+      {
+        "id": "t1",
+        "input": {
+          "file_path": "README.md"
+        },
+        "message_id": "m1",
+        "name": "Read"
+      },
+      {
+        "id": "t2",
+        "input": {
+          "file_path": "README.md"
+        },
+        "message_id": "m2",
+        "name": "Write"
+      },
+      {
+        "id": "t3",
+        "input": {
+          "command": "python3 -m pytest -q"
+        },
+        "message_id": "m3",
+        "name": "Bash"
+      }
+    ],
     "truncated": false
-  },
-  "run": {
-    "id": "example-run",
-    "attempt": 1
-  },
-  "artifacts": [],
-  "metadata": {}
+  }
 }

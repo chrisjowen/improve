@@ -1,25 +1,39 @@
+# A harness-competence suite must be incapable of scoring well without agent
+# involvement. The previous version of this file checked that a README existed
+# and that changed files carried no merge markers, and so scored 1.0 on a
+# repository no agent had ever touched. Every step below needs transcript or
+# diff evidence, and the challenge block enforces that property.
 version: 1
-id: repository-readiness
+id: agent-work-quality
 objective:
-  id: maintainable-change
-  description: Agent changes leave the repository verifiable and documented.
+  id: verified-change
+  description: An agent's change is grounded in the repository and verified before it is offered.
   baseline:
     suite_score: null
   success_criteria:
-    - The repository has a README.
-    - Changed source files do not contain unresolved merge markers.
+    - The agent read relevant files before editing them.
+    - The agent ran a verification command rather than asserting success.
+    - Source changes arrive with test changes.
+    - The working tree is left without unresolved conflict markers.
 inputs:
   prompts:
-    - Verify the repository after the candidate change.
+    - Assess the quality of the agent's work in this session.
 registries:
   - ../registry.yaml
 steps:
-  - id: readme-present
-    evaluator: core.file-exists
+  - id: grounded-and-verified
+    evaluator: core.transcript-evidence
     threshold: 1.0
     required: true
     metadata:
-      paths: [README.md]
+      require_read_before_edit: true
+      require_verification: true
+      require_test_alongside_source: true
+      forbid_unresolved_errors: true
+      max_errors: 0
+
+  # Repository hygiene is still worth checking, but it is not the measure and
+  # cannot carry the suite on its own.
   - id: no-merge-markers
     evaluator: core.grep
     threshold: 1.0
@@ -29,21 +43,36 @@ steps:
       pattern: "^(<<<<<<<|=======|>>>>>>>)"
       regex: true
       should_match: false
-  - id: python-contract
-    evaluator: example.python
-    threshold: 1.0
-    required: true
-  - id: typescript-contract
-    evaluator: example.typescript
-    threshold: 1.0
-    required: true
-  - id: command-contract
-    evaluator: core.command
-    threshold: 1.0
-    required: true
-    metadata:
-      argv: [python3, "-c", "print('evaluation command passed')"]
-      expected_exit_codes: [0]
+
+challenge:
+  # Cases this suite must fail. A surviving mutant means the suite cannot detect
+  # a fault it is supposed to detect, which makes its passing score worthless.
+  must_fail:
+    - id: no-agent-involvement
+      description: An empty transcript must not pass, however clean the repository is.
+      context:
+        transcript: { messages: [], tool_calls: [], agent_calls: [], events: [] }
+    - id: edit-without-reading
+      description: Editing before reading must not pass.
+      context:
+        transcript:
+          messages: [{ id: m1, role: assistant }]
+          tool_calls:
+            - { id: t1, name: Write, input: { file_path: src/a.js } }
+            - { id: t2, name: Bash, input: { command: npm test } }
+          agent_calls: []
+          events: []
+    - id: no-verification
+      description: Work with no verification command must not pass.
+      context:
+        transcript:
+          messages: [{ id: m1, role: assistant }]
+          tool_calls:
+            - { id: t1, name: Read, input: { file_path: src/a.js } }
+            - { id: t2, name: Write, input: { file_path: src/a.js } }
+          agent_calls: []
+          events: []
+
 aggregation:
   threshold: 1.0
   require_all_required: true

@@ -14,6 +14,13 @@ evaluators:
     version: 1.0.0
     description: Match configured text or regular expressions in repository files.
     trust: deterministic
+  - name: core.transcript-evidence
+    language: javascript
+    module: evaluators/transcript-evidence.mjs
+    export: evaluate
+    version: 1.0.0
+    description: Grade the agent's work from transcript and diff evidence; fails on an empty transcript.
+    trust: deterministic
   - name: core.command
     language: python
     module: evaluators/command.py

@@ -41,6 +41,8 @@ Do not install a database, vector store, graph, container, MCP server, or multi-
 
 Produce a read-only assessment. Include strengths so working mechanisms are not replaced. Rank opportunities by expected outcome improvement divided by implementation and operating cost. Mark uncertainty and missing evidence.
 
+Every opportunity is a harness change. List codebase defects you find in a separate "Found in the code" section, as plain facts the human may want to fix. Don't rank them as opportunities.
+
 ## `propose`
 
 Research alternatives when the choice is current, niche, costly, or material. Compare the candidate against doing nothing and against a smaller intervention. Define the evaluation before requesting approval.

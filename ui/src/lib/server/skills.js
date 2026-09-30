@@ -66,6 +66,10 @@ Requirements, each of which is checked mechanically before the draft can be used
     and must name what it came from. Do not invent guardrails from general good
     practice, and do not restate a guardrail the evidence does not support.
 
+Write the body plainly. Use short sentences, one idea each. Use plain words
+("use", not "leverage" or "utilize"). No em dashes. Use imperative steps that
+name the command, file, or check, and no sentence about how something feels.
+
 You have read-only access and hold no write tools. Inspect the repository to
 ground the procedure in what is actually here.`;
 

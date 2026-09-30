@@ -77,4 +77,28 @@ assert.equal(triggered.status, 0, triggered.stderr);
 assert.match(triggered.stdout, /review is due/);
 assert.match(triggered.stdout, /3 captured tool failures/);
 
+// Each repository keeps its own copy of the eval rig, so status has to show when
+// that copy has fallen behind the plugin's.
+const available = fs.readFileSync(
+  path.join(pluginRoot, "assets", "eval-rig", "VERSION"), "utf8"
+).trim();
+
+const noRig = JSON.parse(run("status.mjs", [project], {}).stdout);
+assert.equal(noRig.eval_rig.installed, null, "no installed copy yet");
+assert.equal(noRig.eval_rig.available, available);
+assert.equal(noRig.eval_rig.drifted, false, "absent is not drifted");
+
+const evalsDir = path.join(project, ".harness", "evals");
+fs.mkdirSync(evalsDir, { recursive: true });
+
+fs.writeFileSync(path.join(evalsDir, "VERSION"), `${available}\n`);
+const current = JSON.parse(run("status.mjs", [project], {}).stdout);
+assert.equal(current.eval_rig.installed, available);
+assert.equal(current.eval_rig.drifted, false, "matching versions are not drifted");
+
+fs.writeFileSync(path.join(evalsDir, "VERSION"), "0.0.1\n");
+const stale = JSON.parse(run("status.mjs", [project], {}).stdout);
+assert.equal(stale.eval_rig.installed, "0.0.1");
+assert.equal(stale.eval_rig.drifted, true, "an older copy must be reported as drifted");
+
 console.log("hook tests passed");

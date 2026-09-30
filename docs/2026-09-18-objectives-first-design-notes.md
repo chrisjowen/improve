@@ -416,9 +416,33 @@ was added: three captured tool failures must still produce the nudge. A new
 All suites pass: `grep.test.mjs`, `tests/hooks.test.mjs`,
 `assets/eval-rig/tests/test_runner.py` (4 tests), `claude plugin validate . --strict`.
 
-Not fixed, deliberately:
+### D4 decided — keep per-repo copies, make drift visible (2026-09-22)
 
-- **D4** (no central rig) is a governance trade-off needing a decision, not a patch.
+Decision: **keep the copy-per-repo model.** The containment check in
+`load_registry` is a real sandbox — a suite is data, an evaluator is executable
+code, and refusing to load evaluators from outside the repo under evaluation is
+worth more than a shared rig. The cost is that copies silently age.
+
+So drift is now reported rather than removed:
+
+- `assets/eval-rig/VERSION` holds the rig version (`1.0.0`).
+- `eval_runner.py` stamps `rig_version` into every report, so a score always
+  records which copy produced it. Two repositories disagreeing about an objective
+  can now be told apart from one repository running an older evaluator.
+- `status.mjs` gains `eval_rig: {installed, available, drifted}`, comparing the
+  repository's `.harness/evals/VERSION` against the plugin's copy.
+
+Verified on a fresh `pallets/click` clone with the rig copied in: a matching copy
+reports `drifted: false`; a copy pinned to `0.9.0` reports
+`{installed: "0.9.0", available: "1.0.0", drifted: true}`, still runs, and stamps
+`rig_version: 0.9.0` into its own report. An absent copy is `installed: null,
+drifted: false` — never-installed is not drift, the same distinction D1 fixed.
+
+Bumping `VERSION` is now a manual step when an evaluator changes. That is the
+weak point of this approach and is accepted for now.
+
+Still not fixed, deliberately:
+
 - **D5** (partial context vs schema) is cosmetic while the runner completes the
   context; it should be settled as part of the objectives redesign, which will change
   the context shape anyway.

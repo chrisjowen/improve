@@ -11,6 +11,29 @@ import {
 
 const root = projectRoot({ cwd: process.argv[2] });
 
+function readVersion(file) {
+  try {
+    return fs.readFileSync(file, "utf8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The rig is copied into each repository rather than shared, so a copy silently
+// ages as the plugin moves on. Report both versions and let the human decide.
+function evalRig() {
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT
+    ? path.resolve(process.env.CLAUDE_PLUGIN_ROOT)
+    : path.resolve(import.meta.dirname, "..");
+  const available = readVersion(path.join(pluginRoot, "assets", "eval-rig", "VERSION"));
+  const installed = readVersion(path.join(root, ".harness", "evals", "VERSION"));
+  return {
+    installed: installed ?? null,
+    available: available ?? null,
+    drifted: Boolean(installed && available && installed !== available)
+  };
+}
+
 try {
   const config = loadConfig(root);
   const dir = projectDataDir(root);
@@ -34,6 +57,7 @@ try {
     schema_version: 1,
     project: root,
     harness_initialized: fs.existsSync(path.join(root, ".harness")),
+    eval_rig: evalRig(),
     review_due_reasons: dueReasons(config, state),
     state,
     observations: {

@@ -28,6 +28,20 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def rig_version() -> str:
+    """Version of the rig that produced a result.
+
+    Every repository holds its own copy of the rig, so a result has to record
+    which copy produced it. Without this, two repositories reporting different
+    scores for the same objective are indistinguishable from one repository
+    running an older evaluator.
+    """
+    try:
+        return (ROOT.parent / "VERSION").read_text(encoding="utf-8").strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
 def inside(root: Path, path: Path) -> bool:
     try:
         path.relative_to(root)
@@ -209,6 +223,7 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
         passed = passed and required_passed
     return {
         "protocol_version": 1,
+        "rig_version": rig_version(),
         "suite": {"id": suite["id"], "digest": digest(suite_path)},
         "registries": registry_digests,
         "context_digest": digest(context_path),

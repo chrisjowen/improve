@@ -111,9 +111,53 @@ export function recordDecision(proposal, decision) {
     rationale: decision.rationale ?? null,
     decided_at: stamp,
     decided_by: decision.decided_by ?? "ui",
-    applied_files: decision.applied_files ?? []
+    applied_files: decision.applied_files ?? [],
+    // Binds the approval to the exact bytes that were reviewed.
+    digest: decision.digest ?? null,
+    idempotency_key: decision.idempotency_key ?? null,
+    archived: decision.archived ?? null
   }), { encoding: "utf8", mode: 0o600 });
   return path.join(".harness", "decisions", name);
+}
+
+/**
+ * Idempotency keys for decisions.
+ *
+ * A double-clicked Apply must write one file and one decision. The key maps to
+ * the outcome of the first attempt, which is returned unchanged on a replay.
+ */
+function keyFile() {
+  return path.join(decisionsDir(), ".keys.json");
+}
+
+function readKeys() {
+  const text = readTextSafe(keyFile());
+  if (text === undefined) return {};
+  try {
+    const value = JSON.parse(text);
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+export function lookupKey(key) {
+  return readKeys()[String(key)];
+}
+
+export function claimKey(key, outcome) {
+  const keys = readKeys();
+  keys[String(key)] = outcome;
+  const file = keyFile();
+  ensureDir(path.dirname(file));
+  fs.writeFileSync(file, `${JSON.stringify(keys, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  return outcome;
+}
+
+export function releaseKey(key) {
+  const keys = readKeys();
+  delete keys[String(key)];
+  fs.writeFileSync(keyFile(), `${JSON.stringify(keys, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 
 export function updateStatus(file, status, extra = {}) {

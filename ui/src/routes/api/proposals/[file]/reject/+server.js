@@ -3,5 +3,8 @@ import { rejectProposal } from "$lib/server/skills.js";
 
 export const POST = async ({ params, request }) => {
   const body = await request.json().catch(() => ({}));
-  return guardAsync(() => rejectProposal(params.file, { rationale: body.rationale }));
+  return guardAsync(() => rejectProposal(params.file, {
+    rationale: body.rationale,
+    idempotencyKey: body.idempotency_key
+  }));
 };

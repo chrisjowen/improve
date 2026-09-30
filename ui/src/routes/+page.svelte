@@ -10,6 +10,7 @@
   let busy = $state(null);
   let rationale = $state("");
   let notice = $state(null);
+  let confirmUnmarked = $state(false);
 
   async function load() {
     loading = true;
@@ -60,22 +61,40 @@
   async function openDiff(file) {
     openFile = file;
     diff = null;
+    confirmUnmarked = false;
     const body = await (await fetch(`/api/proposals/${file}/diff`)).json();
     diff = body.ok ? body : { error: body.error };
   }
 
-  async function apply(file) {
+  async function apply(file, { allowUnmarked = false } = {}) {
     busy = file;
     try {
       const body = await (await fetch(`/api/proposals/${file}/apply`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rationale })
+        body: JSON.stringify({
+          rationale,
+          // Pins the write to the bytes shown in the diff.
+          digest: diff?.digest,
+          idempotency_key: `${file}:${diff?.digest}`,
+          allow_unmarked_overwrite: allowUnmarked
+        })
       })).json();
-      notice = body.ok
-        ? { text: `Wrote ${body.written}` }
-        : { bad: true, text: body.error };
-      if (body.ok) { openFile = null; diff = null; rationale = ""; await load(); }
+      if (body.ok) {
+        notice = {
+          text: body.archived
+            ? `Wrote ${body.written}; previous version archived to ${body.archived}`
+            : `Wrote ${body.written}`
+        };
+        openFile = null; diff = null; rationale = "";
+        await load();
+      } else if (body.requires === "allow_unmarked_overwrite") {
+        // The target has no provenance, so it is assumed to be hand-written.
+        confirmUnmarked = true;
+        notice = { bad: true, text: body.error };
+      } else {
+        notice = { bad: true, text: body.error };
+      }
     } finally {
       busy = null;
     }
@@ -87,7 +106,7 @@
       const body = await (await fetch(`/api/proposals/${file}/reject`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rationale })
+        body: JSON.stringify({ rationale, idempotency_key: `reject:${file}` })
       })).json();
       notice = body.ok ? { text: "Recorded as rejected." } : { bad: true, text: body.error };
       if (body.ok) { openFile = null; diff = null; rationale = ""; await load(); }
@@ -180,8 +199,33 @@
         {:else}
           <div class="spread" style="margin-bottom:10px">
             <h3><code>{diff.target}</code></h3>
-            <span class="badge">{diff.exists ? "overwrites existing" : "new file"}</span>
+            <span class="row" style="gap:6px">
+              <span class="badge">{diff.exists ? "overwrites existing" : "new file"}</span>
+              {#if diff.exists && diff.plugin_authored === false}
+                <span class="badge badge-warning">not authored by improve</span>
+              {/if}
+              {#if diff.sidecar}
+                <span class="badge" title="times the model invoked this skill">used {diff.sidecar.use}</span>
+              {/if}
+            </span>
           </div>
+
+          {#if diff.findings?.length}
+            <div class="alert {diff.blocked ? 'alert-danger' : ''}" style="margin-bottom:10px">
+              <strong>{diff.blocked ? "This draft cannot be applied." : "Findings."}</strong>
+              <ul class="small" style="margin:6px 0 0">
+                {#each diff.findings as [family, detail]}
+                  <li><code>{family}</code> — {detail}</li>
+                {/each}
+              </ul>
+              {#if diff.blocked}
+                <p class="small" style="margin:6px 0 0">
+                  A skill body becomes a standing instruction, so a safety match blocks the write.
+                </p>
+              {/if}
+            </div>
+          {/if}
+
           <Diff current={diff.current} proposed={diff.proposed} />
           <div style="margin-top:12px">
             <label for="why-{proposal.file}">Rationale (recorded with the decision)</label>
@@ -189,10 +233,17 @@
                       placeholder="Why this is or isn't the right change"></textarea>
           </div>
           <div class="row" style="margin-top:10px">
-            <button class="primary" onclick={() => apply(proposal.file)} disabled={busy === proposal.file}>
+            <button class="primary" onclick={() => apply(proposal.file)}
+                    disabled={busy === proposal.file || diff.blocked}>
               {busy === proposal.file ? "Applying…" : "Apply"}
             </button>
-            <button onclick={() => { openFile = null; diff = null; }}>Cancel</button>
+            {#if confirmUnmarked}
+              <button class="danger" onclick={() => apply(proposal.file, { allowUnmarked: true })}
+                      disabled={busy === proposal.file}>
+                Overwrite the hand-written file
+              </button>
+            {/if}
+            <button onclick={() => { openFile = null; diff = null; confirmUnmarked = false; }}>Cancel</button>
           </div>
         {/if}
       </div>

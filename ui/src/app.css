@@ -1,0 +1,144 @@
+/* shadcn's design tokens, hand-rolled. The component set here is small enough
+   that pulling in Tailwind plus the generator costs more than it saves. */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 4%;
+  --card: 0 0% 100%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --border: 240 6% 90%;
+  --primary: 240 6% 10%;
+  --primary-foreground: 0 0% 98%;
+  --accent: 240 5% 96%;
+  --destructive: 0 72% 51%;
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --foreground: 0 0% 98%;
+  --card: 240 6% 7%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 240 5% 65%;
+  --border: 240 4% 16%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 240 6% 10%;
+  --accent: 240 4% 14%;
+  --destructive: 0 63% 50%;
+  --success: 142 69% 58%;
+  --warning: 38 92% 60%;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+h1 { font-size: 1.25rem; }
+h2 { font-size: 1rem; }
+h3 { font-size: 0.875rem; }
+a { color: inherit; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+.shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 64px; }
+
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 20px;
+  padding: 14px 24px; margin-bottom: 28px;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.85);
+  backdrop-filter: blur(8px);
+}
+.topbar nav { display: flex; gap: 4px; margin-left: auto; }
+.topbar nav a {
+  padding: 6px 12px; border-radius: var(--radius);
+  text-decoration: none; color: hsl(var(--muted-foreground)); font-weight: 500;
+}
+.topbar nav a:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.topbar nav a[aria-current="page"] { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+
+.card {
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  padding: 18px;
+}
+.card + .card { margin-top: 14px; }
+.card-header { display: flex; align-items: start; gap: 12px; margin-bottom: 10px; }
+.card-header h2 { flex: 1; min-width: 0; }
+
+.grid { display: grid; gap: 14px; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+.muted { color: hsl(var(--muted-foreground)); }
+.small { font-size: 12px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.stack { display: flex; flex-direction: column; gap: 6px; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.badge-success { color: hsl(var(--success)); border-color: hsl(var(--success) / 0.35); background: hsl(var(--success) / 0.1); }
+.badge-danger  { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.35); background: hsl(var(--destructive) / 0.1); }
+.badge-warning { color: hsl(var(--warning)); border-color: hsl(var(--warning) / 0.35); background: hsl(var(--warning) / 0.1); }
+
+button, .button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 14px;
+  border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+  background: hsl(var(--card)); color: hsl(var(--foreground));
+  font: inherit; font-weight: 500; cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+button:hover:not(:disabled) { background: hsl(var(--accent)); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+button.primary:hover:not(:disabled) { opacity: 0.9; background: hsl(var(--primary)); }
+button.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.4); }
+
+input, select, textarea {
+  height: 34px; padding: 0 10px;
+  border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+  background: hsl(var(--background)); color: hsl(var(--foreground));
+  font: inherit; width: 100%;
+}
+textarea { height: auto; padding: 8px 10px; resize: vertical; }
+label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 5px; color: hsl(var(--muted-foreground)); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid hsl(var(--border)); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: hsl(var(--muted-foreground)); font-weight: 600; }
+tbody tr:last-child td { border-bottom: 0; }
+
+pre.block {
+  margin: 0; padding: 12px; overflow: auto; max-height: 420px;
+  background: hsl(var(--muted)); border-radius: var(--radius);
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.diff { display: grid; grid-template-columns: 1fr; gap: 0; border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; }
+.diff-line { display: grid; grid-template-columns: 44px 1fr; font-family: ui-monospace, monospace; font-size: 12px; }
+.diff-line > span:first-child { padding: 1px 8px; text-align: right; color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.5); user-select: none; }
+.diff-line > span:last-child { padding: 1px 10px; white-space: pre-wrap; word-break: break-word; }
+.diff-add { background: hsl(var(--success) / 0.12); }
+.diff-del { background: hsl(var(--destructive) / 0.12); }
+
+.empty { padding: 36px 18px; text-align: center; color: hsl(var(--muted-foreground)); }
+.alert { padding: 10px 12px; border-radius: var(--radius); border: 1px solid hsl(var(--warning) / 0.4); background: hsl(var(--warning) / 0.1); font-size: 13px; }
+.alert-danger { border-color: hsl(var(--destructive) / 0.4); background: hsl(var(--destructive) / 0.1); }
+.stat { font-size: 1.75rem; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }

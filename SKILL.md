@@ -175,6 +175,31 @@ are explicit. Every evaluator must keep the single portable boundary
 `evaluate(context) -> result`; configuration belongs in `context.step.metadata`,
 while thresholds and aggregation remain runner concerns.
 
+## Review surface
+
+A local UI is bundled at `ui/` for reviewing proposals, inspecting objective
+scores, and running evaluations. It reads `.harness/` and writes only when the
+human applies something.
+
+Start it, or learn why it cannot start, with:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/ui.mjs"
+```
+
+The plugin ships without `node_modules`. If dependencies are absent the command
+prints the exact install steps rather than failing; run them, then start it
+again. Serve a repository other than the plugin's own with
+`IMPROVE_PROJECT_DIR`.
+
+Offer the UI when the human is reviewing several proposals or comparing scores
+over time. Do not require it: every mode works without it, and an empty UI means
+no proposals exist yet.
+
+Skill drafting from a proposal runs a background agent with edit tools denied,
+stores the draft on the proposal, and writes nothing until the human applies the
+reviewed diff. This preserves invariants 5 and 10 together.
+
 ## Periodic evolution
 
 Discuss a harness review when one or more of these triggers occurs:

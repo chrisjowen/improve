@@ -1,0 +1,4 @@
+arm_pid=1	watcher_pid=2	origin=started	started_at=1790022000	ended_at=1790022500	exit_code=0	signal=none	reason=actionable-stale	beacon_age=1
+arm_pid=3	watcher_pid=4	origin=started	started_at=1790022500	ended_at=1790024300	exit_code=0	signal=none	reason=actionable-stale	beacon_age=1
+arm_pid=5	watcher_pid=6	origin=started	started_at=1790024300	ended_at=1790031000	exit_code=0	signal=none	reason=actionable-signal	beacon_age=1
+arm_pid=7	watcher_pid=8	origin=started	started_at=1790031000	ended_at=1790031400	exit_code=0	signal=none	reason=actionable-stale	beacon_age=1

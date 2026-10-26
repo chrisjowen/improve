@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Count a Firstmate home's blockers, decisions, stale and stuck workers, and relaunches properly. The importer reads finished tasks' status lines from the fleet ledger, folds decisions the way Firstmate does, and reads the watcher's logs and markers.
+- Label a Firstmate home's `data/captain.md` and other captain-private files as captain-private, not application code.
+
 ## 0.2.0
 
 - Add a Firstmate adapter. Proposals can be studied from a Firstmate home and routed to its captain.

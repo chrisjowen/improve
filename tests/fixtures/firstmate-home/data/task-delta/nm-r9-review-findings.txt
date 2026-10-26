@@ -1,0 +1,6 @@
+id: d-201
+severity: medium
+file: src/config.ts
+line: 12
+description: Dropping the fallback for a missing config file changes startup; should a missing config file be an error or use defaults?
+authority: ask-user

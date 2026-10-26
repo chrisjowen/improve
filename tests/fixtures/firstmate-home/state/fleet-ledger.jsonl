@@ -2,3 +2,23 @@
 {"v":1,"ts":1790005100,"event":"task.pr_ready","task":"task-alpha","pr":"https://github.com/example/widget/pull/1"}
 {"v":1,"ts":1790009000,"event":"task.merged","task":"task-alpha","via":"pr","pr":"https://github.com/example/widget/pull/1"}
 not json
+{"v":1,"ts":1790030000,"event":"task.dispatched","task":"task-delta","kind":"ship","project":"widget","harness":"claude","model":null}
+{"v":1,"ts":1790030010,"event":"task.status","task":"task-delta","state":"working","key":null,"text":" setup done on fm/task-delta"}
+{"v":1,"ts":1790030500,"event":"task.status","task":"task-delta","state":"needs-decision","key":"nm-r9-review","text":" ask-user findings=d-201 file=data/task-delta/nm-r9-review-findings.txt"}
+{"v":1,"ts":1790030500,"event":"task.status","task":"task-delta","state":"needs-decision","key":"nm-r9-review","text":" ask-user findings=d-201 file=data/task-delta/nm-r9-review-findings.txt"}
+{"v":1,"ts":1790030800,"event":"task.status","task":"task-delta","state":"resolved","key":"nm-r9-review","text":" answered: Decision for key nm-r9-review: d-201 FIX, keep the fallback"}
+{"v":1,"ts":1790031000,"event":"task.status","task":"task-delta","state":"blocked","key":null,"text":" GitHub refuses the push: token lacks the workflow scope"}
+{"v":1,"ts":1790031100,"event":"task.status","task":"task-delta","state":"resolved","key":"other-key","text":" a keyed close never closes a keyless blocker"}
+{"v":1,"ts":1790031300,"event":"task.status","task":"task-delta","state":"resolved","key":null,"text":" scope added; push went through"}
+{"v":1,"ts":1790031400,"event":"task.status","task":"task-delta","state":"needs-decision","key":"board-review","text":" prototype live; review it"}
+{"v":1,"ts":1790031500,"event":"task.status","task":"task-delta","state":"needs-decision","key":"board-review","text":" prototype revised; review it again"}
+{"v":1,"ts":1790031600,"event":"task.status","task":"task-delta","state":"captain-held","key":"board-review","text":" held for the captain's review"}
+{"v":1,"ts":1790031700,"event":"task.status","task":"task-delta","state":"needs-decision","key":"readme-scope","text":" should the README list the beta flag?"}
+{"v":1,"ts":1790031800,"event":"task.status","task":"task-delta","state":"working","key":null,"text":" recovered after relaunch; continuing from the progress note"}
+{"v":1,"ts":1790032000,"event":"task.status","task":"task-delta","state":"done","key":null,"text":" PR https://github.com/example/widget/pull/4 checks green"}
+{"v":1,"ts":1790032100,"event":"task.merged","task":"task-delta","via":"pr","pr":"https://github.com/example/widget/pull/4"}
+{"v":1,"ts":1790032200,"event":"task.cleaned_up","task":"task-delta"}
+{"v":1,"ts":1790040000,"event":"task.dispatched","task":"task-epsilon","kind":"ship","project":"widget","harness":"kimi","model":null}
+{"v":1,"ts":1790040060,"event":"task.status","task":"task-epsilon","state":"failed","key":null,"text":" kimi brief pointer delivery was not confirmed"}
+{"v":1,"ts":1790040100,"event":"task.cleaned_up","task":"task-epsilon"}
+{"v":1,"ts":1790022100,"event":"task.status","task":"task-gamma","state":"needs-decision","key":"api-shape","text":" REST or GraphQL for the new endpoint? token=fixturevalue123 appears in the log"}

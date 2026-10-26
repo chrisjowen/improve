@@ -9,7 +9,9 @@ import {
   foldDecisions,
   importEvidence,
   parseFindings,
-  parseStatusLine
+  parseStatusLine,
+  taskHistory,
+  windowTask
 } from "../adapters/firstmate/import.mjs";
 import { inventory } from "../adapters/firstmate/inventory.mjs";
 
@@ -69,14 +71,52 @@ assert.deepEqual(parseStatusLine("needs-decision [at=12] [key=api-shape]: REST o
 assert.deepEqual(parseStatusLine("needs-decision: [key=old-style] summary"),
   { verb: "needs-decision", at: null, key: "old-style", text: "summary" });
 assert.equal(parseStatusLine("hello there: not a status line"), undefined);
-// A keyed resolved closes its own opener; a bare one closes the newest.
+// A time tag can hold colons, and a correlation token can follow the verb.
+assert.deepEqual(parseStatusLine("blocked [at=10:30]: no network"),
+  { verb: "blocked", at: null, key: null, text: "no network" });
+assert.deepEqual(parseStatusLine("resolved corr=0123456789abcdef [key=k] [at=7]: answered: yes"),
+  { verb: "resolved", at: 7, key: "k", text: "answered: yes" });
+// Folded as bin/fm-classify-lib.sh folds: a keyed resolved closes its own
+// opener, and a bare one closes only a keyless one.
 const folded = foldDecisions([
   { verb: "needs-decision", key: "a", at: 1, text: "A?" },
   { verb: "blocked", key: null, at: 2, text: "stuck" },
-  { verb: "resolved", key: "a", at: 3, text: "yes" }
+  { verb: "resolved", key: "a", at: 3, text: "answered: yes" },
+  { verb: "needs-decision", key: "b", at: 4, text: "B?" },
+  { verb: "resolved", key: null, at: 5, text: "unstuck" }
 ]);
-assert.equal(folded[0].resolution.text, "yes");
-assert.equal(folded[1].resolution, null, "the blocker is still open");
+assert.equal(folded[0].resolution.text, "answered: yes");
+assert.equal(folded[0].resolution.how, "answered", "firstmate recorded the answer");
+assert.equal(folded[1].resolution.how, "resolved");
+assert.equal(folded[2].resolution, null, "a bare resolved does not close a keyed decision");
+// Raising the same key again replaces the open one; captain-held closes it;
+// a ship task's done ends whatever is still open.
+const refold = foldDecisions([
+  { verb: "needs-decision", key: "r", at: 1, text: "look" },
+  { verb: "needs-decision", key: "r", at: 2, text: "look again" },
+  { verb: "captain-held", key: "r", at: 3, text: "held" },
+  { verb: "needs-decision", key: "s", at: 4, text: "S?" },
+  { verb: "done", key: null, at: 5, text: "PR green" }
+]);
+assert.deepEqual(refold.map((d) => d.resolution.how), ["superseded", "captain-held", "task-ended"]);
+assert.equal(foldDecisions([
+  { verb: "needs-decision", key: "s", at: 4, text: "S?" },
+  { verb: "done", key: null, at: 5, text: "reported" }
+], { kind: "secondmate" })[0].resolution, null, "a secondmate's done leaves its decisions open");
+
+// A finished task's history lives only in the ledger. A ledger copy of a
+// line still in the status log, and a redelivered record, count once.
+const history = taskHistory("needs-decision [key=q] [at=10]: Q?\n", [
+  { event: "task.status", ts: 11, state: "needs-decision", key: "q", text: " Q?" },
+  { event: "task.status", ts: 12, state: "resolved", key: "q", text: " answered: yes" },
+  { event: "task.status", ts: 13, state: "resolved", key: "q", text: " answered: yes" }
+]);
+assert.deepEqual(history.map((e) => `${e.verb}:${e.source}`), ["needs-decision:status", "resolved:ledger"]);
+
+// Watcher windows and marker keys name the task they watch.
+assert.equal(windowTask("firstmate:fm-task-gamma"), "task-gamma");
+assert.equal(windowTask("firstmate_fm-task_v2", new Set(["task.v2"])), "task.v2");
+assert.equal(windowTask("task-gamma"), "task-gamma");
 
 // --- findings snapshots ------------------------------------------------------
 assert.equal(parseFindings('[{"id":"x","description":"d"}]')[0].id, "x");
@@ -112,24 +152,52 @@ const result = importEvidence(home);
 assert.equal(result.source, "firstmate");
 assert.equal(result.trust, "observation", "imported evidence is an observation, never a rule");
 assert.deepEqual(result.counts, {
-  tasks: 3,
-  ask_user_findings: 3,
-  decisions: 5,
-  blockers: 1,
+  tasks: 5,
+  ask_user_findings: 4,
+  decisions: 9,
+  blockers: 2,
   open: 1,
-  stale_wakes: 2,
+  answered: 1,
+  review_gates: 3,
+  captain_held: 1,
+  stale_wakes: 3,
+  stale_workers: 3,
+  stuck_workers: 1,
+  wedge_escalations: 2,
   teardown_refusals: 1,
-  spawn_failures: 1,
-  recoveries: 2,
+  spawn_failures: 2,
+  recoveries: 3,
+  relaunches: 1,
+  process_event_launch_failures: 1,
   captain_preferences: 4,
   learnings: 3
 });
+assert.deepEqual(result.history, { status_logs: 3, ledger_tasks: 4, tasks_without_history: 0 });
+
+// task-delta finished, so teardown retired its status log: everything about
+// it comes from the ledger's task.status records.
+const delta = result.tasks.find((task) => task.task === "task-delta");
+assert.equal(delta.status_log, false);
+assert.equal(delta.status_lines, 12, "the redelivered gate record counts once");
+assert.equal(delta.decisions, 4);
+assert.equal(delta.blockers, 1);
+assert.equal(delta.answered, 1);
+assert.equal(delta.open_decisions, 0, "done ended the README question");
+assert.equal(delta.relaunches, 1, "one progress note, in both the brief and its launch copy");
+assert.equal(delta.wedge_escalations, 2);
+assert.equal(delta.stale_detections, 2, "absorbed stale panes; busy-turn resets are not stale");
+const d201 = result.findings.find((finding) => finding.id === "d-201");
+assert.equal(d201.gate_key, "nm-r9-review");
+assert.match(d201.decided, /^answered: Decision for key nm-r9-review/);
+// A failed line before the worker ever reported is a failed launch.
+assert.ok(result.failures.some((f) => f.task === "task-epsilon" && f.kind === "spawn-failure"));
+assert.ok(result.failures.some((f) => f.task === "task-delta" && f.via === "relaunch-note"));
 
 // The same ask-user finding in two tasks is one repeated finding, with the
 // answers the captain gave each time.
 assert.equal(result.repeated.ask_user_findings.length, 1);
 const repeated = result.repeated.ask_user_findings[0];
-assert.deepEqual(repeated.tasks, ["task-alpha", "task-beta"]);
+assert.deepEqual(repeated.tasks, ["task-alpha", "task-beta", "task-delta"]);
 assert.ok(repeated.decided_answers.some((answer) => /use defaults/.test(answer)));
 // The same question asked in two tasks, answered differently, is a repeat too.
 assert.equal(result.repeated.decisions.length, 1);
@@ -150,11 +218,13 @@ assert.equal(alpha.blockers, 1);
 assert.equal(alpha.duration_s, 9100, "dispatch to merge, from state/fleet-ledger.jsonl");
 assert.equal(alpha.merged, true);
 const gamma = result.tasks.find((task) => task.task === "task-gamma");
-assert.equal(gamma.open_decisions, 1);
-assert.equal(result.stale_wakes[0].key, "task-gamma");
-assert.equal(result.stale_wakes[0].count, 2, "check wakes are not stale wakes");
+assert.equal(gamma.open_decisions, 1, "the ledger's copy of a live status line is not a second decision");
+assert.equal(gamma.decisions, 2);
+const gammaWorker = result.stale_workers.find((worker) => worker.task === "task-gamma");
+assert.equal(gammaWorker.queued_stale_wakes, 2, "check wakes are not stale wakes");
+assert.equal(gammaWorker.stale_marker, true);
 assert.deepEqual(result.failures.map((failure) => failure.kind).sort(),
-  ["recovery", "recovery", "spawn-failure", "teardown-refusal"]);
+  ["recovery", "recovery", "recovery", "recovery", "spawn-failure", "spawn-failure", "teardown-refusal"]);
 assert.equal(result.learnings[0].date, "2026-09-01");
 assert.equal(result.captain_preferences[0].category, "directive");
 
@@ -180,7 +250,7 @@ assert.deepEqual(snapshot(home), untouched, "import wrote nothing into the home"
 const data = path.join(temp, "plugin-data");
 const saved = cli(["import", "--project", home, "--save"], { CLAUDE_PLUGIN_DATA: data });
 assert.equal(saved.status, 0, saved.stderr);
-assert.equal(JSON.parse(saved.stdout).counts.tasks, 3);
+assert.equal(JSON.parse(saved.stdout).counts.tasks, 5);
 assert.deepEqual(snapshot(home), untouched, "--save writes to the plugin data directory, not the home");
 const status = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "status.mjs"), home], {
   encoding: "utf8",
@@ -190,7 +260,7 @@ assert.equal(status.status, 0, status.stderr);
 const summary = JSON.parse(status.stdout);
 assert.equal(summary.firstmate.enabled, true);
 assert.equal(summary.firstmate.review_routing, true);
-assert.equal(summary.firstmate.last_import.counts.ask_user_findings, 3);
+assert.equal(summary.firstmate.last_import.counts.ask_user_findings, 4);
 assert.deepEqual(summary.firstmate.periodic_review_due_reasons, [], "periodic review is off by default");
 
 // A project with no Firstmate home reports null, not a disabled adapter.

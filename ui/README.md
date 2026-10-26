@@ -87,16 +87,22 @@ proposal's `evaluation.commands` declares, plus improve's own proposal check;
 the confirm lists them, and an evaluation that needs any other command fails
 the run and names it instead of widening permissions. It runs with
 `--setting-sources ""` and `--plugin-dir` set to this plugin, so allow rules
-from your user, project and local settings do not apply. The request must carry
+from your user, project and local settings do not apply. Nor does anything
+else in them: an `env`, `apiKeyHelper` or provider setup (such as Bedrock,
+Vertex or `ANTHROPIC_BASE_URL`) that lives only in `~/.claude/settings.json`
+does not reach an apply run. Set those as environment variables in the shell
+that starts the UI instead. The request must carry
 the proposal's digest, the confirmed files and commands, and a token minted
 when the server started, so an edited proposal or a stale tab is refused.
 Afterwards the server compares the files itself, by content, including files
 that were already uncommitted. If the run fails, its evaluation fails, or it
 changes a file you did not confirm, the confirmed files are put back and
 anything else it changed is named. That includes this proposal,
-`.harness/improve.json` and the `.harness/` files its evaluation names, which
-are checked even when git ignores them; only the UI's own records (other
-proposals, decisions, evaluation results) are exempt. Other changes git cannot see, in ignored files
+`.harness/improve.json` and the `.harness/` files its evaluation names, or the
+files under a directory it names, which are checked even when git ignores them
+or they sit among evaluation results. Only the UI's own records (other
+proposals, decisions, evaluation results the evaluation does not name) are
+exempt. Other changes git cannot see, in ignored files
 outside the confirmed list, are not detected; outside a git repository nothing
 outside the confirmed files can be checked, and the result says so.
 

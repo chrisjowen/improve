@@ -40,6 +40,8 @@ const TIMEOUT_MS = 30 * 60_000;
 const GIT_TIMEOUT_MS = 60_000;
 // Kept per file in the change record; harness files are far smaller.
 const MAX_TEXT = 200_000;
+// Files taken from directories an evaluation names, at most.
+const MAX_ASSETS = 500;
 
 /**
  * @typedef {{
@@ -433,8 +435,9 @@ function readEvaluation(payload) {
 
 /**
  * The .harness/ files a run depends on and must not change: this proposal,
- * improve.json, and the .harness/ files its evaluation names. A name that
- * resolves outside .harness/, or is not an existing file, is skipped.
+ * improve.json, and the .harness/ files its evaluation names, including the
+ * files under a directory it names. A name that resolves outside .harness/,
+ * or to .harness/ itself, is skipped.
  *
  * @param {string} root
  * @param {ApplyPlan} plan
@@ -454,8 +457,17 @@ function harnessAssets(root, plan, evaluation) {
     } catch {
       continue;
     }
-    if (!fs.statSync(source, { throwIfNoEntry: false })?.isFile()) continue;
-    assets.set(path.relative(root, contain(root, name)).split(path.sep).join("/"), source);
+    const rel = path.relative(root, contain(root, name)).split(path.sep).join("/");
+    const stat = fs.statSync(source, { throwIfNoEntry: false });
+    if (stat?.isFile()) assets.set(rel, source);
+    else if (stat?.isDirectory() && rel !== ".harness") {
+      for (const entry of fs.readdirSync(source, { recursive: true, withFileTypes: true })) {
+        if (assets.size >= MAX_ASSETS) break;
+        if (!entry.isFile()) continue;
+        const file = path.join(entry.parentPath, entry.name);
+        assets.set(`${rel}/${path.relative(source, file).split(path.sep).join("/")}`, file);
+      }
+    }
   }
   return assets;
 }
@@ -587,9 +599,10 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     progress({ message: "Checking what changed" });
     const changes = compare(before, snapshot(cwd, plan.files));
     const dirtyAfter = await dirtyPaths(cwd);
+    const assetsAfter = hashes(cwd, [...assets.keys()]);
     const stray = [...new Set([
       ...(dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan, cwd) : []),
-      ...strayPaths(assetsBefore, hashes(cwd, [...assets.keys()]), plan, cwd)
+      ...[...assets.keys()].filter((p) => !plan.files.includes(p) && assetsBefore.get(p) !== assetsAfter.get(p))
     ])].sort();
     const unchecked = dirtyBefore && dirtyAfter ? null : "This project is not a git repository, so changes outside the confirmed files could not be checked.";
     const changed = changes.filter((c) => c.change !== "unchanged");

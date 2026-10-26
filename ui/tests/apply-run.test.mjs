@@ -276,6 +276,31 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
+// --- a named file among evaluation results, or inside a named directory, is guarded too
+for (const { touch, evaluation } of [
+  { touch: ".harness/evals/results/baseline.json", evaluation: { baseline: ".harness/evals/results/baseline.json" } },
+  { touch: ".harness/evals/suites/a.yaml", evaluation: { commands: ["node .harness/evals/check.mjs --suite .harness/evals/suites/"] } }
+]) {
+  for (const file of [".harness/evals/results/baseline.json", ".harness/evals/suites/a.yaml"]) {
+    fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+    fs.writeFileSync(path.join(repo, file), "threshold: 3\n");
+  }
+  const exclude = path.join(repo, ".git", "info", "exclude");
+  const excluded = fs.readFileSync(exclude, "utf8");
+  fs.writeFileSync(exclude, `${excluded}.harness/evals/\n`);
+  process.env.IMPROVE_STANDIN = "edit-eval";
+  process.env.IMPROVE_STANDIN_TOUCH = touch;
+  seed(repo, "p.yaml", { evaluation });
+  const { job } = await apply("p.yaml");
+  delete process.env.IMPROVE_STANDIN;
+  delete process.env.IMPROVE_STANDIN_TOUCH;
+  fs.writeFileSync(exclude, excluded);
+  assert.equal(job.status, "failed", touch);
+  assert.deepEqual(job.result.stray, [touch]);
+  assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+}
+
 // --- an evaluation that needs an undeclared command fails, naming it ----------
 {
   process.env.IMPROVE_STANDIN = "undeclared";

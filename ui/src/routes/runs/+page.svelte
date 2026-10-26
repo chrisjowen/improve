@@ -9,7 +9,7 @@
   import { JOB, ago, duration, plural, when } from "$lib/client/format.js";
 
   /** @type {Record<string, string>} */
-  const KIND = { evaluate: "Evaluation", "draft-skill": "Skill draft", dream: "Background review" };
+  const KIND = { evaluate: "Evaluation", "draft-skill": "Skill draft", dream: "Background review", apply: "Apply" };
   const selectedId = $derived(page.url.searchParams.get("job"));
   const selected = $derived(jobs.list.find((job) => job.id === selectedId) ?? null);
 
@@ -43,6 +43,8 @@
         {#if selected.detail?.transcript}<dt>Transcript</dt><dd class="mono">{selected.detail.transcript}</dd>{/if}
         {#if selected.detail?.proposal}<dt>Proposal</dt><dd><a href="/proposals?view=all&p={encodeURIComponent(selected.detail.proposal)}">{selected.detail.proposal}</a></dd>{/if}
         {#if selected.result?.run}<dt>Result</dt><dd><a href="/evals?run={selected.result.run.run_id}">Score {selected.result.run.score?.toFixed(2)}, {selected.result.run.success ? "passed" : "did not pass"}</a></dd>{/if}
+        {#if selected.result?.evaluation}<dt>Evaluation</dt><dd>{selected.result.evaluation.passed ? "Passed" : "Failed"}{selected.result.evaluation.summary ? `: ${selected.result.evaluation.summary}` : ""}</dd>{/if}
+        {#if selected.result?.branch}<dt>Branch</dt><dd class="mono">{selected.result.branch}</dd>{/if}
         {#if selected.result?.file}<dt>Report</dt><dd><a href="/findings">{plural(selected.result.findings, "finding")}</a></dd>{/if}
       </dl>
       <div>

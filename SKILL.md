@@ -243,8 +243,10 @@ Offer the UI when the human is reviewing several proposals or comparing scores
 over time. Do not require it: every mode works without it, and an empty UI means
 no proposals exist yet.
 
-Approving a proposal in the UI records the decision and changes no file; apply it
-with `/improve apply`. Skill drafting runs a background agent with edit tools
+Approving a proposal in the UI records the decision and changes no file. Apply
+it with `/improve apply`, or with Apply in the UI, which runs `/improve apply` in
+a background agent after the human confirms the exact files; in a Firstmate
+home, shared files are prepared on a branch for a pull request instead. Skill drafting runs a background agent with edit tools
 denied, stores the draft on the proposal, and writes nothing until the human
 approves the reviewed diff. Both preserve invariants 5 and 10.
 

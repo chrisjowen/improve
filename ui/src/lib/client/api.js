@@ -8,11 +8,16 @@
  * @returns {Promise<any>}
  */
 export async function api(url, { method = "GET", body } = {}) {
+  /** @type {Record<string, string>} */
+  const headers = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+  // This launch's token, which a run that edits the repository must carry.
+  if (method !== "GET") headers["x-improve-token"] = launchToken();
   let response;
   try {
     response = await fetch(url, {
       method,
-      headers: body === undefined ? undefined : { "content-type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body)
     });
   } catch {
@@ -25,4 +30,8 @@ export async function api(url, { method = "GET", body } = {}) {
     throw error;
   }
   return value;
+}
+
+function launchToken() {
+  return document.querySelector('meta[name="improve-token"]')?.getAttribute("content") ?? "";
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { projectDataDir, projectId, projectRoot, readTextSafe } from "./paths.js";
 
 /**
- * Background jobs: evaluations, skill drafts, and background reviews.
+ * Background jobs: evaluations, skill drafts, background reviews, and apply runs.
  *
  * Each job is a record on disk plus a log, so a run survives leaving the page
  * and a server restart, and a person can read what it did. A record left
@@ -23,10 +23,10 @@ import { projectDataDir, projectId, projectRoot, readTextSafe } from "./paths.js
  *   progress: JobProgress, result: any, error: string | null, hint: string | null,
  *   log: string, server_pid: number, controller?: AbortController
  * }} Job
- * @typedef {{ signal: AbortSignal, progress: (update: Partial<JobProgress>) => void, logFile: string }} JobContext
+ * @typedef {{ signal: AbortSignal, progress: (update: Partial<JobProgress>) => void, logFile: string, changesFile: string }} JobContext
  */
 /** @type {Record<string, string>} */
-const LANES = { evaluate: "evaluate", "draft-skill": "agent", dream: "agent" };
+const LANES = { evaluate: "evaluate", "draft-skill": "agent", dream: "agent", apply: "agent" };
 const RETAIN = 100;
 const LOG_TAIL_BYTES = 64 * 1024;
 
@@ -55,6 +55,16 @@ function recordFile(id) {
 /** @param {string} id */
 export function logFile(id) {
   return path.join(jobsDir(), `${id}.log`);
+}
+
+/**
+ * What a job changed in the repository, when it changes anything: file
+ * contents before and after. Kept beside the record because the record is
+ * polled every second and must stay small.
+ * @param {string} id
+ */
+export function changesFile(id) {
+  return path.join(jobsDir(), `${id}.changes.json`);
 }
 
 /** @param {Job} job */
@@ -197,7 +207,12 @@ export function startJob(kind, { title, detail = {} }, work) {
   };
 
   Promise.resolve()
-    .then(() => work({ signal: /** @type {AbortController} */ (job.controller).signal, progress, logFile: logFile(id) }))
+    .then(() => work({
+      signal: /** @type {AbortController} */ (job.controller).signal,
+      progress,
+      logFile: logFile(id),
+      changesFile: changesFile(id)
+    }))
     .then((result) => {
       const value = result ?? {};
       job.status = value.cancelled ? "cancelled"
@@ -255,6 +270,22 @@ export function listJobs({ kind, limit = 50 } = {}) {
 }
 
 /**
+ * What a job changed, or undefined when it recorded nothing.
+ * @param {string} id
+ */
+export function readChanges(id) {
+  load();
+  if (!live.has(id)) return undefined;
+  const text = readTextSafe(changesFile(id));
+  if (text === undefined) return { files: [] };
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { files: [], error: "The change record could not be read." };
+  }
+}
+
+/**
  * The end of a job's log. Logs can be long; the end is where a failure is.
  * @param {string} id
  */
@@ -287,7 +318,7 @@ function prune() {
     .sort((a, b) => String(b.finished_at).localeCompare(String(a.finished_at)));
   for (const job of finished.slice(RETAIN)) {
     live.delete(job.id);
-    for (const file of [recordFile(job.id), logFile(job.id)]) {
+    for (const file of [recordFile(job.id), logFile(job.id), changesFile(job.id)]) {
       try {
         fs.rmSync(file, { force: true });
       } catch {

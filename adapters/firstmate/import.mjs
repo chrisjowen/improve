@@ -299,7 +299,8 @@ export function windowTask(name, tasks = new Set()) {
  * queue drains as firstmate handles wakes, so its `stale` rows are only the
  * ones still waiting; each delivered stale wake is also one
  * `reason=actionable-stale` exit in the watcher's cycle log. The triage log
- * keeps (bounded) the stale panes absorbed as provably working, and the
+ * keeps (bounded) the stale panes absorbed as provably working (a pane paused
+ * on something external declared its wait and is not stale), and the
  * per-window markers survive teardown: `.stale-<key>` for a pane classified
  * stale, `.wedge-escalations-<key>` for how many times a quiet pane was
  * escalated as a possible wedge.
@@ -331,7 +332,7 @@ function readWatcher(home, tasks) {
   // `[<ISO time>] absorbed <why>: <window>`
   for (const line of (readText(path.join(state, ".watch-triage.log")) ?? "").split("\n")) {
     const match = line.match(/^\[([^\]]+)\]\s+absorbed\s+(.*\bstale\b.*):\s+(\S+)\s*$/);
-    if (!match) continue;
+    if (!match || /\bpaused\b|\bawaiting external\b/.test(match[2])) continue;
     const item = entry(windowTask(match[3], tasks));
     item.absorbed_stale += 1;
     const at = Date.parse(match[1].replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));
@@ -394,13 +395,15 @@ function taskKind(home, task, records) {
     ?? "ship";
 }
 
+const REDELIVERY_WINDOW_S = 60;
+
 /**
  * One task's status history. A running task still has its status log; a
  * finished one's log is retired at teardown, and only the ledger's
  * `task.status` copies remain. Both are read: a ledger record that repeats a
- * log line, or repeats an earlier record (the ledger delivers at least once),
- * is dropped. Events are ordered by time, a line with no time tag taking the
- * time before it.
+ * log line, or repeats an identical record within a minute of it (the ledger
+ * delivers at least once), is dropped. Events are ordered by time, a line with
+ * no time tag taking the time before it.
  */
 export function taskHistory(statusText, ledgerRecords = []) {
   const signature = (event) => `${event.verb}\u0000${event.key ?? ""}\u0000${event.text.slice(0, 200)}`;
@@ -410,7 +413,7 @@ export function taskHistory(statusText, ledgerRecords = []) {
   for (const event of fromLog) inLog.set(signature(event), (inLog.get(signature(event)) ?? 0) + 1);
 
   const fromLedger = [];
-  const recorded = new Set();
+  const recorded = new Map();
   for (const record of ledgerRecords) {
     if (record.event !== "task.status" || !VERBS.has(record.state)) continue;
     const key = typeof record.key === "string" && record.key ? record.key : null;
@@ -420,8 +423,9 @@ export function taskHistory(statusText, ledgerRecords = []) {
     const sig = signature(event);
     const left = inLog.get(sig) ?? 0;
     if (left > 0) inLog.set(sig, left - 1);
-    else if (!recorded.has(sig)) fromLedger.push(event);
-    recorded.add(sig);
+    else if (!recorded.has(sig) || (event.at !== null && recorded.get(sig) !== null
+      && Math.abs(event.at - recorded.get(sig)) > REDELIVERY_WINDOW_S)) fromLedger.push(event);
+    recorded.set(sig, event.at);
   }
 
   const timed = (events) => {
@@ -500,7 +504,7 @@ export function importEvidence(home, { now = Date.now() } = {}) {
       });
     }
 
-    const firstProgress = events.findIndex((event) => event.verb === "working" || event.verb === "done");
+    const firstProgress = events.findIndex((event) => event.verb !== "failed");
     let recovered = 0;
     events.forEach((event, index) => {
       const kind = TEARDOWN_REFUSAL.test(event.text) ? "teardown-refusal"

@@ -112,6 +112,16 @@ const history = taskHistory("needs-decision [key=q] [at=10]: Q?\n", [
   { event: "task.status", ts: 13, state: "resolved", key: "q", text: " answered: yes" }
 ]);
 assert.deepEqual(history.map((e) => `${e.verb}:${e.source}`), ["needs-decision:status", "resolved:ledger"]);
+// The same blocker raised again long after it was resolved is a second blocker.
+const reblocked = taskHistory(undefined, [
+  { event: "task.status", ts: 100, state: "blocked", key: null, text: " CI runner unavailable" },
+  { event: "task.status", ts: 200, state: "resolved", key: null, text: " CI back" },
+  { event: "task.status", ts: 900, state: "blocked", key: null, text: " CI runner unavailable" },
+  { event: "task.status", ts: 950, state: "resolved", key: null, text: " CI back" }
+]);
+assert.deepEqual(reblocked.map((e) => e.verb), ["blocked", "resolved", "blocked", "resolved"]);
+assert.deepEqual(foldDecisions(reblocked).map((d) => [d.kind, d.resolution?.how]),
+  [["blocked", "resolved"], ["blocked", "resolved"]]);
 
 // Watcher windows and marker keys name the task they watch.
 assert.equal(windowTask("firstmate:fm-task-gamma"), "task-gamma");
@@ -161,7 +171,7 @@ assert.deepEqual(result.counts, {
   review_gates: 3,
   captain_held: 1,
   stale_wakes: 3,
-  stale_workers: 3,
+  stale_workers: 2,
   stuck_workers: 1,
   wedge_escalations: 2,
   teardown_refusals: 1,
@@ -191,6 +201,15 @@ assert.equal(d201.gate_key, "nm-r9-review");
 assert.match(d201.decided, /^answered: Decision for key nm-r9-review/);
 // A failed line before the worker ever reported is a failed launch.
 assert.ok(result.failures.some((f) => f.task === "task-epsilon" && f.kind === "spawn-failure"));
+// A worker that raised a decision before failing had launched.
+const launched = path.join(temp, "launched");
+fs.mkdirSync(path.join(launched, "state"), { recursive: true });
+fs.writeFileSync(path.join(launched, "state", "fleet-ledger.jsonl"), [
+  { v: 1, ts: 100, event: "task.status", task: "t", state: "needs-decision", key: "nm-r2-review", text: " ask-user findings=a" },
+  { v: 1, ts: 200, event: "task.status", task: "t", state: "resolved", key: "nm-r2-review", text: " answered: fix it" },
+  { v: 1, ts: 300, event: "task.status", task: "t", state: "failed", key: null, text: " tests still red after 3 rounds" }
+].map((record) => JSON.stringify(record)).join("\n") + "\n");
+assert.equal(importEvidence(launched).counts.spawn_failures, 0);
 assert.ok(result.failures.some((f) => f.task === "task-delta" && f.via === "relaunch-note"));
 
 // The same ask-user finding in two tasks is one repeated finding, with the
@@ -223,6 +242,7 @@ assert.equal(gamma.decisions, 2);
 const gammaWorker = result.stale_workers.find((worker) => worker.task === "task-gamma");
 assert.equal(gammaWorker.queued_stale_wakes, 2, "check wakes are not stale wakes");
 assert.equal(gammaWorker.stale_marker, true);
+assert.ok(!result.stale_workers.some((worker) => worker.task === "task-beta"), "a paused wait on something external is not stale");
 assert.deepEqual(result.failures.map((failure) => failure.kind).sort(),
   ["recovery", "recovery", "recovery", "recovery", "spawn-failure", "spawn-failure", "teardown-refusal"]);
 assert.equal(result.learnings[0].date, "2026-09-01");

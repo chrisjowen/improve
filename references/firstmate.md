@@ -52,7 +52,7 @@ where `status` summarizes it.
 | Ask-user findings and the answers that settled them | `data/<task>/*findings*`, paired with the `needs-decision [key=nm-...]` gate line that names the file and the `resolved` line that closed it |
 | Decisions and blockers, open or closed, with wait times and how each closed (answered by firstmate, resolved by the worker, captain-held, raised again, or ended by `done`) | the status history, folded the way `bin/fm-classify-lib.sh` folds it |
 | Failed launches, recoveries, teardown refusals | status lines whose text names them; a `failed` line before the worker first reported; relaunch progress notes in `data/<task>/brief.md` |
-| Stale and stuck workers | delivered stale wakes (`reason=actionable-stale` in `state/.watch-cycle-exits.log`), `stale` rows still in `state/.wake-queue`, stale panes absorbed in `state/.watch-triage.log`, and the watcher's `.stale-*` and `.wedge-escalations-*` markers |
+| Stale and stuck workers | delivered stale wakes (`reason=actionable-stale` in `state/.watch-cycle-exits.log`), `stale` rows still in `state/.wake-queue`, stale panes absorbed in `state/.watch-triage.log` (not panes paused on something external, which declared their wait), and the watcher's `.stale-*` and `.wedge-escalations-*` markers |
 | Process-event sources that failed to launch | `state/.seen-procevent-*` markers |
 | Review rounds and durations | no-mistakes gate keys and `done` lines per task, with times from `state/fleet-ledger.jsonl` when that ledger is on |
 | Captain preferences and corrections | bullets in `data/captain.md` and `data/captain-shared.md` |

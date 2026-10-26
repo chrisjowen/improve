@@ -10,36 +10,45 @@ The plugin ships without `node_modules`, so install once before first use:
 ```bash
 cd ui
 npm install          # or: bun install
-npm run dev          # serves on 0.0.0.0:5173
 ```
 
-`npm run dev` and `npm run preview` bind `0.0.0.0` so the UI is reachable when
-the workspace is remote. For a production build:
+Then, from the plugin root:
 
 ```bash
-npm run build
-node build/index.js          # honours PORT and HOST
+node scripts/ui.mjs start /path/to/repo     # build if needed, start in the background
+node scripts/ui.mjs status /path/to/repo    # URL, pid and log
+node scripts/ui.mjs stop /path/to/repo
 ```
 
-From the plugin root, `node scripts/ui.mjs` does the same and prints these
-instructions if dependencies are missing.
+`start` returns once the server answers and prints its URL and log file. It
+binds `127.0.0.1:5173` by default, so only this machine can reach it; pass
+`--port` to change the port. Binding another host (`--host` or `HOST`) is an
+explicit choice; read [No authentication](#no-authentication) first. The repository
+defaults to `IMPROVE_PROJECT_DIR`, then `CLAUDE_PROJECT_DIR`, then the current
+directory. The build is redone when the UI or `scripts/` sources change.
 
-## Pointing it at a repository
-
-By default the UI serves the repository the plugin sits inside. Override it:
-
-```bash
-IMPROVE_PROJECT_DIR=/path/to/repo npm run dev
-```
+For work on the UI itself, `node scripts/ui.mjs dev /path/to/repo` runs the Vite
+dev server in the foreground.
 
 | Variable | Purpose |
 | --- | --- |
 | `IMPROVE_PROJECT_DIR` | Repository to read and write. Falls back to `CLAUDE_PROJECT_DIR`. |
+| `CLAUDE_PLUGIN_DATA` | Where the hooks keep observations. Found on disk under `~/.claude/plugins/data/` when unset. |
 | `CLAUDE_PLUGIN_ROOT` | Plugin location, used to compare eval-rig versions. |
-| `IMPROVE_AGENT_COMMAND` | Command for the drafting agent. Defaults to `claude`. |
+| `IMPROVE_AGENT_COMMAND` | Command for the drafting and background-review agent. Defaults to `claude`. |
 | `IMPROVE_PYTHON` | Python interpreter for the eval rig. Defaults to `python3`. |
-| `IMPROVE_CORS_ORIGIN` | Allowed origin for `/api/*`. Defaults to `*`. |
-| `PORT`, `HOST` | Production server address. |
+| `ORIGIN` | Public URL when served through a proxy or on another host. Its host is accepted, and writes must come from it. |
+| `IMPROVE_ALLOWED_HOSTS` | Extra comma-separated host names the API answers to. |
+
+## Runs
+
+Evaluations, skill drafts and background reviews run as jobs. Each job has a
+record and a log in the project's plugin data directory (`jobs/`), so it
+survives leaving the page and a server restart; a job cut off by a restart is
+shown as interrupted. The Runs page shows live progress, the log, and a Cancel
+button. Cancel and timeouts stop the whole process tree. One evaluation and one
+agent job can run at the same time; a second of the same kind is refused with
+the name of the one in the way.
 
 ## What it reads and writes
 
@@ -50,7 +59,8 @@ IMPROVE_PROJECT_DIR=/path/to/repo npm run dev
 | `.harness/evals/suites/*.yaml` | read |
 | `.harness/evals/results/index.jsonl` | appended, one line per run |
 | `.harness/evals/results/<run>.json` | written, the full report |
-| `.claude/skills/<name>/SKILL.md` | written only when you apply a draft |
+| `.claude/skills/<name>/SKILL.md` | written only when you approve a draft |
+| plugin data `projects/<id>/jobs/` | run records and logs |
 
 Nothing appears until `/improve` has run in the repository. An empty UI means
 the harness has no proposals yet, not that the UI is broken.
@@ -72,10 +82,34 @@ a particular harness change.
 
 ## No authentication
 
-There is none, by choice, for a single user on a trusted workspace. The API can
-run evaluations, and a suite's `core.command` evaluator executes the `argv` it
-declares. Anyone who can reach the port can therefore execute code in the
-repository. Do not expose the port on a shared or untrusted network.
+There is none, by choice, for a single user on their own machine. Instead:
+
+- The server is local only by default: it binds `127.0.0.1`.
+- The API is same-origin only. It sends no CORS headers, so another site's page
+  cannot read its answers.
+- Only known host names are answered. Every page and API request, reads
+  included, gets 403 unless its `Host` is `127.0.0.1`, `localhost` or `[::1]`, the
+  specific host in `HOST`, the host of `ORIGIN`, or one listed in
+  `IMPROVE_ALLOWED_HOSTS` (comma-separated). This stops a DNS-rebinding page
+  from posing as this server. Only the static build files (`/_app/`), which
+  hold no data, are served before this check.
+- Cross-origin writes are refused. Any request other than `GET` or `HEAD`,
+  whatever its path, gets 403 unless its `Origin` header (or, without one, its `Referer`)
+  is this server's own origin. That covers starting evaluations, drafts and
+  background reviews, approving, rejecting and applying, importing and
+  dismissing findings, and cancelling jobs.
+
+Serving through a proxy, or on a non-loopback host, is an explicit opt-in. Pass
+`--host` and set `ORIGIN` to the public URL the browser uses (for example
+`ORIGIN=https://ui.example.dev`), so writes from that page match the server's
+own origin. Add any further host names to `IMPROVE_ALLOWED_HOSTS`.
+
+Binding another host with `--host` or `HOST` exposes an unauthenticated server
+to everyone who can reach it. They can read the repository's proposals and
+session-transcript previews, run evaluations, and start paid agent runs. A
+suite's `core.command` evaluator executes the `argv` it declares, so they can
+also execute code in the repository. Do not bind another host on a shared or
+untrusted network.
 
 Path containment is enforced on every filesystem route regardless, so a request
 cannot read or write outside `.harness/` and `.claude/skills/`.
@@ -87,4 +121,5 @@ node --test tests/
 ```
 
 Covers path containment, the agent output contract, the data layer including
-trend arithmetic, and the draft-diff-apply round trip against a stub agent.
+trend arithmetic, the draft-diff-apply round trip against a stub agent, jobs
+(errors, cancel, restart), and the launcher against a real production build.

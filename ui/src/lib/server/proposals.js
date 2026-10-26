@@ -54,6 +54,8 @@ function normalize(id, document, source) {
     approval: value.approval ?? null,
     outcome: value.outcome ?? null,
     skill_draft: value.skill_draft ?? null,
+    reasons_to_reject: Array.isArray(value.reasons_to_reject) ? value.reasons_to_reject : [],
+    provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,
     // Whether it changes the harness or the codebase, and how it reads. For
     // the reviewer only: nothing is blocked on it.
     check: checkProposal(value, scopeOptions()),
@@ -97,6 +99,39 @@ export function readProposal(file) {
   } catch {
     return undefined;
   }
+}
+
+export function readProposalText(file) {
+  return readTextSafe(contain(proposalsDir(), safeId(file)));
+}
+
+/** Every recorded decision, newest first, optionally for one proposal file. */
+export function listDecisions({ file } = {}) {
+  const dir = decisionsDir();
+  const decisions = [];
+  for (const entry of readDirSafe(dir)) {
+    if (!entry.isFile() || !/\.ya?ml$/i.test(entry.name)) continue;
+    const text = readTextSafe(path.join(dir, entry.name));
+    if (text === undefined) continue;
+    try {
+      const value = YAML.parse(text) ?? {};
+      if (file && value.proposal_file !== file) continue;
+      decisions.push({
+        file: entry.name,
+        proposal: value.proposal ?? null,
+        proposal_file: value.proposal_file ?? null,
+        title: value.title ?? null,
+        decision: value.decision ?? null,
+        rationale: value.rationale ?? null,
+        decided_at: value.decided_at ?? null,
+        decided_by: value.decided_by ?? null,
+        applied_files: Array.isArray(value.applied_files) ? value.applied_files : []
+      });
+    } catch {
+      // an unreadable decision is skipped; the file is still in git
+    }
+  }
+  return decisions.sort((a, b) => String(b.decided_at).localeCompare(String(a.decided_at)));
 }
 
 export function writeProposal(file, document) {

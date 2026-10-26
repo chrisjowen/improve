@@ -27,7 +27,7 @@
     .range([height - margin.bottom, margin.top]));
   const colour = $derived(d3.scaleOrdinal()
     .domain(series.map((s) => s.id))
-    .range(["#60a5fa", "#f472b6", "#34d399", "#fbbf24", "#a78bfa", "#fb7185"]));
+    .range(["#3b82f6", "#d946ef", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"]));
 
   function linePath(values) {
     return d3.line()
@@ -42,9 +42,9 @@
        aria-label="Objective scores over successive runs">
     {#each [0, 0.5, 1] as tick}
       <line x1={margin.left} x2={width - margin.right} y1={y(tick)} y2={y(tick)}
-            stroke="hsl(var(--border))" stroke-width="1" />
+            stroke="var(--border)" stroke-width="1" />
       <text x={margin.left - 8} y={y(tick) + 4} text-anchor="end" font-size="11"
-            fill="hsl(var(--muted-foreground))">{tick}</text>
+            fill="var(--text-3)">{tick}</text>
     {/each}
     {#each series as s}
       <path d={linePath(s.values)} fill="none" stroke={colour(s.id)} stroke-width="2"
@@ -55,11 +55,11 @@
         </circle>
       {/each}
     {/each}
-    <text x={margin.left} y={height - 6} font-size="11" fill="hsl(var(--muted-foreground))">
+    <text x={margin.left} y={height - 6} font-size="11" fill="var(--text-3)">
       oldest run
     </text>
     <text x={width - margin.right} y={height - 6} text-anchor="end" font-size="11"
-          fill="hsl(var(--muted-foreground))">latest run</text>
+          fill="var(--text-3)">latest run</text>
   </svg>
   <div class="row small" style="margin-top:8px">
     {#each series as s}

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 export function readStdin() {
@@ -39,6 +40,46 @@ export function pluginDataDir() {
 
 export function projectDataDir(root) {
   return path.join(pluginDataDir(), "projects", projectId(root));
+}
+
+/**
+ * True inside an agent this plugin started (a skill draft or a dream).
+ *
+ * The child is a full Claude Code session, so it loads this plugin and fires
+ * its hooks. Its prompt embeds recorded corrections and its tool calls are not
+ * the human's work, so counting either would feed the plugin's own output back
+ * into the review triggers.
+ */
+export function isImproveChild(env = process.env) {
+  return env.IMPROVE_AGENT_CHILD === "1" || env.IMPROVE_DREAM_CHILD === "1";
+}
+
+/**
+ * The plugin data directory for `root`, from the environment or from disk.
+ *
+ * Claude Code exports CLAUDE_PLUGIN_DATA to hook processes only. A script a
+ * skill runs, or the UI started from one, does not see it, so the status CLI
+ * used to fail and the UI showed no observations. The directory lives at
+ * `<config>/plugins/data/<plugin>-<marketplace>/`; look there for this
+ * plugin's copy that already holds observations for `root`.
+ *
+ * Returns `{ dir, source }`, or undefined when nothing can be found. An empty
+ * variable counts as unset, because an unsubstituted `${CLAUDE_PLUGIN_DATA}`
+ * expands to "".
+ */
+export function resolvePluginDataDir(root, { env = process.env, home = os.homedir() } = {}) {
+  if (env.CLAUDE_PLUGIN_DATA) return { dir: path.resolve(env.CLAUDE_PLUGIN_DATA), source: "env" };
+  const base = path.join(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"), "plugins", "data");
+  let names;
+  try {
+    names = fs.readdirSync(base).filter((name) => /^improve-/.test(name)).sort();
+  } catch {
+    return undefined;
+  }
+  const id = projectId(root);
+  const holding = names.filter((name) => fs.existsSync(path.join(base, name, "projects", id)));
+  const chosen = holding[0] ?? (names.length === 1 ? names[0] : undefined);
+  return chosen ? { dir: path.join(base, chosen), source: "discovered" } : undefined;
 }
 
 export function ensureDir(dir) {
@@ -97,7 +138,10 @@ export function loadConfig(root) {
     background_dreaming: {
       enabled: false,
       every_days: 30,
-      command: "claude"
+      command: "claude",
+      // A read-only review of a large repository can take a while; past this
+      // it is stopped and reported as timed out rather than left running.
+      timeout_minutes: 20
     }
   };
   const repoConfig = readJson(path.join(root, ".harness", "improve.json"), {});

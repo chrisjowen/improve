@@ -9,6 +9,7 @@
     {
       "name": "improve",
       "source": ".",
+      "version": "0.2.0",
       "description": "Governed, evidence-driven improvement of a repository's Claude Code coding harness.",
       "category": "development",
       "tags": ["harness", "evaluation", "governance", "memory"]

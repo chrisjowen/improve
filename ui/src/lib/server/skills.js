@@ -1,15 +1,19 @@
 import fs from "node:fs";
 import path from "node:path";
-import { contain, ensureDir, pluginDataDir, projectId, projectRoot, readTextSafe } from "./paths.js";
+import { contain, ensureDir, projectDataDir, projectRoot, readTextSafe } from "./paths.js";
 import { runAgent } from "../../../../scripts/spawn-agent.mjs";
-import { readProposal, recordDecision, updateStatus, claimKey, releaseKey, lookupKey } from "./proposals.js";
+import { readProposal, readProposalText, recordDecision, updateStatus, claimKey, releaseKey, lookupKey } from "./proposals.js";
 import { validateDraft } from "./guard.js";
 import { assertRealPathInside, digestOf, sweepOrphans, writeAtomic } from "./write.js";
 import { archiveSkill, isPluginAuthored, readSidecar, skillsRoot, stampApplied } from "./provenance.js";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { classifySurface } from "../../../../adapters/firstmate/surfaces.mjs";
 
-/** Where a drafted skill would land. Kebab-case, one directory per skill. */
+/**
+ * Where a drafted skill would land. Kebab-case, one directory per skill.
+ * @param {unknown} name
+ * @returns {string}
+ */
 export function skillPath(name) {
   if (typeof name !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) {
     throw new Error(`skill name must be kebab-case: ${name}`);
@@ -26,9 +30,9 @@ export function skillPath(name) {
  * agent must still tie each guardrail to a specific one.
  */
 function correctionCandidates(limit = 12) {
-  const dataDir = pluginDataDir();
+  const dataDir = projectDataDir();
   if (!dataDir) return [];
-  const file = path.join(dataDir, "projects", projectId(projectRoot()), "corrections.jsonl");
+  const file = path.join(dataDir, "corrections.jsonl");
   const text = readTextSafe(file);
   if (text === undefined) return [];
   const seen = new Map();
@@ -81,8 +85,15 @@ ground the procedure in what is actually here.`;
  * The agent holds no write tools, so the draft returns as data and is stored on
  * the proposal. Nothing reaches .claude/skills until a human applies it, which
  * keeps a background job able to draft but never to change the harness.
+ *
+ * @param {string} file
+ * @param {{ command?: string, signal?: AbortSignal, logFile?: string, progress?: (update: { message?: string, done?: number | null, total?: number | null }) => void }} [options]
+ * @returns {Promise<
+ *   | { ok: true, draft: { name: string, description: any, body: string, digest: string }, findings: any[] }
+ *   | { ok: false, error?: string, cancelled?: boolean, timedOut?: boolean, payload?: any }
+ * >}
  */
-export async function draftSkill(file, { command } = {}) {
+export async function draftSkill(file, { command, signal, logFile, progress } = {}) {
   const proposal = readProposal(file);
   if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
 
@@ -111,12 +122,18 @@ export async function draftSkill(file, { command } = {}) {
       : [])
   ].join("\n");
 
+  /** @type {any} */
   const result = await runAgent({
     command: command || process.env.IMPROVE_AGENT_COMMAND || "claude",
     prompt,
-    cwd: projectRoot()
+    cwd: projectRoot(),
+    signal,
+    logFile,
+    onProgress: (/** @type {{ message?: string }} */ update) => progress?.({ message: update.message, done: null, total: null })
   });
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return { ok: false, error: result.error, cancelled: result.cancelled, timedOut: result.timedOut };
+  }
 
   const { name, description, body } = result.payload ?? {};
   if (typeof name !== "string" || typeof body !== "string") {
@@ -125,7 +142,7 @@ export async function draftSkill(file, { command } = {}) {
   try {
     skillPath(name);
   } catch (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: /** @type {Error} */ (error).message };
   }
 
   // Validate at draft time so the finding is visible while reviewing, not only
@@ -137,7 +154,9 @@ export async function draftSkill(file, { command } = {}) {
     requireGuardrails: (proposal.evidence ?? []).length > 0
   });
 
-  updateStatus(file, proposal.status, {
+  const latest = readProposal(file);
+  if (!latest) return { ok: false, error: `no such proposal: ${file}` };
+  updateStatus(file, latest.status, {
     skill_draft: {
       name,
       description: description ?? null,
@@ -151,7 +170,10 @@ export async function draftSkill(file, { command } = {}) {
   return { ok: true, draft: { name, description, body, digest: digestOf(body) }, findings: verdict.findings };
 }
 
-/** Current file contents versus the draft, with the digest that pins an approval. */
+/**
+ * Current file contents versus the draft, with the digest that pins an approval.
+ * @param {string} file
+ */
 export function skillDiff(file) {
   const proposal = readProposal(file);
   if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
@@ -189,6 +211,9 @@ export function skillDiff(file) {
  * The single place that mutates the repository. Order matters: shape and check
  * everything in memory, resolve the real path, then write. A rejection leaves
  * the filesystem untouched, including creating no directories.
+ *
+ * @param {string} file
+ * @param {{ rationale?: string, digest?: string, idempotencyKey?: string, allowUnmarkedOverwrite?: boolean }} [options]
  */
 export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmarkedOverwrite = false } = {}) {
   const proposal = readProposal(file);
@@ -259,7 +284,7 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
     // Resolve through symlinks before anything is created.
     resolved = assertRealPathInside(projectRoot(), target);
   } catch (error) {
-    return { ok: false, status: 400, error: error.message };
+    return { ok: false, status: 400, error: /** @type {Error} */ (error).message };
   }
 
   const archived = alreadyThere ? archiveSkill(draft.name) : undefined;
@@ -292,9 +317,53 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
   return { ok: true, ...outcome };
 }
 
+/**
+ * Record a person's approval without changing any harness file.
+ *
+ * Applying stays with `/improve apply`, which revalidates the proposal and
+ * runs its evaluation; a skill draft has its own Apply. The approval digest
+ * records the proposal's bytes as they were reviewed, before this decision was
+ * written into the file.
+ *
+ * @param {string} file
+ * @param {{ rationale?: string, idempotencyKey?: string }} [options]
+ */
+export function approveProposal(file, { rationale, idempotencyKey } = {}) {
+  const proposal = readProposal(file);
+  if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
+  if (idempotencyKey) {
+    const previous = lookupKey(idempotencyKey);
+    if (previous) return { ok: true, replayed: true, ...previous };
+  }
+  if (["approved", "applying", "validated"].includes(proposal.status)) {
+    return { ok: false, status: 409, error: `This proposal is already ${proposal.status}.` };
+  }
+  const digest = digestOf(readProposalText(file));
+  const approvedAt = new Date().toISOString();
+  const decision = recordDecision(proposal, {
+    decision: "approved",
+    rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : null,
+    digest,
+    idempotency_key: idempotencyKey ?? null
+  });
+  updateStatus(file, "approved", { approval: { approved_by: "ui", approved_at: approvedAt, digest } });
+  const outcome = { decision, next: `Nothing has changed yet. Run /improve apply ${proposal.id} to apply it.` };
+  if (idempotencyKey) claimKey(idempotencyKey, outcome);
+  return { ok: true, ...outcome };
+}
+
+/**
+ * @param {string} file
+ * @param {{ rationale?: string, idempotencyKey?: string }} [options]
+ */
 export function rejectProposal(file, { rationale, idempotencyKey } = {}) {
   const proposal = readProposal(file);
   if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
+  // A rejection keeps its reason so the same idea is not proposed again.
+  if (typeof rationale !== "string" || rationale.trim().length < 3) {
+    return { ok: false, status: 400, error: "Say why you are rejecting it. The reason is kept so the idea is not proposed again." };
+  }
+  rationale = rationale.trim();
   if (idempotencyKey) {
     const previous = lookupKey(idempotencyKey);
     if (previous) return { ok: true, replayed: true, ...previous };

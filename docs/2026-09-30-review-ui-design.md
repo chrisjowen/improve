@@ -1,6 +1,7 @@
 # Review UI — as built
 
 Status: **implemented**. This records what was built and why, after the fact.
+The 2026-10 runner and layout revision is summarised under "Revision" at the end.
 
 The UI is a local review surface for three things the harness already produces or
 can produce: proposals, objective scores, and evaluation runs.
@@ -16,16 +17,17 @@ both without adding a new source of truth.
 ## Shape
 
 One SvelteKit app in `ui/`, whose `+server.js` routes are the API. There is no
-second process: the page and its data come from the same origin, so CORS is
-mostly moot, but `/api/*` answers cross-origin anyway because the workspace may
-be proxied.
+second process: the page and its data come from the same origin, and `/api/*`
+answers that origin only.
 
 ```
 ui/src/lib/server/    paths, proposals, results, evaluate, skills, jobs
-ui/src/routes/        three pages and the API
-ui/src/lib/components Badge, Diff, Trend, StepBars, ScoreChart
-scripts/spawn-agent.mjs  shared read-only agent runner
-scripts/ui.mjs           launcher that explains missing dependencies
+ui/src/routes/        six pages and the API
+ui/src/lib/components Pill, Notice, Diff, JobCard, LogView, Trend, StepBars, ScoreChart
+scripts/run-process.mjs  process runner: timeout, cancel, process-group kill, log
+scripts/spawn-agent.mjs  shared read-only agent runner, streamed
+scripts/dream.mjs        one background review, used by the hook worker and the UI
+scripts/ui.mjs           start/stop/status launcher; explains missing dependencies
 ```
 
 Stack: SvelteKit 2 with Svelte 5 runes, `@sveltejs/adapter-node`, D3 for charts,
@@ -89,13 +91,23 @@ freeform Markdown.
 **Evaluations run only when asked.** No schedule, no batch runs. An observed
 objective cannot be replayed, so a background score would be meaningless.
 
-**One job at a time**, per repository. A second concurrent request gets 409.
+**One job at a time per lane**, per repository: one evaluation and one agent job
+(draft or background review). A second job in a busy lane gets 409 naming the
+job in the way. A single lane let a ten-minute draft block every evaluation.
 
-**No authentication**, for a single user on a trusted workspace. The residual
-risk is stated plainly in `ui/README.md`: the API runs evaluations, a suite's
-`core.command` evaluator executes declared `argv`, and the port therefore grants
-code execution. Path containment is enforced regardless, so a request cannot
-reach outside `.harness/` and `.claude/skills/`.
+**No authentication**, for a single user on their own machine. The server is
+local only by default (it binds `127.0.0.1`), the API is same-origin only (no
+CORS headers), every page and API request must name an allowed `Host` (loopback,
+a specific `HOST`, the host of `ORIGIN`, or `IMPROVE_ALLOWED_HOSTS`) so a
+DNS-rebinding page is refused, and cross-origin writes are refused: any
+request other than `GET` or `HEAD` gets 403 unless its `Origin`, or
+else its `Referer`, matches the server's own origin. Binding another host is an
+explicit choice (`--host` or `HOST`, with `ORIGIN` set to the public URL when
+proxied), and it exposes an unauthenticated server that can run evaluations and
+paid agent runs; a suite's `core.command` evaluator executes
+declared `argv`, so it also grants code execution. `ui/README.md` states this
+plainly. Path containment is enforced regardless, so a request cannot reach
+outside `.harness/` and `.claude/skills/`.
 
 **Dependencies are not bundled.** `node_modules` is gitignored, so a fresh
 install cannot run the UI. `scripts/ui.mjs` detects this and prints the install
@@ -116,13 +128,38 @@ one seeded proposal, using a stub agent:
   decision with its rationale, and moved the proposal to `validated`
 - `GET /api/proposals/..%2F..%2Fetc%2Fpasswd` returned 400 `unsafe id`
 - the server bound `*:5199`, and CORS preflight returned the expected headers
+  (first build only; the revision binds `127.0.0.1` and answers no preflight)
 
 Tests: `ui/tests/` covers path containment, the agent output contract, the data
 layer including trend arithmetic, and the draft-diff-apply round trip.
 
 ## Not built
 
-No streaming of agent output (jobs are polled), no multi-repo view, no objective
-editing, no auth, no proposal creation from the UI. Creating a proposal needs a
-`/improve` session or a background agent, which is where proposals come from by
-design.
+No multi-repo view, no objective editing, no auth, no proposal creation from the
+UI. Creating a proposal needs a `/improve` session or a background agent, which
+is where proposals come from by design.
+
+## Revision (2026-10)
+
+Exercising every path against a demo repository found the runner unreliable in
+ways the first build's tests did not cover. Fixed, each with a regression test:
+
+- an agent's failure reason (auth, budget, turns) is read from the CLI's result
+  envelope instead of being reported as "agent exited 1";
+- agents the plugin starts no longer fire its own hooks, which had counted their
+  prompts as corrections and their runs as sessions;
+- the launcher builds on first use and starts the server in the background, and
+  the status CLI and UI find the plugin data directory without the hook-only
+  environment variable;
+- evaluation errors (missing revision, Python, PyYAML) are stated plainly with
+  the next step; a structure-only run no longer claims no verification ran;
+- jobs have progress, cancel, a log, and records that survive a restart, and
+  timeouts stop the whole process tree;
+- the production build no longer fails every skill diff on a data file read
+  relative to a bundled module.
+
+The layout moved to a left sidebar with Overview, Proposals (list and detail,
+approve or reject with a reason), Background findings, Evaluations, Objectives,
+and Runs. Approving a proposal without a skill draft records the decision only;
+`/improve apply` applies it.
+

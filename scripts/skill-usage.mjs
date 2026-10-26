@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { loadConfig, parseJson, projectRoot, readStdin, skillFromPath } from "./lib.mjs";
+import { isImproveChild, loadConfig, parseJson, projectRoot, readStdin, skillFromPath } from "./lib.mjs";
 
 /**
  * Count how an applied skill is actually used.
@@ -16,6 +16,9 @@ import { loadConfig, parseJson, projectRoot, readStdin, skillFromPath } from "./
  *
  * The two are never merged. Being read is not being followed.
  */
+// An agent this plugin started is not the human's session; see isImproveChild.
+if (isImproveChild()) process.exit(0);
+
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
 

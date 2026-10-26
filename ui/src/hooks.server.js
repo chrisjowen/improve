@@ -1,27 +1,77 @@
 /**
- * The UI may be served through the ONA proxy while the browser talks to a
- * different origin, so the API answers cross-origin requests. There is no auth
- * by deliberate choice, so this is not loosening a boundary that exists.
+ * The API is same-origin only and has no authentication, so a state-changing
+ * request must come from a page this server served. Without this, any web page
+ * open in the person's browser could start evaluations and paid agent runs, or
+ * approve, reject and apply proposals.
+ *
+ * The origin check alone trusts the Host header, which a DNS-rebinding page
+ * controls, so every request must also name a host this server answers to.
+ * Both checks apply to every request, whatever its path: routing decodes the
+ * path, so a prefix test on the encoded one is no boundary.
  */
-const ALLOW_ORIGIN = process.env.IMPROVE_CORS_ORIGIN || "*";
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
+/** @type {(string | undefined)[]} */
+const LOOPBACK = ["127.0.0.1", "localhost", "[::1]"];
+
+/**
+ * @param {string} value
+ * @returns {string | undefined}
+ */
+function hostname(value) {
+  const host = value.trim().toLowerCase();
+  if (!host) return undefined;
+  const bareIPv6 = host.split(":").length > 2 && !host.startsWith("[");
+  try {
+    return new URL(`http://${bareIPv6 ? `[${host}]` : host}`).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+function allowedHosts(env = process.env) {
+  /** @type {Set<string | undefined>} */
+  const allowed = new Set(LOOPBACK);
+  if (env.HOST && env.HOST !== "0.0.0.0" && env.HOST !== "::") allowed.add(hostname(env.HOST));
+  if (env.ORIGIN) {
+    try {
+      allowed.add(new URL(env.ORIGIN).hostname);
+    } catch {
+      // adapter-node refuses a malformed ORIGIN itself
+    }
+  }
+  for (const extra of (env.IMPROVE_ALLOWED_HOSTS ?? "").split(",")) allowed.add(hostname(extra));
+  allowed.delete(undefined);
+  return allowed;
+}
+
+/** @param {Request} request */
+function requestOrigin(request) {
+  const origin = request.headers.get("origin");
+  if (origin) return origin;
+  const referer = request.headers.get("referer");
+  if (!referer) return undefined;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/** @param {string} error */
+function refuse(error) {
+  return new Response(JSON.stringify({ error }), { status: 403, headers: { "content-type": "application/json" } });
+}
 
 export async function handle({ event, resolve }) {
-  if (event.request.method === "OPTIONS" && event.url.pathname.startsWith("/api/")) {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "access-control-allow-origin": ALLOW_ORIGIN,
-        "access-control-allow-methods": "GET, POST, OPTIONS",
-        "access-control-allow-headers": "content-type",
-        "access-control-max-age": "86400"
-      }
-    });
+  const host = event.request.headers.get("host") ?? "";
+  if (!allowedHosts().has(hostname(host))) {
+    return refuse("This server does not answer to that host name. See ui/README.md, No authentication.");
   }
-
-  const response = await resolve(event);
-  if (event.url.pathname.startsWith("/api/")) {
-    response.headers.set("access-control-allow-origin", ALLOW_ORIGIN);
-    response.headers.set("vary", "origin");
+  // ORIGIN pins event.url to one loopback name, but the same server is just as
+  // much itself at the others, so a loopback page's own origin is its Host.
+  const self = LOOPBACK.includes(hostname(host)) ? `http://${host.trim().toLowerCase()}` : event.url.origin;
+  if (!SAFE_METHODS.has(event.request.method) && requestOrigin(event.request) !== self) {
+    return refuse("Cross-origin requests may not change anything.");
   }
-  return response;
+  return resolve(event);
 }

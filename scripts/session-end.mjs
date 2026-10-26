@@ -5,6 +5,7 @@ import {
   appendJsonl,
   daysSince,
   eventRecord,
+  isImproveChild,
   loadConfig,
   parseJson,
   projectDataDir,
@@ -13,6 +14,9 @@ import {
   readStdin,
   writeJsonAtomic
 } from "./lib.mjs";
+
+// An agent this plugin started is not the human's session; see isImproveChild.
+if (isImproveChild()) process.exit(0);
 
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
@@ -24,7 +28,7 @@ try {
     appendJsonl(path.join(dir, "events.jsonl"), eventRecord("SessionEnd", input, root));
   }
 
-  if (!config.background_dreaming.enabled || process.env.IMPROVE_DREAM_CHILD === "1") {
+  if (!config.background_dreaming.enabled) {
     process.exit(0);
   }
 

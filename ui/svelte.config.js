@@ -4,7 +4,8 @@ import adapter from "@sveltejs/adapter-node";
 export default {
   kit: {
     adapter: adapter(),
-    // The UI is served from ONA, whose proxy origin is not known at build time.
+    // Off because hooks.server.js enforces the host allowlist and same-origin
+    // writes itself, for every request rather than only form posts.
     csrf: { checkOrigin: false }
   }
 };

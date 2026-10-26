@@ -22,12 +22,12 @@
 {#if points.length >= 2}
   <svg {width} {height} role="img" aria-label="Score over time">
     <line x1="2" x2={width - 2} y1={height - 3} y2={height - 3}
-          stroke="hsl(var(--border))" stroke-width="1" />
-    <path d={path} fill="none" stroke="hsl(var(--foreground))" stroke-width="1.75"
+          stroke="var(--border)" stroke-width="1" />
+    <path d={path} fill="none" stroke="var(--text)" stroke-width="1.75"
           stroke-linecap="round" stroke-linejoin="round" />
     {#if last}
       <circle cx={width - 2} cy={(height - 3) - last.score * (height - 6)} r="2.5"
-              fill={last.score >= 0.999 ? "hsl(var(--success))" : "hsl(var(--warning))"} />
+              fill={last.score >= 0.999 ? "var(--ok)" : "var(--warn)"} />
     {/if}
   </svg>
 {:else if points.length === 1}

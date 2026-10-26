@@ -89,6 +89,55 @@ class EvalRigTest(unittest.TestCase):
         self.assertTrue(transcript["tool_calls"][0]["input"]["redacted"])
         self.assertNotIn("secret", json.dumps(transcript))
 
+    def test_structure_only_capture_does_not_claim_no_verification_ran(self) -> None:
+        """A digest is not evidence of absence.
+
+        Without content capture every tool input is a digest, so a session that
+        ran `npm test` used to fail with "no verification command ... was run".
+        The check still fails, for lack of evidence, but the note says why.
+        """
+        context = self._good_context()
+        for call in context["transcript"]["tool_calls"]:
+            if call.get("name") == "Bash":
+                call["input"] = {"redacted": True, "bytes": 20, "sha256": "0" * 64}
+        report = self._run_example(context)
+        step = next(s for s in report["steps"] if s["id"] == "grounded-and-verified")
+        messages = [item["message"] for item in step["result"]["evidence"]]
+        self.assertFalse(step["passed"])
+        self.assertTrue(any("digests only" in m for m in messages), messages)
+        self.assertFalse(any("no verification command" in m for m in messages), messages)
+        self.assertTrue(any("not captured" in note for note in step["result"]["notes"]))
+
+    def test_progress_lines_only_when_asked(self) -> None:
+        import contextlib
+        import io
+        import os
+        quiet, loud = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(quiet):
+            self._run_example(self._good_context())
+        os.environ["IMPROVE_EVAL_PROGRESS"] = "1"
+        try:
+            with contextlib.redirect_stderr(loud):
+                self._run_example(self._good_context())
+        finally:
+            del os.environ["IMPROVE_EVAL_PROGRESS"]
+        self.assertEqual(quiet.getvalue(), "")
+        events = [json.loads(line)["improve_progress"] for line in loud.getvalue().splitlines()]
+        self.assertEqual([e["state"] for e in events], ["running", "completed", "running", "completed"])
+        self.assertEqual(events[0]["total"], 2)
+
+    def test_bad_revision_fails_with_gits_message(self) -> None:
+        import subprocess
+        from runner.build_context import git_changes
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            with self.assertRaises(SystemExit) as raised:
+                git_changes(root, "nope~3", None, False)
+        message = str(raised.exception.code)
+        self.assertIn("git diff failed", message)
+        self.assertIn("nope~3", message)
+
 
 class ObjectiveRegistryTest(unittest.TestCase):
     """A suite may name its objective by id so two suites can share one."""

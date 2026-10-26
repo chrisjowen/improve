@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -190,6 +191,18 @@ def invoke(entry: dict[str, Any], context: dict[str, Any], timeout_ms: int) -> d
     return validate_result(json.loads(completed.stdout))
 
 
+def progress(event: dict[str, Any]) -> None:
+    """One JSON line on stderr per step, when the caller asked for it.
+
+    Opt-in by environment variable rather than a flag, so a caller can set it
+    for any copy of the rig: an older copy ignores the variable, where it would
+    reject an unknown flag.
+    """
+    if os.environ.get("IMPROVE_EVAL_PROGRESS") == "1":
+        sys.stderr.write(json.dumps({"improve_progress": event}) + "\n")
+        sys.stderr.flush()
+
+
 def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
     suite_path = suite_path.resolve()
     suite = load_yaml(suite_path)
@@ -218,7 +231,9 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
     outcomes = []
     fail_fast = bool(suite.get("aggregation", {}).get("fail_fast", False))
     stopped_at: int | None = None
+    total = len(suite.get("steps", []))
     for index, step in enumerate(suite.get("steps", [])):
+        progress({"step": step["id"], "index": index, "total": total, "state": "running"})
         started = time.monotonic()
         threshold = float(step.get("threshold", 1.0))
         required = bool(step.get("required", True))
@@ -244,6 +259,7 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
             outcome.update(status="error", passed=False, error=str(error))
         outcome["duration_ms"] = round((time.monotonic() - started) * 1000, 3)
         outcomes.append(outcome)
+        progress({"step": step["id"], "index": index, "total": total, "state": outcome["status"], "passed": outcome["passed"]})
         if fail_fast and required and not outcome["passed"]:
             stopped_at = index
             break

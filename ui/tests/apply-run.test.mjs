@@ -305,9 +305,24 @@ for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
+// --- a runner named in baseline and commands is an input, not an output ------
+{
+  fs.mkdirSync(path.join(repo, ".harness", "evals"), { recursive: true });
+  fs.writeFileSync(path.join(repo, ".harness", "evals", "run.py"), "THRESHOLD = 3\n");
+  const job = await applyTouching(".harness/evals/run.py", {
+    baseline: "python3 .harness/evals/run.py on main scores 62%",
+    candidate: "python3 .harness/evals/run.py scores 80% or more",
+    commands: ["python3 .harness/evals/run.py"]
+  }, "pass");
+  assert.equal(job.status, "failed");
+  assert.deepEqual(job.result.stray, [".harness/evals/run.py"]);
+  assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+}
+
 // --- results the evaluation writes are outputs: a retry may rewrite them ------
 {
-  const evaluation = { candidate: ".harness/evals/results/after.json", commands: ["node .harness/evals/check.mjs --out .harness/evals/results/after.json"] };
+  const evaluation = { candidate: "scored by .harness/evals/check.mjs", commands: ["node .harness/evals/check.mjs --out .harness/evals/results/after.json"] };
   const first = await applyTouching(".harness/evals/results/after.json", evaluation, "fail-eval");
   assert.equal(first.status, "failed");
   assert.match(first.error, /The evaluation failed/);
@@ -316,6 +331,24 @@ for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy
   assert.equal(retry.status, "completed", retry.error);
   assert.deepEqual(retry.result.stray, []);
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+}
+
+// --- a path listed in evaluation.outputs may be rewritten ---------------------
+{
+  fs.mkdirSync(path.join(repo, ".harness", "evals"), { recursive: true });
+  fs.writeFileSync(path.join(repo, ".harness", "evals", "scores.json"), "{}\n");
+  const job = await applyTouching(".harness/evals/scores.json", {
+    outputs: [".harness/evals/scores.json"],
+    commands: ["node .harness/evals/check.mjs --out .harness/evals/scores.json"]
+  }, "pass");
+  assert.equal(job.status, "completed", job.error);
+  assert.deepEqual(job.result.stray, []);
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+
+  seed(repo, "outside.yaml", { evaluation: { outputs: ["CLAUDE.md"] } });
+  const plan = await applyPlan("outside.yaml");
+  assert.equal(plan.status, 422);
+  assert.match(plan.error, /evaluation\.outputs lists CLAUDE\.md, which is not under \.harness\//);
 }
 
 // --- a named directory too large to guard refuses the plan --------------------
@@ -419,6 +452,7 @@ for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy
   fs.writeFileSync(path.join(home, ".harness", "evals", "other.yaml"), "cases: []\n");
   fs.mkdirSync(path.join(home, ".harness", "evals", "results"));
   fs.writeFileSync(path.join(home, ".harness", "evals", "results", "after.json"), "{}\n");
+  fs.writeFileSync(path.join(home, ".harness", "evals", "scores.json"), "{}\n");
   fs.writeFileSync(path.join(scratch, "secret.txt"), "not for the worktree\n");
   git(home, "add", "-A");
   git(home, "commit", "-q", "-m", "home");
@@ -443,7 +477,7 @@ for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy
   seed(home, "shared.yaml", {
     files: ["AGENTS.md", "bin/fm-check.sh"],
     id: "IMP-20261025-brief-port",
-    evaluation: { commands: ["python3 .harness/evals/run.py --suite .harness/evals/suite.yaml"], baseline: "also .harness/../../secret.txt and .harness/../AGENTS.md", candidate: ".harness/evals/results/after.json" }
+    evaluation: { commands: ["python3 .harness/evals/run.py --suite .harness/evals/suite.yaml"], baseline: "also .harness/../../secret.txt and .harness/../AGENTS.md", candidate: ".harness/evals/results/after.json", outputs: [".harness/evals/scores.json"] }
   });
   const sharedPlan = await applyPlan("shared.yaml");
   assert.equal(sharedPlan.mode, "upstream-pr");

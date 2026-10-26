@@ -141,7 +141,10 @@ export async function applyPlan(file) {
     `node ${path.join(pluginRoot(), "scripts", "proposal-check-cli.mjs")} .harness/proposals/${file}`,
     ...declared.filter((c) => typeof c === "string" && c.trim() !== "").map((c) => String(c).trim())
   ])];
-  const { overflow } = harnessAssets(root, { file }, proposal.evaluation);
+  const { overflow, invalid } = harnessAssets(root, { file }, proposal.evaluation);
+  if (invalid) {
+    return { ok: false, status: 422, error: `evaluation.outputs lists ${invalid}, which is not under .harness/. Only .harness/ files can be evaluation outputs.` };
+  }
   if (overflow) {
     return { ok: false, status: 422, error: `The evaluation names ${overflow}, which holds more than ${MAX_ASSETS} files, too many to guard during a run. Name the files it reads instead.` };
   }
@@ -450,30 +453,36 @@ function namedPaths(value) {
  * The .harness/ files a run reads and must not change: this proposal,
  * improve.json, and the .harness/ files its evaluation names, including the
  * files under a directory it names. Outputs the evaluation writes are not
- * inputs: anything under .harness/evals/results/, and the paths its baseline
- * and candidate name. A name that resolves outside .harness/, or to .harness/
+ * inputs: anything under .harness/evals/results/, and the paths listed in
+ * evaluation.outputs. A name that resolves outside .harness/, or to .harness/
  * itself, is skipped. `overflow` names a directory holding more than
- * MAX_ASSETS files, which are then not all listed.
+ * MAX_ASSETS files, which are then not all listed; `invalid` names an
+ * evaluation.outputs entry outside .harness/.
  *
  * @param {string} root
  * @param {{ file: string }} plan
  * @param {any} evaluation
- * @returns {{ assets: Map<string, string>, overflow: string | null }} project-relative path to its real source
+ * @returns {{ assets: Map<string, string>, overflow: string | null, invalid: string | null }} project-relative path to its real source
  */
 function harnessAssets(root, plan, evaluation) {
   const harness = contain(root, ".harness");
   const wanted = [`.harness/proposals/${plan.file}`, ".harness/improve.json", ...namedPaths(evaluation)];
-  /** @type {Set<string>} */
-  const outputs = new Set();
-  for (const name of namedPaths([evaluation?.baseline, evaluation?.candidate])) {
+  /** @type {string[]} */
+  const outputs = [];
+  /** @type {string | null} */
+  let invalid = null;
+  for (const name of Array.isArray(evaluation?.outputs) ? evaluation.outputs : []) {
+    let rel = null;
     try {
-      outputs.add(path.relative(root, contain(root, name)).split(path.sep).join("/"));
+      rel = path.relative(root, contain(root, String(name))).split(path.sep).join("/");
     } catch {
-      // outside the project, so never an asset either
+      // reported below
     }
+    if (rel?.startsWith(".harness/")) outputs.push(rel);
+    else invalid ??= String(name);
   }
   /** @param {string} rel */
-  const output = (rel) => rel.startsWith(RESULTS) || outputs.has(rel);
+  const output = (rel) => rel.startsWith(RESULTS) || outputs.some((o) => rel === o || rel.startsWith(`${o}/`));
   /** @type {Map<string, string>} */
   const assets = new Map();
   /** @type {string | null} */
@@ -502,7 +511,7 @@ function harnessAssets(root, plan, evaluation) {
       }
     }
   }
-  return { assets, overflow };
+  return { assets, overflow, invalid };
 }
 
 /**

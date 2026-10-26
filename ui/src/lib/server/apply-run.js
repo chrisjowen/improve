@@ -40,8 +40,9 @@ const TIMEOUT_MS = 30 * 60_000;
 const GIT_TIMEOUT_MS = 60_000;
 // Kept per file in the change record; harness files are far smaller.
 const MAX_TEXT = 200_000;
-// Files taken from directories an evaluation names, at most.
+// Evaluation input files a run guards, at most; more refuses the plan.
 const MAX_ASSETS = 500;
+const RESULTS = ".harness/evals/results/";
 
 /**
  * @typedef {{
@@ -140,6 +141,10 @@ export async function applyPlan(file) {
     `node ${path.join(pluginRoot(), "scripts", "proposal-check-cli.mjs")} .harness/proposals/${file}`,
     ...declared.filter((c) => typeof c === "string" && c.trim() !== "").map((c) => String(c).trim())
   ])];
+  const { overflow } = harnessAssets(root, { file }, proposal.evaluation);
+  if (overflow) {
+    return { ok: false, status: 422, error: `The evaluation names ${overflow}, which holds more than ${MAX_ASSETS} files, too many to guard during a run. Name the files it reads instead.` };
+  }
 
   const digest = digestOf(readProposalText(file) ?? "");
   const firstmate = detectFirstmate(root);
@@ -243,7 +248,7 @@ export function applyPrompt(plan, proposalText, approvedAt) {
   const where = plan.mode === "upstream-pr"
     ? [
         `- You are in a separate git worktree on the new branch ${plan.branch}. These are shared Firstmate files; this branch becomes a pull request.`,
-        "- The proposal, .harness/improve.json and the .harness/ files its evaluation names were copied here read-only. Nothing else from .harness/ is here.",
+        "- The proposal, .harness/improve.json and the .harness/ files its evaluation reads were copied here read-only. Nothing else from .harness/ is here; the evaluation may write its results.",
         "- Do not commit, push, or open a pull request. The UI commits the branch if the evaluation passes, and the captain opens the pull request."
       ]
     : ["- Work in place in this repository."];
@@ -371,7 +376,7 @@ function strayPaths(before, after, plan, root) {
   /** @param {string} p */
   const record = (p) => (p.startsWith(".harness/proposals/") && p !== `.harness/proposals/${plan.file}`)
     || p.startsWith(".harness/decisions/")
-    || p.startsWith(".harness/evals/results/")
+    || p.startsWith(RESULTS)
     || Boolean(ownJobs && p.startsWith(ownJobs));
   return [...new Set([...before.keys(), ...after.keys()])]
     .filter((p) => before.get(p) !== after.get(p))
@@ -434,22 +439,45 @@ function readEvaluation(payload) {
 }
 
 /**
- * The .harness/ files a run depends on and must not change: this proposal,
+ * `.harness/` paths named anywhere in `value`.
+ * @param {unknown} value
+ */
+function namedPaths(value) {
+  return (JSON.stringify(value ?? {}).match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? []).map((p) => p.replace(/[.:]+$/, ""));
+}
+
+/**
+ * The .harness/ files a run reads and must not change: this proposal,
  * improve.json, and the .harness/ files its evaluation names, including the
- * files under a directory it names. A name that resolves outside .harness/,
- * or to .harness/ itself, is skipped.
+ * files under a directory it names. Outputs the evaluation writes are not
+ * inputs: anything under .harness/evals/results/, and the paths its baseline
+ * and candidate name. A name that resolves outside .harness/, or to .harness/
+ * itself, is skipped. `overflow` names a directory holding more than
+ * MAX_ASSETS files, which are then not all listed.
  *
  * @param {string} root
- * @param {ApplyPlan} plan
- * @param {unknown} evaluation
- * @returns {Map<string, string>} project-relative path to its real source
+ * @param {{ file: string }} plan
+ * @param {any} evaluation
+ * @returns {{ assets: Map<string, string>, overflow: string | null }} project-relative path to its real source
  */
 function harnessAssets(root, plan, evaluation) {
   const harness = contain(root, ".harness");
-  const named = JSON.stringify(evaluation ?? {}).match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? [];
-  const wanted = [`.harness/proposals/${plan.file}`, ".harness/improve.json", ...named.map((p) => p.replace(/[.:]+$/, ""))];
+  const wanted = [`.harness/proposals/${plan.file}`, ".harness/improve.json", ...namedPaths(evaluation)];
+  /** @type {Set<string>} */
+  const outputs = new Set();
+  for (const name of namedPaths([evaluation?.baseline, evaluation?.candidate])) {
+    try {
+      outputs.add(path.relative(root, contain(root, name)).split(path.sep).join("/"));
+    } catch {
+      // outside the project, so never an asset either
+    }
+  }
+  /** @param {string} rel */
+  const output = (rel) => rel.startsWith(RESULTS) || outputs.has(rel);
   /** @type {Map<string, string>} */
   const assets = new Map();
+  /** @type {string | null} */
+  let overflow = null;
   for (const name of wanted) {
     let source;
     try {
@@ -459,17 +487,22 @@ function harnessAssets(root, plan, evaluation) {
     }
     const rel = path.relative(root, contain(root, name)).split(path.sep).join("/");
     const stat = fs.statSync(source, { throwIfNoEntry: false });
-    if (stat?.isFile()) assets.set(rel, source);
+    if (stat?.isFile() && !output(rel)) assets.set(rel, source);
     else if (stat?.isDirectory() && rel !== ".harness") {
       for (const entry of fs.readdirSync(source, { recursive: true, withFileTypes: true })) {
-        if (assets.size >= MAX_ASSETS) break;
         if (!entry.isFile()) continue;
         const file = path.join(entry.parentPath, entry.name);
-        assets.set(`${rel}/${path.relative(source, file).split(path.sep).join("/")}`, file);
+        const key = `${rel}/${path.relative(source, file).split(path.sep).join("/")}`;
+        if (output(key)) continue;
+        if (assets.size >= MAX_ASSETS) {
+          overflow = rel;
+          break;
+        }
+        assets.set(key, file);
       }
     }
   }
-  return assets;
+  return { assets, overflow };
 }
 
 /**
@@ -552,7 +585,10 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   /** @type {string | null} */
   let base = null;
   let restoreExclude = () => {};
-  const assets = harnessAssets(root, plan, parsed?.evaluation);
+  const { assets, overflow } = harnessAssets(root, plan, parsed?.evaluation);
+  if (overflow) {
+    return { ok: false, error: `The evaluation names ${overflow}, which now holds more than ${MAX_ASSETS} files, too many to guard. Nothing was changed.` };
+  }
   if (plan.mode === "upstream-pr") {
     progress({ message: `Creating branch ${plan.branch} in a separate worktree` });
     const head = await git(["rev-parse", "HEAD"], root);
@@ -599,10 +635,13 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     progress({ message: "Checking what changed" });
     const changes = compare(before, snapshot(cwd, plan.files));
     const dirtyAfter = await dirtyPaths(cwd);
-    const assetsAfter = hashes(cwd, [...assets.keys()]);
+    const listed = harnessAssets(cwd, plan, parsed?.evaluation);
+    const assetsAfter = hashes(cwd, [...listed.assets.keys()]);
     const stray = [...new Set([
       ...(dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan, cwd) : []),
-      ...[...assets.keys()].filter((p) => !plan.files.includes(p) && assetsBefore.get(p) !== assetsAfter.get(p))
+      ...[...new Set([...assetsBefore.keys(), ...assetsAfter.keys()])]
+        .filter((p) => !plan.files.includes(p) && assetsBefore.get(p) !== assetsAfter.get(p)),
+      ...(listed.overflow ? [`${listed.overflow}/`] : [])
     ])].sort();
     const unchecked = dirtyBefore && dirtyAfter ? null : "This project is not a git repository, so changes outside the confirmed files could not be checked.";
     const changed = changes.filter((c) => c.change !== "unchanged");

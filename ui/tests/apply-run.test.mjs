@@ -276,28 +276,57 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
-// --- a named file among evaluation results, or inside a named directory, is guarded too
-for (const { touch, evaluation } of [
-  { touch: ".harness/evals/results/baseline.json", evaluation: { baseline: ".harness/evals/results/baseline.json" } },
-  { touch: ".harness/evals/suites/a.yaml", evaluation: { commands: ["node .harness/evals/check.mjs --suite .harness/evals/suites/"] } }
-]) {
-  for (const file of [".harness/evals/results/baseline.json", ".harness/evals/suites/a.yaml"]) {
-    fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
-    fs.writeFileSync(path.join(repo, file), "threshold: 3\n");
-  }
+/** Run `p.yaml` with `.harness/evals/` ignored by git and the stand-in writing `touch`. */
+async function applyTouching(touch, evaluation, mode = "edit-eval") {
   const exclude = path.join(repo, ".git", "info", "exclude");
   const excluded = fs.readFileSync(exclude, "utf8");
   fs.writeFileSync(exclude, `${excluded}.harness/evals/\n`);
-  process.env.IMPROVE_STANDIN = "edit-eval";
+  process.env.IMPROVE_STANDIN = mode;
   process.env.IMPROVE_STANDIN_TOUCH = touch;
   seed(repo, "p.yaml", { evaluation });
-  const { job } = await apply("p.yaml");
-  delete process.env.IMPROVE_STANDIN;
-  delete process.env.IMPROVE_STANDIN_TOUCH;
-  fs.writeFileSync(exclude, excluded);
+  try {
+    return (await apply("p.yaml")).job;
+  } finally {
+    delete process.env.IMPROVE_STANDIN;
+    delete process.env.IMPROVE_STANDIN_TOUCH;
+    fs.writeFileSync(exclude, excluded);
+    git(repo, "checkout", "-q", "--", "CLAUDE.md", ".claude/rules/format.md");
+  }
+}
+
+// --- an edited or added file inside a named directory is guarded too ----------
+for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy.yaml"]) {
+  fs.mkdirSync(path.join(repo, ".harness", "evals", "suites"), { recursive: true });
+  fs.writeFileSync(path.join(repo, ".harness", "evals", "suites", "a.yaml"), "threshold: 3\n");
+  const job = await applyTouching(touch, { commands: ["node .harness/evals/check.mjs --suite .harness/evals/suites/"] });
   assert.equal(job.status, "failed", touch);
   assert.deepEqual(job.result.stray, [touch]);
   assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+}
+
+// --- results the evaluation writes are outputs: a retry may rewrite them ------
+{
+  const evaluation = { candidate: ".harness/evals/results/after.json", commands: ["node .harness/evals/check.mjs --out .harness/evals/results/after.json"] };
+  const first = await applyTouching(".harness/evals/results/after.json", evaluation, "fail-eval");
+  assert.equal(first.status, "failed");
+  assert.match(first.error, /The evaluation failed/);
+  assert.ok(fs.existsSync(path.join(repo, ".harness", "evals", "results", "after.json")), "the first run wrote its result");
+  const retry = await applyTouching(".harness/evals/results/after.json", evaluation, "pass");
+  assert.equal(retry.status, "completed", retry.error);
+  assert.deepEqual(retry.result.stray, []);
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+}
+
+// --- a named directory too large to guard refuses the plan --------------------
+{
+  const suites = path.join(repo, ".harness", "evals", "suites");
+  fs.mkdirSync(suites, { recursive: true });
+  for (let n = 0; n <= 500; n += 1) fs.writeFileSync(path.join(suites, `case-${n}.yaml`), "x\n");
+  seed(repo, "big.yaml", { evaluation: { commands: ["node .harness/evals/check.mjs --suite .harness/evals/suites/"] } });
+  const plan = await applyPlan("big.yaml");
+  assert.equal(plan.status, 422);
+  assert.match(plan.error, /\.harness\/evals\/suites, which holds more than 500 files/);
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
@@ -388,6 +417,8 @@ for (const { touch, evaluation } of [
   fs.writeFileSync(path.join(home, ".harness", "improve.json"), JSON.stringify({ adapters: { firstmate: { enabled: true } } }));
   fs.writeFileSync(path.join(home, ".harness", "evals", "suite.yaml"), "cases: []\n");
   fs.writeFileSync(path.join(home, ".harness", "evals", "other.yaml"), "cases: []\n");
+  fs.mkdirSync(path.join(home, ".harness", "evals", "results"));
+  fs.writeFileSync(path.join(home, ".harness", "evals", "results", "after.json"), "{}\n");
   fs.writeFileSync(path.join(scratch, "secret.txt"), "not for the worktree\n");
   git(home, "add", "-A");
   git(home, "commit", "-q", "-m", "home");
@@ -412,7 +443,7 @@ for (const { touch, evaluation } of [
   seed(home, "shared.yaml", {
     files: ["AGENTS.md", "bin/fm-check.sh"],
     id: "IMP-20261025-brief-port",
-    evaluation: { commands: ["python3 .harness/evals/run.py --suite .harness/evals/suite.yaml"], baseline: "also .harness/../../secret.txt and .harness/../AGENTS.md" }
+    evaluation: { commands: ["python3 .harness/evals/run.py --suite .harness/evals/suite.yaml"], baseline: "also .harness/../../secret.txt and .harness/../AGENTS.md", candidate: ".harness/evals/results/after.json" }
   });
   const sharedPlan = await applyPlan("shared.yaml");
   assert.equal(sharedPlan.mode, "upstream-pr");

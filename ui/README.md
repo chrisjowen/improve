@@ -98,11 +98,14 @@ Afterwards the server compares the files itself, by content, including files
 that were already uncommitted. If the run fails, its evaluation fails, or it
 changes a file you did not confirm, the confirmed files are put back and
 anything else it changed is named. That includes this proposal,
-`.harness/improve.json` and the `.harness/` files its evaluation names, or the
-files under a directory it names, which are checked even when git ignores them
-or they sit among evaluation results. Only the UI's own records (other
-proposals, decisions, evaluation results the evaluation does not name) are
-exempt. Other changes git cannot see, in ignored files
+`.harness/improve.json` and the `.harness/` files its evaluation reads: the
+files it names, and every file under a directory it names, including files
+added there. These are checked even when git ignores them, and a named
+directory holding more than 500 files refuses the plan. What the evaluation
+writes is output, not input, and may change: anything under
+`.harness/evals/results/` and the paths its `baseline` and `candidate` name.
+In a Firstmate worktree those outputs are not copied, so the evaluation can
+write them. The UI's own records (other proposals, decisions) are exempt too. Other changes git cannot see, in ignored files
 outside the confirmed list, are not detected; outside a git repository nothing
 outside the confirmed files can be checked, and the result says so.
 

@@ -4,7 +4,8 @@
 // stream-json events and result envelope the CLI would.
 //
 // IMPROVE_STANDIN picks the outcome: pass (default), fail-eval, stray, refuse,
-// undeclared, edit-eval (also loosens IMPROVE_STANDIN_TOUCH, by default
+// undeclared, edit-eval (also writes IMPROVE_STANDIN_TOUCH, which any mode
+// that edits writes when it is set; by default
 // .harness/evals/suite.yaml), or slow. A proposal can pick its own with "[stand-in: <mode>]" in its text,
 // so one demo shows several outcomes. IMPROVE_STANDIN_DELAY_MS spaces the
 // events out so progress shows.
@@ -62,7 +63,11 @@ if (mode === "refuse") {
     await sleep(delay);
   }
   if (mode === "stray") fs.writeFileSync("stray.txt", "not confirmed\n");
-  if (mode === "edit-eval") fs.appendFileSync(process.env.IMPROVE_STANDIN_TOUCH || ".harness/evals/suite.yaml", "threshold: 0\n");
+  if (mode === "edit-eval" || process.env.IMPROVE_STANDIN_TOUCH) {
+    const touch = process.env.IMPROVE_STANDIN_TOUCH || ".harness/evals/suite.yaml";
+    fs.mkdirSync(path.dirname(touch), { recursive: true });
+    fs.appendFileSync(touch, "threshold: 0\n");
+  }
   tool("Bash", { command: "node .harness/evals/check.mjs" });
   await sleep(delay);
   const passed = mode !== "fail-eval";

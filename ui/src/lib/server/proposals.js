@@ -101,11 +101,15 @@ export function readProposal(file) {
   }
 }
 
+/** @param {string} file */
 export function readProposalText(file) {
   return readTextSafe(contain(proposalsDir(), safeId(file)));
 }
 
-/** Every recorded decision, newest first, optionally for one proposal file. */
+/**
+ * Every recorded decision, newest first, optionally for one proposal file.
+ * @param {{ file?: string }} [options]
+ */
 export function listDecisions({ file } = {}) {
   const dir = decisionsDir();
   const decisions = [];

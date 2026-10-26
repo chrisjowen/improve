@@ -66,6 +66,9 @@ export function isImproveChild(env = process.env) {
  * Returns `{ dir, source }`, or undefined when nothing can be found. An empty
  * variable counts as unset, because an unsubstituted `${CLAUDE_PLUGIN_DATA}`
  * expands to "".
+ *
+ * @param {string} root
+ * @param {{ env?: Record<string, string | undefined>, home?: string }} [options]
  */
 export function resolvePluginDataDir(root, { env = process.env, home = os.homedir() } = {}) {
   if (env.CLAUDE_PLUGIN_DATA) return { dir: path.resolve(env.CLAUDE_PLUGIN_DATA), source: "env" };

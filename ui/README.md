@@ -105,12 +105,8 @@ directory holding more than 500 files refuses the plan. What the evaluation
 writes is output, not input, and may change: anything under
 `.harness/evals/results/` and the `.harness/` paths listed in its
 `evaluation.outputs`, which the confirm step lists. An output that is or
-contains an input (this proposal, `improve.json`, `.harness/evals` itself, the
-suite, a runner or other path a command reads, or another path the evaluation
-names) refuses the plan. In a command, only a long flag's value such as
-`--out <path>` can be an output; the script it runs, a path after a short flag
-such as `-u`, and a `--suite` value are always inputs. Paths mentioned in
-`baseline` or `candidate` are inputs.
+contains an input refuses the plan; which paths count as inputs and outputs is
+set out in [proposal-format.md](../references/proposal-format.md).
 In a Firstmate worktree those outputs are not copied, so the evaluation can
 write them. The UI's own records (other proposals, decisions) are exempt too. Other changes git cannot see, in ignored files
 outside the confirmed list, are not detected; outside a git repository nothing

@@ -451,18 +451,24 @@ function namedPaths(value) {
 }
 
 /**
- * `.harness/` paths a command reads: every path it names except the value of
- * a flag such as `--out <path>` or `--out=<path>`. A suite flag's value is
- * read, so it stays.
+ * `.harness/` paths a command reads. The first is the script it runs and is
+ * always read. A later one is written only as a long flag's value, such as
+ * `--out <path>` or `--out=<path>`; a short flag like `-u` takes none, and a
+ * suite flag's value is read.
  * @param {unknown} commands
  */
 function commandInputs(commands) {
   return (Array.isArray(commands) ? commands : []).flatMap((command) => {
     const tokens = String(command).split(/\s+/);
+    let script = true;
     return tokens.flatMap((token, index) => {
-      const flag = /^(--?[A-Za-z][\w-]*)=/.exec(token)?.[1]
-        ?? (index > 0 && /^--?[A-Za-z][\w-]*$/.test(tokens[index - 1]) ? tokens[index - 1] : null);
-      return flag && !/suite/i.test(flag) ? [] : namedPaths(token);
+      const named = namedPaths(token);
+      if (named.length === 0) return [];
+      const flag = /^(--[A-Za-z][\w-]*)=/.exec(token)?.[1]
+        ?? (index > 0 && /^--[A-Za-z][\w-]*$/.test(tokens[index - 1]) ? tokens[index - 1] : null);
+      const written = !script && flag !== null && !/suite/i.test(flag);
+      script = false;
+      return written ? [] : named;
     });
   });
 }

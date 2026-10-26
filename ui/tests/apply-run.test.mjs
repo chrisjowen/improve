@@ -381,8 +381,22 @@ for (const visible of [true, false]) {
   }
   seed(repo, "overlap.yaml", { evaluation: { suite: ".harness/evals/suites", outputs: [".harness/evals/suites"] } });
   assert.equal((await applyPlan("overlap.yaml")).status, 422, "the suite field is an input too");
-  seed(repo, "overlap.yaml", { evaluation: { outputs: [".harness/evals/scores.json"], commands: ["python3 .harness/evals/run.py --out=.harness/evals/scores.json"] } });
-  assert.equal((await applyPlan("overlap.yaml")).ok, true, "a path written through --out= may be an output");
+  // The script a command runs is read, whatever flags come before it.
+  for (const [command, output] of [
+    ["python3 -u .harness/evals/run.py --suite .harness/evals/suites", ".harness/evals/run.py"],
+    ["node --test .harness/evals/x.test.mjs", ".harness/evals/x.test.mjs"]
+  ]) {
+    seed(repo, "overlap.yaml", { evaluation: { outputs: [output], commands: [command] } });
+    const refused = await applyPlan("overlap.yaml");
+    assert.equal(refused.status, 422, command);
+    assert.ok(refused.error.startsWith(`evaluation.outputs lists ${output}, which would let the run change ${output}, an input`), refused.error);
+  }
+  for (const command of ["python3 .harness/evals/run.py --out .harness/evals/scores.json", "python3 .harness/evals/run.py --out=.harness/evals/scores.json"]) {
+    seed(repo, "overlap.yaml", { evaluation: { outputs: [".harness/evals/scores.json"], commands: [command] } });
+    assert.equal((await applyPlan("overlap.yaml")).ok, true, `${command}: a long flag's value may be an output`);
+  }
+  seed(repo, "overlap.yaml", { evaluation: { outputs: [".harness/evals/scores.json"], commands: ["python3 .harness/evals/run.py -o .harness/evals/scores.json"] } });
+  assert.equal((await applyPlan("overlap.yaml")).status, 422, "a short flag takes no value, so the path after it is read");
 
   seed(repo, "listed.yaml", { evaluation: { outputs: [".harness/evals/scores.json"] } });
   assert.deepEqual((await applyPlan("listed.yaml")).outputs, [".harness/evals/scores.json"], "the confirm lists the declared outputs");

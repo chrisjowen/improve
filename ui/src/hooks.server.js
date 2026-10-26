@@ -8,8 +8,13 @@
  * controls, so every API request must also name a host this server answers to.
  */
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+/** @type {(string | undefined)[]} */
 const LOOPBACK = ["127.0.0.1", "localhost", "[::1]"];
 
+/**
+ * @param {string} value
+ * @returns {string | undefined}
+ */
 function hostname(value) {
   const host = value.trim().toLowerCase();
   if (!host) return undefined;
@@ -22,6 +27,7 @@ function hostname(value) {
 }
 
 function allowedHosts(env = process.env) {
+  /** @type {Set<string | undefined>} */
   const allowed = new Set(LOOPBACK);
   if (env.HOST && env.HOST !== "0.0.0.0" && env.HOST !== "::") allowed.add(hostname(env.HOST));
   if (env.ORIGIN) {
@@ -36,6 +42,7 @@ function allowedHosts(env = process.env) {
   return allowed;
 }
 
+/** @param {Request} request */
 function requestOrigin(request) {
   const origin = request.headers.get("origin");
   if (origin) return origin;
@@ -48,6 +55,7 @@ function requestOrigin(request) {
   }
 }
 
+/** @param {string} error */
 function refuse(error) {
   return new Response(JSON.stringify({ error }), { status: 403, headers: { "content-type": "application/json" } });
 }

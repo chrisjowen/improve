@@ -1,7 +1,10 @@
 import { api } from "./api.js";
 import { waiting } from "./format.js";
 
-/** What the sidebar and the home page both need: status and queue sizes. */
+/**
+ * What the sidebar and the home page both need: status and queue sizes.
+ * @type {{ status: any, proposals: any[], dreams: any[], loaded: boolean, error: string | null }}
+ */
 export const summary = $state({ status: null, proposals: [], dreams: [], loaded: false, error: null });
 
 export async function refreshSummary() {
@@ -16,7 +19,7 @@ export async function refreshSummary() {
     summary.dreams = dreams.dreams ?? [];
     summary.error = null;
   } catch (error) {
-    summary.error = error.message;
+    summary.error = /** @type {Error} */ (error).message;
   }
   summary.loaded = true;
 }

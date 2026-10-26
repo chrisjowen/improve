@@ -5,8 +5,10 @@ import { api } from "./api.js";
  * Fast when a job is live, slow when idle, so a run started on one page shows
  * its progress on every other page too.
  */
+/** @type {{ list: any[], error: string | null, loaded: boolean }} */
 export const jobs = $state({ list: [], error: null, loaded: false });
 
+/** @type {ReturnType<typeof setTimeout> | undefined} */
 let timer;
 let listeners = 0;
 
@@ -16,7 +18,7 @@ async function tick() {
     jobs.list = value.jobs ?? [];
     jobs.error = null;
   } catch (error) {
-    jobs.error = error.message;
+    jobs.error = /** @type {Error} */ (error).message;
   }
   jobs.loaded = true;
   schedule();
@@ -46,7 +48,10 @@ export function refreshJobs() {
   return tick();
 }
 
-/** Resolve once the job is no longer running. */
+/**
+ * Resolve once the job is no longer running.
+ * @param {string} id
+ */
 export async function settled(id) {
   for (;;) {
     const job = jobs.list.find((candidate) => candidate.id === id);

@@ -9,7 +9,7 @@
   let { url, live = false } = $props();
   let text = $state("");
   let truncated = $state(false);
-  let error = $state(null);
+  let error = $state(/** @type {string | null} */ (null));
   let box = $state();
 
   async function load() {
@@ -21,7 +21,7 @@
       error = null;
       if (stick) requestAnimationFrame(() => { if (box) box.scrollTop = box.scrollHeight; });
     } catch (cause) {
-      error = cause.message;
+      error = /** @type {Error} */ (cause).message;
     }
   }
 

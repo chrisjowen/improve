@@ -3,6 +3,9 @@
  *
  * Every route answers `{ error }` on failure, sometimes with `hint` and
  * `running`; those are kept on the thrown error so a page can show them.
+ * @param {string} url
+ * @param {{ method?: string, body?: unknown }} [options]
+ * @returns {Promise<any>}
  */
 export async function api(url, { method = "GET", body } = {}) {
   let response;

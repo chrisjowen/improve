@@ -11,12 +11,12 @@
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
   import { ago, score, when } from "$lib/client/format.js";
 
-  let suites = $state([]);
-  let runs = $state([]);
-  let transcripts = $state([]);
-  let report = $state(null);
-  let reportError = $state(null);
-  let notice = $state(null);
+  let suites = $state(/** @type {any[]} */ ([]));
+  let runs = $state(/** @type {any[]} */ ([]));
+  let transcripts = $state(/** @type {any[]} */ ([]));
+  let report = $state(/** @type {any} */ (null));
+  let reportError = $state(/** @type {string | null} */ (null));
+  let notice = $state(/** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */ (null));
 
   let suite = $state("");
   let pick = $state("");
@@ -64,12 +64,13 @@
       const done = await settled(job.id);
       await load();
       if (done.status === "completed" && done.result?.run) goto(`/evals?run=${done.result.run.run_id}`, { noScroll: true });
-    } catch (error) {
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
       notice = { tone: "bad", text: error.message, hint: error.hint };
     }
   }
 
-  const unreadable = $derived((report?.steps ?? []).some((step) => (step.result?.notes ?? []).some((note) => /not captured/.test(note))));
+  const unreadable = $derived((report?.steps ?? []).some((/** @type {any} */ step) => (step.result?.notes ?? []).some((/** @type {string} */ note) => /not captured/.test(note))));
 </script>
 
 <svelte:head><title>Evaluations · improve</title></svelte:head>

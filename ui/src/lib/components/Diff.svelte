@@ -11,6 +11,10 @@
   const CONTEXT = 3;
   let expanded = $state(new Set());
 
+  /**
+   * @param {string[]} a
+   * @param {string[]} b
+   */
   function diffLines(a, b) {
     const n = a.length;
     const m = b.length;
@@ -38,7 +42,7 @@
     return out;
   }
 
-  const split = (text) => (text ? text.replace(/\n$/, "").split("\n") : []);
+  const split = (/** @type {string} */ text) => (text ? text.replace(/\n$/, "").split("\n") : []);
   const lines = $derived(diffLines(split(current), split(proposed)));
   const added = $derived(lines.filter((l) => l.kind === "add").length);
   const removed = $derived(lines.filter((l) => l.kind === "del").length);
@@ -62,6 +66,7 @@
     return out;
   });
 
+  /** @param {{ start: number, end: number }} fold */
   function unfold(fold) {
     const next = new Set(expanded);
     for (let i = fold.start; i < fold.end; i += 1) next.add(i);

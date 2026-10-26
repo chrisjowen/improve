@@ -8,6 +8,48 @@ import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mj
  * that can edit the repository is the exact anti-pattern the harness model
  * warns about, so denial is passed as flags the CLI enforces.
  */
+/**
+ * @typedef {object} AgentProgress
+ * @property {number} turns
+ * @property {number} tools
+ * @property {string | null} last_tool
+ * @property {string} message
+ */
+
+/**
+ * @typedef {object} RunAgentOptions
+ * @property {string} [command]
+ * @property {string} prompt
+ * @property {string} [cwd]
+ * @property {number} [timeoutMs]
+ * @property {string[]} [extraArgs]
+ * @property {AbortSignal} [signal]
+ * @property {string} [logFile]
+ * @property {(progress: AgentProgress) => void} [onProgress]
+ */
+
+/**
+ * @typedef {object} AgentMeta
+ * @property {number | null} cost_usd
+ * @property {number | null} duration_ms
+ * @property {number | null} turns
+ */
+
+/**
+ * The outcome of an agent run. `payload` is the agent's parsed JSON answer.
+ *
+ * @typedef {object} AgentResult
+ * @property {boolean} ok
+ * @property {string} [error]
+ * @property {any} [payload]
+ * @property {string} [raw]
+ * @property {string} [stderr]
+ * @property {boolean} [cancelled]
+ * @property {boolean} [timedOut]
+ * @property {AgentMeta} [envelope]
+ * @property {AgentProgress} [progress]
+ */
+
 export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
 
 /**
@@ -20,6 +62,9 @@ export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
  * Output is streamed so a long run can report what it is doing, and every line
  * goes to `logFile` when one is given. `onProgress` receives
  * `{ turns, tools, last_tool, message }` as the agent works.
+ *
+ * @param {RunAgentOptions} options
+ * @returns {Promise<AgentResult>}
  */
 export async function runAgent({
   command = "claude",
@@ -40,7 +85,9 @@ export async function runAgent({
     "--disallowed-tools", ...DENIED_TOOLS
   ];
 
+  /** @type {AgentProgress} */
   const progress = { turns: 0, tools: 0, last_tool: null, message: "Starting the agent" };
+  /** @param {string} message */
   const report = (message) => {
     progress.message = message;
     onProgress?.({ ...progress });
@@ -111,6 +158,10 @@ export async function runAgent({
   return { ...parsed, progress };
 }
 
+/**
+ * @param {string} line
+ * @returns {any}
+ */
 function parseLine(line) {
   if (!line.trim().startsWith("{")) return undefined;
   try {
@@ -124,13 +175,16 @@ function parseLine(line) {
  * One stream event as a log line a person can read. The raw stream repeats
  * whole messages as escaped JSON; the log keeps what the agent did and how it
  * ended, which is what someone reading a failed run needs.
+ *
+ * @param {string} line
+ * @returns {string | null}
  */
 export function describeEvent(line) {
   const event = parseLine(line);
   if (!event) return line.trim() ? `out ${line}` : null;
   if (event.type === "system") return event.subtype === "init" ? "agent started" : null;
   if (event.type === "assistant") {
-    const parts = (event.message?.content ?? []).flatMap((block) => {
+    const parts = (event.message?.content ?? []).flatMap((/** @type {any} */ block) => {
       if (block?.type === "tool_use") return [`agent used ${block.name}${describeInput(block.input)}`];
       if (block?.type === "text" && block.text?.trim()) return [`agent wrote: ${block.text.trim().replace(/\s+/g, " ").slice(0, 400)}`];
       return [];
@@ -146,6 +200,7 @@ export function describeEvent(line) {
   return null;
 }
 
+/** @param {any} input */
 function describeInput(input) {
   const target = input?.file_path ?? input?.path ?? input?.pattern ?? input?.command;
   if (typeof target !== "string" || !target) return "";
@@ -160,6 +215,9 @@ function describeInput(input) {
  * per line and ends with the result. A failed run still prints the envelope,
  * with `is_error` set and the reason in `result`, which is the only place the
  * reason appears: stderr carries unrelated notices.
+ *
+ * @param {unknown} stdout
+ * @returns {any}
  */
 export function findEnvelope(stdout) {
   const text = String(stdout ?? "").trim();
@@ -181,6 +239,10 @@ export function findEnvelope(stdout) {
 /**
  * The envelope's `result` is the assistant's text. That text is expected to
  * contain the JSON we asked for, possibly inside a fenced block.
+ *
+ * @param {unknown} stdout
+ * @param {unknown} [stderr]
+ * @returns {AgentResult}
  */
 export function parseAgentOutput(stdout, stderr = "") {
   const envelope = findEnvelope(stdout);
@@ -201,6 +263,10 @@ export function parseAgentOutput(stdout, stderr = "") {
   return { ok: true, payload, envelope: meta };
 }
 
+/**
+ * @param {any} envelope
+ * @returns {string}
+ */
 function agentFailure(envelope) {
   const reason = typeof envelope.result === "string" && envelope.result.trim()
     ? envelope.result.trim().slice(0, 300)
@@ -213,6 +279,10 @@ function agentFailure(envelope) {
   return `The agent failed: ${reason ?? envelope.subtype ?? "no reason given"}`;
 }
 
+/**
+ * @param {unknown} text
+ * @returns {any}
+ */
 export function extractJson(text) {
   if (typeof text !== "string") return undefined;
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);

@@ -17,7 +17,10 @@ function python() {
   return process.env.IMPROVE_PYTHON || "python3";
 }
 
-/** `~` and `~/x` as a shell would read them. The form suggests that shape. */
+/**
+ * `~` and `~/x` as a shell would read them. The form suggests that shape.
+ * @param {any} value
+ */
 export function expandHome(value) {
   if (typeof value !== "string") return value;
   if (value === "~") return os.homedir();
@@ -30,6 +33,9 @@ export function expandHome(value) {
  *
  * The rig is Python, so its failures arrive as tracebacks. The page used to
  * show "build_context failed" and keep the traceback out of sight.
+ *
+ * @param {string} stage
+ * @param {any} outcome
  */
 export function explainRigFailure(stage, outcome) {
   const label = stage === "build" ? "Collecting the session and changes" : "Grading";
@@ -61,6 +67,11 @@ export function explainRigFailure(stage, outcome) {
   return { error: `${label} failed${line ? `: ${line}` : ` (exit ${outcome.code}).`}`, hint: "The full output is in the run log." };
 }
 
+/**
+ * @param {string} root
+ * @param {string} revision
+ * @param {string} label
+ */
 async function verifyRevision(root, revision, label) {
   const check = await runProcess("git", ["rev-parse", "--verify", "--quiet", `${revision}^{commit}`], { cwd: root, timeoutMs: 15_000 });
   if (check.spawnError) return { error: "git was not found on PATH." };
@@ -82,6 +93,13 @@ async function verifyRevision(root, revision, label) {
  *
  * `signal` cancels; `progress` receives `{ message, done, total }`; every line
  * either half prints goes to `logFile`.
+ *
+ * @param {{
+ *   suiteFile: string, transcript?: string, base?: string, head?: string,
+ *   includeContent?: boolean, includePatch?: boolean, signal?: AbortSignal,
+ *   progress?: (update: { message?: string, done?: number, total?: number }) => void,
+ *   logFile?: string
+ * }} options
  */
 export async function runEvaluation({
   suiteFile, transcript, base, head, includeContent = false, includePatch = false,
@@ -116,7 +134,7 @@ export async function runEvaluation({
   }
 
   progress({ message: "Checking the revision range" });
-  for (const [revision, label] of [[base, "base"], [head, "head"]]) {
+  for (const [revision, label] of /** @type {[string | undefined, string][]} */ ([[base, "base"], [head, "head"]])) {
     if (!revision) continue;
     const problem = await verifyRevision(root, revision, label);
     if (problem) return { ok: false, ...problem };
@@ -160,7 +178,7 @@ export async function runEvaluation({
       timeoutMs: GRADE_TIMEOUT_MS,
       signal,
       logFile,
-      onStderrLine: (line) => {
+      onStderrLine: (/** @type {string} */ line) => {
         if (!line.startsWith("{\"improve_progress\"")) return;
         try {
           const event = JSON.parse(line).improve_progress;
@@ -185,7 +203,7 @@ export async function runEvaluation({
     try {
       report = JSON.parse(fs.readFileSync(output, "utf8"));
     } catch (error) {
-      return { ok: false, error: `The report could not be read: ${error.message}` };
+      return { ok: false, error: `The report could not be read: ${/** @type {Error} */ (error).message}` };
     }
     const entry = {
       run_id: runId,

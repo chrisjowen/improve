@@ -8,7 +8,7 @@ export const POST = ({ params }) => {
   try {
     proposal = readProposal(params.file);
   } catch (error) {
-    return json({ ok: false, error: error.message }, { status: 400 });
+    return json({ ok: false, error: /** @type {Error} */ (error).message }, { status: 400 });
   }
   if (!proposal) return json({ ok: false, error: `no such proposal: ${params.file}` }, { status: 404 });
   const started = startJob(

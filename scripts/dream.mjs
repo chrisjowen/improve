@@ -2,6 +2,23 @@ import path from "node:path";
 import { ensureDir, readJson, writeJsonAtomic } from "./lib.mjs";
 import { runAgent } from "./spawn-agent.mjs";
 
+/** @typedef {import("./spawn-agent.mjs").AgentResult} AgentResult */
+/** @typedef {import("./spawn-agent.mjs").AgentProgress} AgentProgress */
+
+/**
+ * @typedef {object} RunDreamOptions
+ * @property {string} root
+ * @property {string} dataDir
+ * @property {string} [command]
+ * @property {number} [timeoutMs]
+ * @property {AbortSignal} [signal]
+ * @property {(progress: AgentProgress) => void} [onProgress]
+ */
+
+/**
+ * @param {string} root
+ * @param {string} dataDir
+ */
 const PROMPT = (root, dataDir) => [
   "Act as a read-only coding-harness improvement researcher.",
   `Inspect the repository at ${root} and its current Claude Code harness.`,
@@ -34,6 +51,8 @@ const PROMPT = (root, dataDir) => [
  *
  * State is cleared in every outcome. A worker that died between marking itself
  * running and finishing used to suppress the next dream for a day.
+ *
+ * @param {RunDreamOptions} options
  */
 export async function runDream({ root, dataDir, command = "claude", timeoutMs = 20 * 60_000, signal, onProgress }) {
   const stamp = new Date().toISOString().replaceAll(":", "-");
@@ -42,13 +61,14 @@ export async function runDream({ root, dataDir, command = "claude", timeoutMs = 
   const outputFile = path.join(dreamsDir, `${stamp}.json`);
   ensureDir(dreamsDir);
 
+  /** @type {AgentResult} */
   let result;
   try {
     // The agent is denied edit tools by flag, so a dream cannot mutate the
     // harness even if the repository text tries to talk it into doing so.
     result = await runAgent({ command, prompt: PROMPT(root, dataDir), cwd: root, timeoutMs, signal, logFile, onProgress });
   } catch (error) {
-    result = { ok: false, error: `The background review crashed: ${error.message}` };
+    result = { ok: false, error: `The background review crashed: ${/** @type {Error} */ (error).message}` };
   }
 
   const status = result.ok ? "completed" : result.cancelled ? "cancelled" : "failed";

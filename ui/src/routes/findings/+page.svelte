@@ -10,9 +10,9 @@
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
   import { ago, plural } from "$lib/client/format.js";
 
-  let notice = $state(null);
-  let busy = $state(null);
-  let openLog = $state(null);
+  let notice = $state(/** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */ (null));
+  let busy = $state(/** @type {string | null} */ (null));
+  let openLog = $state(/** @type {string | null} */ (null));
 
   const reports = $derived(summary.dreams);
   const running = $derived(jobs.list.find((job) => job.kind === "dream" && job.status === "running"));
@@ -25,11 +25,16 @@
       await refreshJobs();
       await settled(job.id);
       await refreshSummary();
-    } catch (error) {
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
       notice = { tone: "bad", text: error.message, hint: error.hint };
     }
   }
 
+  /**
+   * @param {string} file
+   * @param {number} index
+   */
   async function importFinding(file, index) {
     busy = `${file}:${index}`;
     notice = null;
@@ -38,12 +43,13 @@
       await refreshSummary();
       goto(`/proposals?view=waiting&p=${encodeURIComponent(value.proposal)}`);
     } catch (error) {
-      notice = { tone: "bad", text: error.message };
+      notice = { tone: "bad", text: /** @type {Error} */ (error).message };
     } finally {
       busy = null;
     }
   }
 
+  /** @param {string} file */
   async function dismiss(file) {
     busy = file;
     notice = null;
@@ -52,12 +58,13 @@
       notice = { tone: "", text: "Dismissed. The report is deleted; nothing was imported." };
       await refreshSummary();
     } catch (error) {
-      notice = { tone: "bad", text: error.message };
+      notice = { tone: "bad", text: /** @type {Error} */ (error).message };
     } finally {
       busy = null;
     }
   }
 
+  /** @param {{ file: string, produced_at?: string }} report */
   function reportTitle(report) {
     return report.produced_at ? `Background review, ${ago(report.produced_at)}` : report.file;
   }

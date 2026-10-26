@@ -25,14 +25,15 @@
 
   const running = $derived(jobs.list.filter((job) => job.status === "running").length);
   const project = $derived(summary.status?.project ?? "");
-  const NAV = $derived([
+  /** @typedef {{ href: string, label: string, icon: import("svelte").ComponentProps<typeof Icon>["name"], count?: number | string | null, match: (path: string) => boolean }} NavItem */
+  const NAV = $derived(/** @type {NavItem[]} */ ([
     { href: "/", label: "Overview", icon: "home", match: (p) => p === "/" },
     { href: "/proposals", label: "Proposals", icon: "inbox", count: waitingCount() || null, match: (p) => p.startsWith("/proposals") },
     { href: "/findings", label: "Background findings", icon: "sparkles", count: findingCount() || null, match: (p) => p.startsWith("/findings") },
     { href: "/evals", label: "Evaluations", icon: "gauge", match: (p) => p.startsWith("/evals") },
     { href: "/objectives", label: "Objectives", icon: "target", match: (p) => p.startsWith("/objectives") },
     { href: "/runs", label: "Runs", icon: "activity", count: running ? `${running} running` : null, match: (p) => p.startsWith("/runs") }
-  ]);
+  ]));
 </script>
 
 <div class="app">

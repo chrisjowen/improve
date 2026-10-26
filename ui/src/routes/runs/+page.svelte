@@ -8,10 +8,12 @@
   import { jobs } from "$lib/client/jobs.svelte.js";
   import { JOB, ago, duration, plural, when } from "$lib/client/format.js";
 
+  /** @type {Record<string, string>} */
   const KIND = { evaluate: "Evaluation", "draft-skill": "Skill draft", dream: "Background review" };
   const selectedId = $derived(page.url.searchParams.get("job"));
   const selected = $derived(jobs.list.find((job) => job.id === selectedId) ?? null);
 
+  /** @param {string} id */
   function open(id) {
     goto(`/runs?job=${id}`, { noScroll: true, keepFocus: true });
   }

@@ -15,10 +15,22 @@ import { projectDataDir, projectId, projectRoot, readTextSafe } from "./paths.js
  * One job runs at a time per lane. An agent draft can take minutes, and it
  * used to block every evaluation behind a bare 409.
  */
+/**
+ * @typedef {{ message?: string, done?: number | null, total?: number | null, [key: string]: any }} JobProgress
+ * @typedef {{
+ *   id: string, kind: string, lane: string, title: string, detail: any, status: string,
+ *   started_at: string, updated_at: string, finished_at: string | null,
+ *   progress: JobProgress, result: any, error: string | null, hint: string | null,
+ *   log: string, server_pid: number, controller?: AbortController
+ * }} Job
+ * @typedef {{ signal: AbortSignal, progress: (update: Partial<JobProgress>) => void, logFile: string }} JobContext
+ */
+/** @type {Record<string, string>} */
 const LANES = { evaluate: "evaluate", "draft-skill": "agent", dream: "agent" };
 const RETAIN = 100;
 const LOG_TAIL_BYTES = 64 * 1024;
 
+/** @type {Map<string, Job>} */
 const live = new Map();
 let loaded = false;
 
@@ -35,14 +47,17 @@ export function jobsDir() {
     : path.join(os.tmpdir(), "improve-ui", projectId(projectRoot()), "jobs");
 }
 
+/** @param {string} id */
 function recordFile(id) {
   return path.join(jobsDir(), `${id}.json`);
 }
 
+/** @param {string} id */
 export function logFile(id) {
   return path.join(jobsDir(), `${id}.log`);
 }
 
+/** @param {Job} job */
 function persist(job) {
   try {
     fs.mkdirSync(jobsDir(), { recursive: true });
@@ -57,6 +72,7 @@ function persist(job) {
 function load() {
   if (loaded) return;
   loaded = true;
+  /** @type {string[]} */
   let names = [];
   try {
     names = fs.readdirSync(jobsDir()).filter((name) => name.endsWith(".json"));
@@ -82,6 +98,7 @@ function load() {
   }
 }
 
+/** @param {number} pid */
 function alive(pid) {
   try {
     process.kill(pid, 0);
@@ -91,12 +108,17 @@ function alive(pid) {
   }
 }
 
+/** @param {Job} job */
 function publicView(job) {
   const { controller, ...rest } = job;
   return rest;
 }
 
-/** A running job another server owns changes on disk, not here; re-read it. */
+/**
+ * A running job another server owns changes on disk, not here; re-read it.
+ * @param {Job} job
+ * @returns {Job}
+ */
 function current(job) {
   if (job.status !== "running" || job.controller) return job;
   const text = readTextSafe(recordFile(job.id));
@@ -109,6 +131,7 @@ function current(job) {
   }
 }
 
+/** @param {string} lane */
 export function runningIn(lane) {
   load();
   return [...live.values()].find((job) => job.status === "running" && job.lane === lane);
@@ -120,6 +143,10 @@ export function runningIn(lane) {
  * `work` resolves to `{ ok, error?, hint?, cancelled?, timedOut?, ... }`. A
  * result with `ok: false` is a failed job; everything else it returns is kept
  * as the job's `result`, so it must be small.
+ *
+ * @param {string} kind
+ * @param {{ title?: string, detail?: any }} options
+ * @param {(context: JobContext) => any} work
  */
 export function startJob(kind, { title, detail = {} }, work) {
   load();
@@ -135,6 +162,7 @@ export function startJob(kind, { title, detail = {} }, work) {
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
+  /** @type {Job} */
   const job = {
     id,
     kind,
@@ -157,6 +185,7 @@ export function startJob(kind, { title, detail = {} }, work) {
   persist(job);
 
   let lastWrite = 0;
+  /** @param {Partial<JobProgress>} update */
   const progress = (update) => {
     job.progress = { ...job.progress, ...update };
     job.updated_at = new Date().toISOString();
@@ -168,7 +197,7 @@ export function startJob(kind, { title, detail = {} }, work) {
   };
 
   Promise.resolve()
-    .then(() => work({ signal: job.controller.signal, progress, logFile: logFile(id) }))
+    .then(() => work({ signal: /** @type {AbortController} */ (job.controller).signal, progress, logFile: logFile(id) }))
     .then((result) => {
       const value = result ?? {};
       job.status = value.cancelled ? "cancelled"
@@ -195,6 +224,7 @@ export function startJob(kind, { title, detail = {} }, work) {
   return { job: publicView(job) };
 }
 
+/** @param {string} id */
 export function cancelJob(id) {
   load();
   const job = live.get(id);
@@ -206,12 +236,14 @@ export function cancelJob(id) {
   return { ok: true, job: publicView(job) };
 }
 
+/** @param {string} id */
 export function getJob(id) {
   load();
   const job = live.get(id);
   return job ? publicView(current(job)) : undefined;
 }
 
+/** @param {{ kind?: string, limit?: number }} [options] */
 export function listJobs({ kind, limit = 50 } = {}) {
   load();
   return [...live.values()]
@@ -222,7 +254,10 @@ export function listJobs({ kind, limit = 50 } = {}) {
     .map(publicView);
 }
 
-/** The end of a job's log. Logs can be long; the end is where a failure is. */
+/**
+ * The end of a job's log. Logs can be long; the end is where a failure is.
+ * @param {string} id
+ */
 export function readLog(id) {
   load();
   if (!live.has(id)) return undefined;

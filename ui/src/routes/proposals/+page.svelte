@@ -11,6 +11,7 @@
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
   import { SCOPE, STATUS, ago, when, plural, waiting } from "$lib/client/format.js";
 
+  /** @type {[string, string, (proposal: any) => boolean][]} */
   const VIEWS = [
     ["waiting", "Waiting", waiting],
     ["approved", "Approved", (p) => p.status === "approved" || p.status === "applying"],
@@ -24,14 +25,15 @@
   const shown = $derived(summary.proposals.filter(filter));
   const selected = $derived(summary.proposals.find((p) => p.file === selectedFile) ?? null);
 
-  let decisions = $state([]);
-  let diff = $state(null);
+  let decisions = $state(/** @type {any[]} */ ([]));
+  let diff = $state(/** @type {any} */ (null));
   let reason = $state("");
-  let busy = $state(null);
-  let notice = $state(null);
-  let reasonError = $state(null);
+  let busy = $state(/** @type {string | null} */ (null));
+  let notice = $state(/** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */ (null));
+  let reasonError = $state(/** @type {string | null} */ (null));
   let confirmOverwrite = $state(false);
 
+  /** @param {Record<string, string | null>} params */
   function go(params) {
     const url = new URL(page.url);
     for (const [key, value] of Object.entries(params)) {
@@ -68,11 +70,12 @@
     if (key) loadDiff(key.split("|")[0]);
   });
 
+  /** @param {string} file */
   async function loadDiff(file) {
     try {
       diff = await api(`/api/proposals/${encodeURIComponent(file)}/diff`);
     } catch (error) {
-      diff = { error: error.message };
+      diff = { error: /** @type {Error} */ (error).message };
     }
   }
 
@@ -94,11 +97,16 @@
         await refreshSummary();
         if (selected?.file === file) await loadDiff(file);
       }
-    } catch (error) {
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
       notice = { tone: "bad", text: error.message, hint: error.hint };
     }
   }
 
+  /**
+   * @param {string} kind
+   * @param {{ overwrite?: boolean }} [options]
+   */
   async function decide(kind, { overwrite = false } = {}) {
     reasonError = null;
     if (kind === "reject" && reason.trim().length < 3) {
@@ -128,7 +136,8 @@
       reason = "";
       await refreshSummary();
       decisions = (await api(`/api/decisions?proposal=${encodeURIComponent(file)}`)).decisions ?? [];
-    } catch (error) {
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
       if (error.detail?.requires === "allow_unmarked_overwrite") confirmOverwrite = true;
       notice = { tone: "bad", text: error.message, hint: error.hint };
     } finally {

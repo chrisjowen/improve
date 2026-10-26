@@ -24,6 +24,7 @@ import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mj
  * @property {number} [timeoutMs]
  * @property {string[]} [extraArgs]
  * @property {boolean} [allowEdits]
+ * @property {string[]} [allowedTools]
  * @property {AbortSignal} [signal]
  * @property {string} [logFile]
  * @property {(progress: AgentProgress) => void} [onProgress]
@@ -60,7 +61,8 @@ export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
  * so a draft cannot become an applied change without passing back through
  * here. `allowEdits` is for applying a proposal a person approved and
  * confirmed file by file; the caller checks afterwards that only those files
- * changed.
+ * changed. `allowedTools` then names the exact tool rules, such as
+ * `Bash(<command>)`, the run may use without a prompt nobody can answer.
  *
  * Output is streamed so a long run can report what it is doing, and every line
  * goes to `logFile` when one is given. `onProgress` receives
@@ -76,6 +78,7 @@ export async function runAgent({
   timeoutMs = 600_000,
   extraArgs = [],
   allowEdits = false,
+  allowedTools = [],
   signal,
   logFile,
   onProgress
@@ -86,7 +89,7 @@ export async function runAgent({
     "--verbose",
     ...extraArgs,
     ...(allowEdits
-      ? ["--permission-mode", "acceptEdits"]
+      ? ["--permission-mode", "acceptEdits", ...(allowedTools.length ? ["--allowedTools", ...allowedTools] : [])]
       // Variadic, so it goes last: anything after it would be read as a tool name.
       : ["--disallowed-tools", ...DENIED_TOOLS])
   ];

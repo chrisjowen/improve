@@ -82,17 +82,25 @@ but never mutate the harness.
 has an Apply button. It shows exactly which files the run will change and
 starts nothing until you confirm. The run is `claude -p "/improve apply <id>"`
 with `--permission-mode acceptEdits`: the same recheck, change and evaluation
-as in Claude Code. The request must carry the proposal's digest, the confirmed
-file list, and a token minted when the server started, so an edited proposal or
-a stale tab is refused. Afterwards the server compares the files itself. If the
-run fails, its evaluation fails, or it changes a file you did not confirm, the
-confirmed files are put back and anything else it changed is named. Changes git
-cannot see, in ignored files outside the confirmed list, are not detected.
+as in Claude Code. Its `--allowedTools` holds exactly the commands the
+proposal's `evaluation.commands` declares, plus improve's own proposal check;
+the confirm lists them, and an evaluation that needs any other command fails
+the run and names it instead of widening permissions. The request must carry
+the proposal's digest, the confirmed files and commands, and a token minted
+when the server started, so an edited proposal or a stale tab is refused.
+Afterwards the server compares the files itself, by content, including files
+that were already uncommitted. If the run fails, its evaluation fails, or it
+changes a file you did not confirm, the confirmed files are put back and
+anything else it changed is named. Changes git cannot see, in ignored files
+outside the confirmed list, are not detected; outside a git repository nothing
+outside the confirmed files can be checked, and the result says so.
 
 In a Firstmate home, shared-tracked files are never edited in place. The button
 reads Prepare upstream change: the run works in a separate git worktree on a new
-branch `improve/<id>`, and a passing change is committed there. Nothing is
-pushed; you open the pull request. Captain-private files apply in place.
+branch `improve/<id>`, and a passing change is committed there. The worktree
+receives read-only copies of the proposal, `.harness/improve.json` and the
+`.harness/` files its evaluation names, and nothing else from `.harness/`; they
+are never committed. Nothing is pushed; you open the pull request. Captain-private files apply in place.
 
 **A score is a trend, not a cause.** An observed objective has no
 counterfactual, so the charts show movement over runs and never attribute it to

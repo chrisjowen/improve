@@ -28,6 +28,7 @@ evaluation:
   candidate: measurement after change
   pass_conditions: []
   regression_conditions: []
+  commands: []   # exact shell commands the evaluation runs, e.g. "python3 .harness/evals/run.py"
 risks: []
 cost:
   implementation: estimate
@@ -45,5 +46,7 @@ outcome:
 Accompany the metadata with a human-readable explanation and an exact or previewable diff. Do not mark a proposal approved from model inference, prior generic authorization, or an unattended job.
 
 `scope.files` lists harness files only. If the change you want is to application code, tests, CI, or dependencies, you have found evidence, not a proposal. See "What the harness is" in `SKILL.md`.
+
+`evaluation.commands` lists every command the evaluation runs, exactly as it is run. Apply from the review UI lets its agent run these commands and improve's own proposal check, and no other; an evaluation that needs an unlisted command stops the run. Name the `.harness/` files the evaluation reads in its fields, so a run in a separate worktree receives them.
 
 Write every prose field by [writing.md](writing.md), and run `scripts/proposal-check-cli.mjs` on the file before showing it.

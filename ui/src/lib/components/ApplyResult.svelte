@@ -75,6 +75,10 @@
     </Notice>
   {/if}
 
+  {#if result.unchecked}
+    <Notice tone="warn"><p>{result.unchecked}</p></Notice>
+  {/if}
+
   {#if result.stray?.length}
     <Notice tone="warn">
       <p><strong>Changed outside the confirmed files, and left for you to inspect:</strong></p>

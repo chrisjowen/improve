@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,7 +7,7 @@ import { runAgent } from "../../../../scripts/spawn-agent.mjs";
 import { runProcess } from "../../../../scripts/run-process.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { deliveryFor } from "../../../../adapters/firstmate/surfaces.mjs";
-import { contain, projectId, projectRoot, readTextSafe } from "./paths.js";
+import { contain, pluginRoot, projectId, projectRoot, readTextSafe } from "./paths.js";
 import { jobsDir, startJob } from "./jobs.js";
 import { readProposal, readProposalText, recordDecision, updateStatus } from "./proposals.js";
 import { assertRealPathInside, digestOf, writeAtomic } from "./write.js";
@@ -20,8 +21,11 @@ import { assertRealPathInside, digestOf, writeAtomic } from "./write.js";
  * agent holds edit tools:
  *
  * - only an approved proposal whose files are all harness files can run;
- * - the request must name the proposal bytes and the exact files the person
- *   confirmed, so a proposal edited after the confirm is refused;
+ * - the request must name the proposal bytes, the exact files and the exact
+ *   commands the person confirmed, so a proposal edited after the confirm is
+ *   refused;
+ * - the agent may run only the commands the proposal's evaluation declares,
+ *   plus improve's own proposal check;
  * - afterwards the server compares the files itself. A run that fails, fails
  *   its evaluation, or changes anything outside the confirmed files puts the
  *   confirmed files back and reports what else changed.
@@ -41,7 +45,7 @@ const MAX_TEXT = 200_000;
  * @typedef {{
  *   ok: true, file: string, id: string, title: string,
  *   mode: "local-apply" | "upstream-pr", action: string, files: string[],
- *   digest: string, branch: string | null, explanation: string
+ *   commands: string[], digest: string, branch: string | null, explanation: string
  * }} ApplyPlan
  * @typedef {{ ok: false, status: number, error: string }} Refusal
  * @typedef {{ path: string, before: string | null, after: string | null, change: string, truncated?: boolean }} FileChange
@@ -128,6 +132,13 @@ export async function applyPlan(file) {
     }
   }
 
+  /** @type {unknown[]} */
+  const declared = Array.isArray(proposal.evaluation?.commands) ? proposal.evaluation.commands : [];
+  const commands = [...new Set([
+    `node ${path.join(pluginRoot(), "scripts", "proposal-check-cli.mjs")} .harness/proposals/${file}`,
+    ...declared.filter((c) => typeof c === "string" && c.trim() !== "").map((c) => String(c).trim())
+  ])];
+
   const digest = digestOf(readProposalText(file) ?? "");
   const firstmate = detectFirstmate(root);
   if (firstmate.detected && firstmate.enabled) {
@@ -149,6 +160,7 @@ export async function applyPlan(file) {
         mode: "upstream-pr",
         action: "Prepare upstream change",
         files,
+        commands,
         digest,
         branch,
         explanation: `These are shared Firstmate files, so they are not edited here. The run makes the change on a new branch, ${branch}, in a separate worktree, runs the evaluation there, and commits it if it passes. Nothing is pushed: you open the pull request.`
@@ -163,6 +175,7 @@ export async function applyPlan(file) {
     mode: "local-apply",
     action: "Apply",
     files,
+    commands,
     digest,
     branch: null,
     explanation: "The run edits these files in this repository and runs the proposal's evaluation. If it fails, the files are put back as they were."
@@ -173,7 +186,7 @@ export async function applyPlan(file) {
  * @param {unknown} given
  * @param {string[]} expected
  */
-function sameFiles(given, expected) {
+function sameSet(given, expected) {
   if (!Array.isArray(given)) return false;
   const a = [...new Set(given)].sort();
   const b = [...expected].sort();
@@ -184,19 +197,22 @@ function sameFiles(given, expected) {
  * Start the apply run as a background job, after the guards.
  *
  * @param {string} file
- * @param {{ digest?: unknown, files?: unknown, branch?: unknown, command?: string }} confirm
+ * @param {{ digest?: unknown, files?: unknown, commands?: unknown, branch?: unknown, command?: string }} confirm
  */
-export async function startApply(file, { digest, files, branch, command } = {}) {
+export async function startApply(file, { digest, files, commands, branch, command } = {}) {
   const plan = await applyPlan(file);
   if (!plan.ok) return plan;
-  if (typeof digest !== "string" || !Array.isArray(files)) {
-    return { ok: false, status: 400, error: "Confirm the files first: the request must carry the proposal digest and the confirmed file list." };
+  if (typeof digest !== "string" || !Array.isArray(files) || !Array.isArray(commands)) {
+    return { ok: false, status: 400, error: "Confirm the files first: the request must carry the proposal digest and the confirmed files and commands." };
   }
   if (digest !== plan.digest) {
     return { ok: false, status: 409, error: "The proposal changed after you confirmed. Review it again." };
   }
-  if (!sameFiles(files, plan.files)) {
+  if (!sameSet(files, plan.files)) {
     return { ok: false, status: 409, error: "The files you confirmed are not the files this proposal changes. Review it again." };
+  }
+  if (!sameSet(commands, plan.commands)) {
+    return { ok: false, status: 409, error: "The commands you confirmed are not the commands this run may use. Review it again." };
   }
   if (plan.mode === "upstream-pr" && branch !== plan.branch) {
     return { ok: false, status: 409, error: `The branch you confirmed is not free any more; it would now be ${plan.branch}. Review it again.` };
@@ -205,7 +221,7 @@ export async function startApply(file, { digest, files, branch, command } = {}) 
     "apply",
     {
       title: `${plan.action}: ${plan.title}`,
-      detail: { proposal: file, id: plan.id, mode: plan.mode, files: plan.files, branch: plan.branch }
+      detail: { proposal: file, id: plan.id, mode: plan.mode, files: plan.files, commands: plan.commands, branch: plan.branch }
     },
     (context) => runApply(plan, { ...context, command })
   );
@@ -225,6 +241,7 @@ export function applyPrompt(plan, proposalText, approvedAt) {
   const where = plan.mode === "upstream-pr"
     ? [
         `- You are in a separate git worktree on the new branch ${plan.branch}. These are shared Firstmate files; this branch becomes a pull request.`,
+        "- The proposal, .harness/improve.json and the .harness/ files its evaluation names were copied here read-only. Nothing else from .harness/ is here.",
         "- Do not commit, push, or open a pull request. The UI commits the branch if the evaluation passes, and the captain opens the pull request."
       ]
     : ["- Work in place in this repository."];
@@ -239,6 +256,9 @@ export function applyPrompt(plan, proposalText, approvedAt) {
     "- Recheck the proposal and the repository first. If an assumption no longer holds, change nothing and answer with applied false and the reason.",
     "- Change only the confirmed files. A change to any other file fails the run.",
     "- Do not edit anything under .harness/. The UI records the decision and the outcome from your answer.",
+    "- These are the only commands you may run, exactly as written:",
+    ...plan.commands.map((c) => `  - ${c}`),
+    "  If the evaluation needs any other command, stop: do not run it or a substitute, and answer with applied false and that command as undeclared_command.",
     ...where,
     "- After the change, run the proposal's evaluation and report what you measured, not what you expect.",
     "",
@@ -250,26 +270,53 @@ export function applyPrompt(plan, proposalText, approvedAt) {
     "Finish with ONLY a JSON object with these keys:",
     '  "applied": true if you changed the files, false if the recheck stopped you',
     '  "reason": why you stopped, when applied is false',
+    '  "undeclared_command": the exact command the evaluation needs that is not listed above, if that is why you stopped',
     '  "evaluation": { "passed": true or false, "summary": one sentence, "checks": [ { "name": "...", "passed": true or false, "detail": "..." } ] }'
   ].join("\n");
 }
 
+/** @param {string} file */
+function hashOf(file) {
+  try {
+    return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Paths git reports as changed or untracked under `cwd`, or null outside git.
+ * The project's path inside its git repository, such as "pkg/", or null
+ * outside git.
+ * @param {string} cwd
+ */
+async function gitPrefix(cwd) {
+  const result = await git(["rev-parse", "--show-prefix"], cwd);
+  return result.code === 0 ? result.stdout.trim() : null;
+}
+
+/**
+ * Every path git reports as changed or untracked under `cwd`, relative to
+ * `cwd`, with a hash of its content now, or null outside git.
  * @param {string} cwd
  */
 async function dirtyPaths(cwd) {
-  const result = await git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd);
+  const prefix = await gitPrefix(cwd);
+  if (prefix === null) return null;
+  const result = await git(["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", "."], cwd);
   if (result.code !== 0) return null;
   const entries = result.stdout.split("\0");
-  /** @type {Set<string>} */
-  const paths = new Set();
+  /** @type {Map<string, string | null>} */
+  const paths = new Map();
+  /** @param {string} p git prints paths from the repository root */
+  const add = (p) => {
+    if (p.startsWith(prefix)) paths.set(p.slice(prefix.length), hashOf(path.join(cwd, p.slice(prefix.length))));
+  };
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
     if (entry.length < 4) continue;
-    paths.add(entry.slice(3));
+    add(entry.slice(3));
     // A rename is followed by its source path.
-    if (entry[0] === "R" || entry[0] === "C") paths.add(entries[(index += 1)]);
+    if (entry[0] === "R" || entry[0] === "C") add(entries[(index += 1)]);
   }
   return paths;
 }
@@ -305,20 +352,20 @@ function compare(before, after) {
 }
 
 /**
- * Changed paths outside the confirmed files. The UI's own records under
+ * Paths outside the confirmed files whose content the run changed, including
+ * files that were already uncommitted before it. The UI's own records under
  * .harness/ and its job directory are not the run's change.
  *
- * @param {Set<string> | null} before
- * @param {Set<string> | null} after
+ * @param {Map<string, string | null>} before
+ * @param {Map<string, string | null>} after
  * @param {string[]} files
  * @param {string} root
  */
 function strayPaths(before, after, files, root) {
-  if (!after) return [];
   const jobs = path.relative(root, jobsDir());
   const ownJobs = jobs && !jobs.startsWith("..") && !path.isAbsolute(jobs) ? `${jobs.split(path.sep).join("/")}/` : null;
-  return [...after]
-    .filter((p) => !before?.has(p))
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((p) => before.get(p) !== after.get(p))
     .filter((p) => !files.includes(p))
     .filter((p) => !p.startsWith(".harness/") && !(ownJobs && p.startsWith(ownJobs)))
     .sort();
@@ -370,6 +417,70 @@ function readEvaluation(payload) {
 }
 
 /**
+ * Copy into the worktree what `/improve apply` needs from this repository's
+ * .harness/, which a fresh checkout usually lacks: this proposal, improve.json,
+ * and the .harness/ files its evaluation names. Copies are read-only, and a
+ * name that resolves outside .harness/ is skipped.
+ *
+ * @param {string} root
+ * @param {string} cwd
+ * @param {ApplyPlan} plan
+ * @param {unknown} evaluation
+ * @returns {string[]} the copied paths, relative to the project
+ */
+function copyHarness(root, cwd, plan, evaluation) {
+  const harness = contain(root, ".harness");
+  const named = JSON.stringify(evaluation ?? {}).match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? [];
+  const wanted = [`.harness/proposals/${plan.file}`, ".harness/improve.json", ...named.map((p) => p.replace(/[.:]+$/, ""))];
+  /** @type {Set<string>} */
+  const copied = new Set();
+  for (const name of wanted) {
+    let source;
+    try {
+      source = assertRealPathInside(harness, contain(root, name));
+    } catch {
+      continue;
+    }
+    if (!fs.statSync(source, { throwIfNoEntry: false })?.isFile()) continue;
+    const rel = path.relative(root, contain(root, name)).split(path.sep).join("/");
+    if (copied.has(rel)) continue;
+    const target = contain(cwd, rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    fs.chmodSync(target, 0o444);
+    copied.add(rel);
+  }
+  return [...copied];
+}
+
+/**
+ * Keep the copies out of git when .harness/ is not already ignored. A linked
+ * worktree shares the repository's info/exclude, so the returned function
+ * puts it back.
+ *
+ * @param {string} cwd
+ * @param {string} prefix
+ * @param {string[]} copied
+ * @returns {Promise<() => void>}
+ */
+async function excludeCopies(cwd, prefix, copied) {
+  const ignored = await git(["check-ignore", "--", ...copied], cwd);
+  const listed = new Set(ignored.stdout.split("\n").map((line) => line.trim()).filter(Boolean));
+  const open = copied.filter((p) => !listed.has(p));
+  const where = await git(["rev-parse", "--git-path", "info/exclude"], cwd);
+  if (open.length === 0 || where.code !== 0) return () => {};
+  const file = path.resolve(cwd, where.stdout.trim());
+  const original = readTextSafe(file);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const lines = open.map((p) => `/${prefix}${p}`).join("\n");
+  fs.writeFileSync(file, `${original ?? ""}${original && !original.endsWith("\n") ? "\n" : ""}${lines}\n`);
+  return () => {
+    if (original === undefined) fs.rmSync(file, { force: true });
+    else fs.writeFileSync(file, original);
+  };
+}
+
+/**
  * @param {string} changesFile
  * @param {any} record
  */
@@ -394,7 +505,8 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   if (digestOf(proposalText) !== plan.digest) {
     return { ok: false, error: "The proposal changed before the run started. Nothing was changed." };
   }
-  const approvedAt = (YAML.parse(proposalText) ?? {})?.approval?.approved_at ?? null;
+  const parsed = YAML.parse(proposalText) ?? {};
+  const approvedAt = parsed?.approval?.approved_at ?? null;
 
   /** @type {string} */
   let cwd = root;
@@ -402,6 +514,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   let worktree = null;
   /** @type {string | null} */
   let base = null;
+  let restoreExclude = () => {};
   if (plan.mode === "upstream-pr") {
     progress({ message: `Creating branch ${plan.branch} in a separate worktree` });
     const head = await git(["rev-parse", "HEAD"], root);
@@ -409,11 +522,20 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     base = head.stdout.trim();
     worktree = path.join(os.tmpdir(), "improve-apply", projectId(root), `${String(plan.branch).replaceAll("/", "-")}-${Date.now()}`);
     fs.mkdirSync(path.dirname(worktree), { recursive: true });
+    const prefix = (await gitPrefix(root)) ?? "";
     const added = await git(["worktree", "add", "-b", String(plan.branch), worktree, base], root, { logFile });
     if (added.code !== 0) {
       return { ok: false, error: `Could not create branch ${plan.branch}: ${added.stderr.trim() || `git exited ${added.code}`}` };
     }
-    cwd = worktree;
+    cwd = path.join(worktree, prefix);
+    try {
+      const copied = copyHarness(root, cwd, plan, parsed?.evaluation);
+      note(logFile, `copied read-only into the worktree: ${copied.join(", ")}`);
+      restoreExclude = await excludeCopies(cwd, prefix, copied);
+    } catch (error) {
+      await discardBranch(root, worktree, String(plan.branch), logFile);
+      return { ok: false, error: `Could not prepare the worktree: ${/** @type {Error} */ (error).message}` };
+    }
   }
 
   try {
@@ -427,6 +549,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       cwd,
       timeoutMs: TIMEOUT_MS,
       allowEdits: true,
+      allowedTools: plan.commands.map((c) => `Bash(${c})`),
       signal,
       logFile,
       onProgress: (update) => progress({ message: update.message, done: null, total: null })
@@ -434,14 +557,18 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
 
     progress({ message: "Checking what changed" });
     const changes = compare(before, snapshot(cwd, plan.files));
-    const stray = strayPaths(dirtyBefore, await dirtyPaths(cwd), plan.files, cwd);
+    const dirtyAfter = await dirtyPaths(cwd);
+    const stray = dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan.files, cwd) : [];
+    const unchecked = dirtyBefore && dirtyAfter ? null : "This project is not a git repository, so changes outside the confirmed files could not be checked.";
     const changed = changes.filter((c) => c.change !== "unchanged");
     const evaluation = readEvaluation(agent.payload);
 
     /** @type {string | null} */
     let failure = null;
     if (!agent.ok) failure = agent.error ?? "The agent failed.";
-    else if (agent.payload?.applied !== true) {
+    else if (typeof agent.payload?.undeclared_command === "string") {
+      failure = `The evaluation needs a command the proposal does not declare: ${agent.payload.undeclared_command.slice(0, 500)}. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.`;
+    } else if (agent.payload?.applied !== true) {
       failure = `The recheck stopped the run: ${typeof agent.payload?.reason === "string" ? agent.payload.reason.slice(0, 500) : "no reason given"}`;
     } else if (stray.length) failure = `The run changed files outside the ones you confirmed: ${stray.join(", ")}.`;
     else if (changed.length === 0) failure = "The run reported success but changed none of the confirmed files.";
@@ -453,6 +580,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       proposal: plan.file,
       files: changes.map((c) => ({ path: c.path, change: c.change })),
       stray,
+      unchecked,
       evaluation,
       cost_usd: agent.envelope?.cost_usd ?? null
     };
@@ -491,7 +619,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
 
     if (plan.mode === "upstream-pr" && worktree) {
       progress({ message: `Committing on ${plan.branch}` });
-      const commit = await commitBranch(worktree, plan, changed, logFile);
+      const commit = await commitBranch(cwd, plan, changed, logFile);
       if (!commit.ok) {
         await discardBranch(root, worktree, String(plan.branch), logFile);
         writeChanges(changesFile, { ...summary, files: changes });
@@ -511,25 +639,26 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     return { ok: true, ...summary };
   } finally {
     if (worktree) await removeWorktree(root, worktree, logFile);
+    restoreExclude();
   }
 }
 
 /**
- * @param {string} worktree
+ * @param {string} cwd the project inside the worktree
  * @param {ApplyPlan} plan
  * @param {FileChange[]} changed
  * @param {string} logFile
  * @returns {Promise<{ ok: true, sha: string } | { ok: false, error: string }>}
  */
-async function commitBranch(worktree, plan, changed, logFile) {
-  const add = await git(["add", "-A", "--", ...changed.map((c) => c.path)], worktree, { logFile });
+async function commitBranch(cwd, plan, changed, logFile) {
+  const add = await git(["add", "-A", "--", ...changed.map((c) => c.path)], cwd, { logFile });
   if (add.code !== 0) return { ok: false, error: `git add failed: ${add.stderr.trim()}` };
   const message = `${plan.title}\n\nApplies approved improve proposal ${plan.id}.\nPrepared from the improve review UI; the evaluation passed.`;
-  const commit = await git(["commit", "--no-verify", "-m", message], worktree, { logFile });
+  const commit = await git(["commit", "--no-verify", "-m", message], cwd, { logFile });
   if (commit.code !== 0) {
     return { ok: false, error: `Could not commit on ${plan.branch}: ${commit.stderr.trim() || commit.stdout.trim() || `git exited ${commit.code}`}` };
   }
-  const sha = await git(["rev-parse", "HEAD"], worktree);
+  const sha = await git(["rev-parse", "HEAD"], cwd);
   return { ok: true, sha: sha.stdout.trim() };
 }
 

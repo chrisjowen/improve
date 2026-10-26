@@ -36,8 +36,10 @@ const jobs = await import("../src/lib/server/jobs.js");
 const { listDecisions, readProposal } = await import("../src/lib/server/proposals.js");
 const { LAUNCH_TOKEN, hasLaunchToken } = await import("../src/lib/server/launch.js");
 const { handle } = await import("../src/hooks.server.js");
+const { pluginRoot } = await import("../src/lib/server/paths.js");
+const check = (file) => `node ${path.join(pluginRoot(), "scripts", "proposal-check-cli.mjs")} .harness/proposals/${file}`;
 
-function seed(root, file, { status = "approved", files = ["CLAUDE.md", ".claude/rules/format.md"], id = "IMP-20261025-format" } = {}) {
+function seed(root, file, { status = "approved", files = ["CLAUDE.md", ".claude/rules/format.md"], id = "IMP-20261025-format", evaluation = {} } = {}) {
   const dir = path.join(root, ".harness", "proposals");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, file), YAML.stringify({
@@ -45,7 +47,7 @@ function seed(root, file, { status = "approved", files = ["CLAUDE.md", ".claude/
     title: "Run the formatter before committing",
     status,
     scope: { files },
-    evaluation: { pass_conditions: ["the formatter check finds nothing"] },
+    evaluation: { pass_conditions: ["the formatter check finds nothing"], commands: ["node .harness/evals/check.mjs"], ...evaluation },
     approval: { approved_by: "ui", approved_at: "2026-10-25T10:00:00.000Z" }
   }));
 }
@@ -64,7 +66,7 @@ async function settle(id, ms = 30_000) {
 async function apply(file) {
   const plan = await applyPlan(file);
   assert.equal(plan.ok, true, plan.error);
-  const started = await startApply(file, { digest: plan.digest, files: plan.files, branch: plan.branch });
+  const started = await startApply(file, { digest: plan.digest, files: plan.files, commands: plan.commands, branch: plan.branch });
   assert.equal(started.ok, true, started.error);
   return { plan, job: await settle(started.job.id) };
 }
@@ -102,16 +104,21 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   assert.equal(good.mode, "local-apply");
   assert.equal(good.action, "Apply");
   assert.deepEqual(good.files, ["CLAUDE.md", ".claude/rules/format.md"]);
+  assert.deepEqual(good.commands, [check("p.yaml"), "node .harness/evals/check.mjs"], "the declared commands and improve's own check");
 
-  // Starting needs the confirm: digest and the exact file list.
+  // Starting needs the confirm: digest, the exact file list and the exact commands.
+  const { digest, files, commands } = good;
   assert.equal((await startApply("p.yaml", {})).status, 400, "no confirm, no run");
-  assert.equal((await startApply("p.yaml", { digest: "0".repeat(64), files: good.files })).status, 409, "a stale digest is refused");
-  assert.equal((await startApply("p.yaml", { digest: good.digest, files: ["CLAUDE.md"] })).status, 409, "a partial file list is refused");
-  assert.equal((await startApply("p.yaml", { digest: good.digest, files: [...good.files, "x.md"] })).status, 409, "an extra file is refused");
+  assert.equal((await startApply("p.yaml", { digest, files })).status, 400, "no confirmed commands, no run");
+  assert.equal((await startApply("p.yaml", { digest: "0".repeat(64), files, commands })).status, 409, "a stale digest is refused");
+  assert.equal((await startApply("p.yaml", { digest, files: ["CLAUDE.md"], commands })).status, 409, "a partial file list is refused");
+  assert.equal((await startApply("p.yaml", { digest, files: [...files, "x.md"], commands })).status, 409, "an extra file is refused");
+  assert.equal((await startApply("p.yaml", { digest, files, commands: [commands[0]] })).status, 409, "a missing command is refused");
+  assert.equal((await startApply("p.yaml", { digest, files, commands: [...commands, "rm -rf /"] })).status, 409, "an extra command is refused");
 
   // Editing the proposal after the confirm invalidates it.
   seed(repo, "p.yaml", { files: ["CLAUDE.md", ".claude/rules/format.md"], id: "IMP-20261025-format-v2" });
-  assert.equal((await startApply("p.yaml", { digest: good.digest, files: good.files })).status, 409);
+  assert.equal((await startApply("p.yaml", { digest, files, commands })).status, 409);
   assert.equal(jobs.listJobs({ kind: "apply" }).length, 0, "no refused request started a run");
   assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "no refused request changed a file");
 }
@@ -153,6 +160,7 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   assert.match(prompt, /^\/improve apply IMP-20261025-format\n/, "the run is the same command a person types");
   assert.match(prompt, / {2}- CLAUDE\.md\n {2}- \.claude\/rules\/format\.md\n/);
   assert.match(prompt, new RegExp(`sha256 ${plan.digest}`));
+  assert.ok(prompt.includes(`only commands you may run, exactly as written:\n  - ${check("p.yaml")}\n  - node .harness/evals/check.mjs\n`), prompt);
 }
 
 // --- a passing run: applied, evaluated, recorded -----------------------------
@@ -174,6 +182,7 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   const args = JSON.parse(fs.readFileSync(argsFile, "utf8"));
   assert.ok(args.includes("acceptEdits"), "the apply agent may edit");
   assert.ok(!args.includes("--disallowed-tools"));
+  assert.deepEqual(args.slice(args.indexOf("--allowedTools") + 1), [`Bash(${check("p.yaml")})`, "Bash(node .harness/evals/check.mjs)"], "exactly the declared commands");
 
   const proposal = readProposal("p.yaml");
   assert.equal(proposal.status, "validated");
@@ -231,6 +240,31 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   fs.unlinkSync(path.join(repo, "stray.txt"));
 }
 
+// --- a further edit to a file that was already uncommitted is stray too ------
+{
+  fs.writeFileSync(path.join(repo, "stray.txt"), "the person's own work\n");
+  process.env.IMPROVE_STANDIN = "stray";
+  seed(repo, "p.yaml");
+  const { job } = await apply("p.yaml");
+  delete process.env.IMPROVE_STANDIN;
+  assert.equal(job.status, "failed");
+  assert.deepEqual(job.result.stray, ["stray.txt"]);
+  assert.equal(job.result.unchecked, null);
+  assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
+  fs.unlinkSync(path.join(repo, "stray.txt"));
+}
+
+// --- an evaluation that needs an undeclared command fails, naming it ----------
+{
+  process.env.IMPROVE_STANDIN = "undeclared";
+  seed(repo, "p.yaml");
+  const { job } = await apply("p.yaml");
+  delete process.env.IMPROVE_STANDIN;
+  assert.equal(job.status, "failed");
+  assert.match(job.error, /needs a command the proposal does not declare: python3 \.harness\/evals\/run\.py\. The run does not widen its own permissions/);
+  assert.equal(readProposal("p.yaml").status, "approved");
+}
+
 // --- the recheck can stop the run ---------------------------------------------
 {
   process.env.IMPROVE_STANDIN = "refuse";
@@ -247,9 +281,9 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   process.env.IMPROVE_STANDIN = "slow";
   seed(repo, "p.yaml");
   const plan = await applyPlan("p.yaml");
-  const started = await startApply("p.yaml", { digest: plan.digest, files: plan.files });
+  const started = await startApply("p.yaml", { digest: plan.digest, files: plan.files, commands: plan.commands });
   assert.equal(started.ok, true);
-  const second = await startApply("p.yaml", { digest: plan.digest, files: plan.files });
+  const second = await startApply("p.yaml", { digest: plan.digest, files: plan.files, commands: plan.commands });
   assert.equal(second.status, 409, "a second run waits for the first");
   assert.equal(second.running.id, started.job.id);
   await new Promise((resolve) => setTimeout(resolve, 300));
@@ -261,6 +295,39 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   assert.equal(readProposal("p.yaml").status, "approved");
 }
 
+// --- a project in a subdirectory of a git repository -------------------------
+{
+  const mono = path.join(scratch, "mono");
+  const pkg = path.join(mono, "pkg");
+  fs.mkdirSync(pkg, { recursive: true });
+  git(mono, "init", "-q", "-b", "main");
+  git(mono, "config", "user.email", "t@example.invalid");
+  git(mono, "config", "user.name", "t");
+  fs.writeFileSync(path.join(pkg, "CLAUDE.md"), "# Package\n");
+  fs.mkdirSync(path.join(pkg, ".claude", "rules"), { recursive: true });
+  fs.writeFileSync(path.join(pkg, ".claude", "rules", "format.md"), "# Format\n");
+  git(mono, "add", "-A");
+  git(mono, "commit", "-q", "-m", "base");
+  process.env.IMPROVE_PROJECT_DIR = pkg;
+  seed(pkg, "p.yaml");
+  const { job } = await apply("p.yaml");
+  assert.equal(job.status, "completed", job.error);
+  assert.deepEqual(job.result.stray, []);
+  assert.match(read(pkg, "CLAUDE.md"), /Run the formatter/);
+}
+
+// --- outside git, the result says changes elsewhere were not checked ----------
+{
+  const plain = path.join(scratch, "plain");
+  fs.mkdirSync(plain);
+  fs.writeFileSync(path.join(plain, "CLAUDE.md"), "# Plain\n");
+  process.env.IMPROVE_PROJECT_DIR = plain;
+  seed(plain, "p.yaml", { files: ["CLAUDE.md"] });
+  const { job } = await apply("p.yaml");
+  assert.equal(job.status, "completed", job.error);
+  assert.match(job.result.unchecked, /not a git repository, so changes outside the confirmed files could not be checked/);
+}
+
 // --- Firstmate: private files apply here, shared files go to a branch --------
 {
   process.env.IMPROVE_PROJECT_DIR = home;
@@ -270,8 +337,11 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   fs.mkdirSync(path.join(home, "data"));
   fs.writeFileSync(path.join(home, "data", "learnings.md"), "# Learnings\n");
   fs.writeFileSync(path.join(home, ".gitignore"), "data/\nstate/\nconfig/\n.harness/\n");
-  fs.mkdirSync(path.join(home, ".harness"));
+  fs.mkdirSync(path.join(home, ".harness", "evals"), { recursive: true });
   fs.writeFileSync(path.join(home, ".harness", "improve.json"), JSON.stringify({ adapters: { firstmate: { enabled: true } } }));
+  fs.writeFileSync(path.join(home, ".harness", "evals", "suite.yaml"), "cases: []\n");
+  fs.writeFileSync(path.join(home, ".harness", "evals", "other.yaml"), "cases: []\n");
+  fs.writeFileSync(path.join(scratch, "secret.txt"), "not for the worktree\n");
   git(home, "add", "-A");
   git(home, "commit", "-q", "-m", "home");
 
@@ -292,16 +362,28 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   assert.match(mixed.error, /split it/);
 
   // Shared-tracked: never edited in place; prepared on a branch.
-  seed(home, "shared.yaml", { files: ["AGENTS.md", "bin/fm-check.sh"], id: "IMP-20261025-brief-port" });
+  seed(home, "shared.yaml", {
+    files: ["AGENTS.md", "bin/fm-check.sh"],
+    id: "IMP-20261025-brief-port",
+    evaluation: { commands: ["python3 .harness/evals/run.py --suite .harness/evals/suite.yaml"], baseline: "also .harness/../../secret.txt and .harness/../AGENTS.md" }
+  });
   const sharedPlan = await applyPlan("shared.yaml");
   assert.equal(sharedPlan.mode, "upstream-pr");
   assert.equal(sharedPlan.action, "Prepare upstream change");
   assert.equal(sharedPlan.branch, "improve/imp-20261025-brief-port");
-  assert.equal((await startApply("shared.yaml", { digest: sharedPlan.digest, files: sharedPlan.files, branch: "main" })).status, 409, "the branch is part of the confirm");
+  assert.equal((await startApply("shared.yaml", { digest: sharedPlan.digest, files: sharedPlan.files, commands: sharedPlan.commands, branch: "main" })).status, 409, "the branch is part of the confirm");
 
   const headBefore = git(home, "rev-parse", "HEAD").trim();
+  const seenFile = path.join(scratch, "seen.json");
+  process.env.IMPROVE_STANDIN_SEEN_FILE = seenFile;
   const { job } = await apply("shared.yaml");
+  delete process.env.IMPROVE_STANDIN_SEEN_FILE;
   assert.equal(job.status, "completed", job.error);
+  assert.deepEqual(JSON.parse(fs.readFileSync(seenFile, "utf8")), [
+    { path: ".harness/evals/suite.yaml", mode: 0o444 },
+    { path: ".harness/improve.json", mode: 0o444 },
+    { path: ".harness/proposals/shared.yaml", mode: 0o444 }
+  ], "the worktree gets only this proposal, improve.json and the named eval files, read-only");
   assert.equal(read(home, "AGENTS.md"), "# Firstmate\n\nSupervisor contract.\n", "the shared file is not edited here");
   assert.equal(git(home, "rev-parse", "HEAD").trim(), headBefore, "the checkout stays on its branch");
   assert.equal(git(home, "status", "--porcelain"), "", "the checkout is unchanged");

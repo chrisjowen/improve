@@ -4,10 +4,11 @@
 // stream-json events and result envelope the CLI would.
 //
 // IMPROVE_STANDIN picks the outcome: pass (default), fail-eval, stray, refuse,
-// or slow. A proposal can pick its own with "[stand-in: <mode>]" in its text,
+// undeclared, or slow. A proposal can pick its own with "[stand-in: <mode>]" in its text,
 // so one demo shows several outcomes. IMPROVE_STANDIN_DELAY_MS spaces the
 // events out so progress shows.
-// IMPROVE_STANDIN_ARGS_FILE records the arguments it was given.
+// IMPROVE_STANDIN_ARGS_FILE records the arguments it was given, and
+// IMPROVE_STANDIN_SEEN_FILE the files under .harness/ it can see, with modes.
 import fs from "node:fs";
 import path from "node:path";
 
@@ -16,6 +17,16 @@ const prompt = args[args.indexOf("-p") + 1] ?? "";
 const mode = /\[stand-in: ([a-z-]+)\]/.exec(prompt)?.[1] || process.env.IMPROVE_STANDIN || "pass";
 const delay = Number(process.env.IMPROVE_STANDIN_DELAY_MS) || 0;
 if (process.env.IMPROVE_STANDIN_ARGS_FILE) fs.writeFileSync(process.env.IMPROVE_STANDIN_ARGS_FILE, JSON.stringify(args));
+if (process.env.IMPROVE_STANDIN_SEEN_FILE) {
+  const seen = fs.existsSync(".harness")
+    ? fs.readdirSync(".harness", { recursive: true })
+      .map((f) => path.join(".harness", f))
+      .filter((f) => fs.statSync(f).isFile())
+      .map((f) => ({ path: f.split(path.sep).join("/"), mode: fs.statSync(f).mode & 0o777 }))
+      .sort((a, b) => a.path.localeCompare(b.path))
+    : [];
+  fs.writeFileSync(process.env.IMPROVE_STANDIN_SEEN_FILE, JSON.stringify(seen));
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -40,6 +51,8 @@ if (mode === "slow") await sleep(60_000);
 let answer;
 if (mode === "refuse") {
   answer = { applied: false, reason: "the file already contains this rule" };
+} else if (mode === "undeclared") {
+  answer = { applied: false, reason: "the evaluation needs python", undeclared_command: "python3 .harness/evals/run.py" };
 } else {
   for (const file of files) {
     tool("Edit", { file_path: file });

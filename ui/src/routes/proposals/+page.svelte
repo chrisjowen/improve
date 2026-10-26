@@ -110,7 +110,7 @@
     try {
       const { job } = await api(`/api/proposals/${encodeURIComponent(file)}/apply-run`, {
         method: "POST",
-        body: { digest: plan.digest, files: plan.files, branch: plan.branch }
+        body: { digest: plan.digest, files: plan.files, commands: plan.commands, branch: plan.branch }
       });
       confirming = false;
       busy = null;
@@ -517,7 +517,11 @@
                   <ul class="confirm-files">
                     {#each plan.files as file}<li><span class="chip"><Icon name="file" size={12} />{file}</span></li>{/each}
                   </ul>
-                  <p class="small muted">{plan.explanation} A change to any other file fails the run.</p>
+                  <p class="small">The only commands it may run:</p>
+                  <ul class="confirm-commands small mono">
+                    {#each plan.commands as command}<li><code>{command}</code></li>{/each}
+                  </ul>
+                  <p class="small muted">{plan.explanation} A change to any other file fails the run, and a command not listed stops it.</p>
                   <div class="row" style="justify-content:flex-end">
                     <button onclick={() => { confirming = false; }} disabled={busy !== null}>Back</button>
                     <button class="primary" onclick={startApply} disabled={busy !== null}>
@@ -560,6 +564,7 @@
   .decision-actions .row { flex: none; margin-left: auto; }
   .evidence { border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .confirm-files { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .confirm-commands { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .evidence th, .evidence td { padding: 8px 12px; }
   @media (max-width: 960px) {
     .split { grid-template-columns: 1fr; }

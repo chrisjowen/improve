@@ -8,7 +8,8 @@ export const GET = ({ params }) => guardAsync(() => applyPlan(params.file));
 
 /**
  * Start the apply run. The body echoes what the person confirmed: the
- * proposal digest, the files, and for an upstream change the branch.
+ * proposal digest, the files, the commands, and for an upstream change the
+ * branch.
  */
 export const POST = async ({ params, request }) => {
   if (!hasLaunchToken(request)) {
@@ -18,6 +19,7 @@ export const POST = async ({ params, request }) => {
   return guardAsync(() => startApply(params.file, {
     digest: body.digest,
     files: body.files,
+    commands: body.commands,
     branch: body.branch
   }));
 };

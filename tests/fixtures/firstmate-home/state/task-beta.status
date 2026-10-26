@@ -1,0 +1,5 @@
+failed [at=1790010000]: launch failed: agent did not start within 30s
+working [at=1790010300]: recovered after relaunch; setup done
+needs-decision [at=1790012000] [key=nm-r7-review]: ask-user findings=b-101 file=data/task-beta/nm-r7-findings.txt
+resolved [key=nm-r7-review] [at=1790012500]: b-101 use defaults
+done [at=1790013000]: PR https://github.com/example/widget/pull/2 checks green

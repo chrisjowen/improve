@@ -46,6 +46,8 @@ Put the codebase defect in the proposal's evidence, and tell the human about it 
 
 `scripts/proposal-check.mjs` classifies each proposal's `scope.files`. A proposal listing any file outside the harness is flagged `codebase` or `mixed`, and a proposal listing no files is flagged `unknown`.
 
+In a Firstmate home with the Firstmate adapter enabled, the harness also covers Firstmate's `bin/` scripts, `.agents/skills/`, `docs/`, and the home's private `data/` and `config/` files. See [Firstmate homes](#firstmate-homes).
+
 ## Select the operating mode
 
 If no mode is supplied:
@@ -204,6 +206,17 @@ When an evaluation rig is absent, use the language-neutral protocol in
 are explicit. Every evaluator must keep the single portable boundary
 `evaluate(context) -> result`; configuration belongs in `context.step.metadata`,
 while thresholds and aggregation remain runner concerns.
+
+## Firstmate homes
+
+When `node "${CLAUDE_PLUGIN_ROOT}/adapters/firstmate/cli.mjs" detect` reports `detected` and `enabled`, read [references/firstmate.md](references/firstmate.md) before any mode. In short:
+
+- `status` and `assess`: run its `import` and `inventory` for evidence from the home's status logs, ask-user findings, wakes, captain preferences, and learnings.
+- `propose`: say which Firstmate surface the proposal changes and whether it is captain-private or shared-tracked. One proposal changes one side.
+- `review`: file each proposed proposal as a captain-held Firstmate task with `route`. Show the dry run first.
+- `apply`: read the captain's recorded answer with `decisions`. Apply captain-private changes through the normal apply steps. Never edit shared-tracked Firstmate files in place; they go upstream as a pull request.
+
+The adapter is off until `.harness/improve.json` enables it, and it never writes under the home's `state/`.
 
 ## Review surface
 

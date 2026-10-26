@@ -71,4 +71,8 @@ long-stop and fires only once a review has actually happened.
 corrections. It is the only path that keeps prompt text, and every excerpt
 passes the shared redaction rules before it is written.
 
+A Firstmate home adds an `adapters.firstmate` block, off by default; see
+[firstmate.md](firstmate.md). The adapter keeps its routing ledger and review
+state under `.harness/firstmate/`.
+
 Keep background dreaming disabled until the human reviews its command, runtime permissions, cost, data exposure, output location, and stopping conditions.

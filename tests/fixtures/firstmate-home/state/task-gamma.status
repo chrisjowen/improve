@@ -1,0 +1,5 @@
+working [at=1790020000]: setup done
+needs-decision [at=1790021000]: should the migration keep the legacy endpoint during rollout?
+resolved [at=1790021400]: no, remove it now
+needs-decision [at=1790022000] [key=api-shape]: REST or GraphQL for the new endpoint? token=fixturevalue123 appears in the log
+note [at=1790023000]: teardown refused: unlanded commits on fm/task-gamma

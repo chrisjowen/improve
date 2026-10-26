@@ -18,6 +18,9 @@ scope:
   files: []      # harness files only: CLAUDE.md, AGENTS.md, .claude/, .mcp.json, .harness/
   systems: []
   permissions_changed: false
+firstmate:        # Firstmate homes only; see firstmate.md
+  visibility: captain-private | shared-tracked
+  delivery: local-apply | upstream-pr
 intervention:
   summary: what the agent does today, the file you change, and what it does after
   alternatives:

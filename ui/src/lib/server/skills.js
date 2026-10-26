@@ -6,6 +6,8 @@ import { readProposal, recordDecision, updateStatus, claimKey, releaseKey, looku
 import { validateDraft } from "./guard.js";
 import { assertRealPathInside, digestOf, sweepOrphans, writeAtomic } from "./write.js";
 import { archiveSkill, isPluginAuthored, readSidecar, skillsRoot, stampApplied } from "./provenance.js";
+import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
+import { classifySurface } from "../../../../adapters/firstmate/surfaces.mjs";
 
 /** Where a drafted skill would land. Kebab-case, one directory per skill. */
 export function skillPath(name) {
@@ -225,6 +227,21 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
   }
 
   const target = skillPath(draft.name);
+
+  // In a Firstmate home, skills are shared tracked material every home uses.
+  // An approved change to one goes upstream as a pull request, never in place.
+  const firstmate = detectFirstmate(projectRoot());
+  if (firstmate.detected && firstmate.enabled) {
+    const { visibility } = classifySurface(path.relative(projectRoot(), target));
+    if (visibility !== "captain-private") {
+      return {
+        ok: false,
+        status: 409,
+        error: `${path.relative(projectRoot(), target)} is shared Firstmate material; deliver this skill upstream as a pull request instead of applying it here.`
+      };
+    }
+  }
+
   const alreadyThere = fs.existsSync(target);
 
   // Never destroy a skill the plugin did not author.

@@ -34,10 +34,10 @@ export function isHarnessPath(candidate) {
  * `mixed` otherwise, and `unknown` when the proposal lists no files, which is
  * itself a defect because the reviewer cannot tell what will change.
  */
-export function classifyScope(files) {
+export function classifyScope(files, { isHarness = isHarnessPath } = {}) {
   const list = Array.isArray(files) ? files.filter((f) => typeof f === "string" && f.trim()) : [];
   if (list.length === 0) return { scope: "unknown", outside: [] };
-  const outside = list.filter((file) => !isHarnessPath(file));
+  const outside = list.filter((file) => !isHarness(file));
   if (outside.length === 0) return { scope: "harness", outside };
   return { scope: outside.length === list.length ? "codebase" : "mixed", outside };
 }
@@ -194,11 +194,13 @@ function proseFields(proposal) {
  * Both checks on a parsed proposal object.
  *
  * A finding here does not block anything: these are for the reviewer, and the
- * reviewer is the one who rejects.
+ * reviewer is the one who rejects. `isHarness` replaces the default harness
+ * test for a repository whose harness is wider, such as a Firstmate home,
+ * where `bin/` scripts are the agents' tools (adapters/firstmate/surfaces.mjs).
  */
-export function checkProposal(proposal) {
+export function checkProposal(proposal, { isHarness = isHarnessPath } = {}) {
   const value = proposal && typeof proposal === "object" ? proposal : {};
-  const { scope, outside } = classifyScope(value.scope?.files);
+  const { scope, outside } = classifyScope(value.scope?.files, { isHarness });
   const findings = [];
 
   if (scope === "unknown") {

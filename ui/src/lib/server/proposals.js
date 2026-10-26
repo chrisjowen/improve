@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
-import { contain, ensureDir, harnessDir, readDirSafe, readTextSafe, safeId } from "./paths.js";
+import { contain, ensureDir, harnessDir, projectRoot, readDirSafe, readTextSafe, safeId } from "./paths.js";
 import { checkProposal } from "../../../../scripts/proposal-check.mjs";
+import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
+import { isFirstmateHarnessPath } from "../../../../adapters/firstmate/surfaces.mjs";
 
 const PROPOSAL_STATUSES = new Set([
   "draft", "proposed", "approved", "applying", "validated", "rejected", "rolled-back"
@@ -10,6 +12,12 @@ const PROPOSAL_STATUSES = new Set([
 
 function proposalsDir() {
   return path.join(harnessDir(), "proposals");
+}
+
+/** A Firstmate home that opted in counts its bin/ scripts and home files as harness. */
+function scopeOptions() {
+  const firstmate = detectFirstmate(projectRoot());
+  return firstmate.detected && firstmate.enabled ? { isHarness: isFirstmateHarnessPath } : {};
 }
 
 function decisionsDir() {
@@ -48,7 +56,7 @@ function normalize(id, document, source) {
     skill_draft: value.skill_draft ?? null,
     // Whether it changes the harness or the codebase, and how it reads. For
     // the reviewer only: nothing is blocked on it.
-    check: checkProposal(value),
+    check: checkProposal(value, scopeOptions()),
     source
   };
 }

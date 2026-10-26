@@ -1,0 +1,3 @@
+1790022500	1	stale	task-gamma	no progress for 30m
+1790024300	2	stale	task-gamma	no progress for 60m
+1790024400	3	check	task-alpha	pr poll

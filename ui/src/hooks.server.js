@@ -5,7 +5,9 @@
  * approve, reject and apply proposals.
  *
  * The origin check alone trusts the Host header, which a DNS-rebinding page
- * controls, so every API request must also name a host this server answers to.
+ * controls, so every request must also name a host this server answers to.
+ * Both checks apply to every request, whatever its path: routing decodes the
+ * path, so a prefix test on the encoded one is no boundary.
  */
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
 /** @type {(string | undefined)[]} */
@@ -61,7 +63,6 @@ function refuse(error) {
 }
 
 export async function handle({ event, resolve }) {
-  if (!event.url.pathname.startsWith("/api/")) return resolve(event);
   const host = event.request.headers.get("host") ?? "";
   if (!allowedHosts().has(hostname(host))) {
     return refuse("This server does not answer to that host name. See ui/README.md, No authentication.");

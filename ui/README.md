@@ -87,13 +87,14 @@ There is none, by choice, for a single user on their own machine. Instead:
 - The server is local only by default: it binds `127.0.0.1`.
 - The API is same-origin only. It sends no CORS headers, so another site's page
   cannot read its answers.
-- Only known host names are answered. Every `/api/*` request, reads included,
-  gets 403 unless its `Host` is `127.0.0.1`, `localhost` or `[::1]`, the
+- Only known host names are answered. Every page and API request, reads
+  included, gets 403 unless its `Host` is `127.0.0.1`, `localhost` or `[::1]`, the
   specific host in `HOST`, the host of `ORIGIN`, or one listed in
   `IMPROVE_ALLOWED_HOSTS` (comma-separated). This stops a DNS-rebinding page
-  from posing as this server.
-- Cross-origin writes are refused. Any `/api/*` request other than `GET` or
-  `HEAD` gets 403 unless its `Origin` header (or, without one, its `Referer`)
+  from posing as this server. Only the static build files (`/_app/`), which
+  hold no data, are served before this check.
+- Cross-origin writes are refused. Any request other than `GET` or `HEAD`,
+  whatever its path, gets 403 unless its `Origin` header (or, without one, its `Referer`)
   is this server's own origin. That covers starting evaluations, drafts and
   background reviews, approving, rejecting and applying, importing and
   dismissing findings, and cancelling jobs.

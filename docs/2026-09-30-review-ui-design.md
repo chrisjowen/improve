@@ -97,10 +97,10 @@ job in the way. A single lane let a ten-minute draft block every evaluation.
 
 **No authentication**, for a single user on their own machine. The server is
 local only by default (it binds `127.0.0.1`), the API is same-origin only (no
-CORS headers), every `/api/*` request must name an allowed `Host` (loopback,
+CORS headers), every page and API request must name an allowed `Host` (loopback,
 a specific `HOST`, the host of `ORIGIN`, or `IMPROVE_ALLOWED_HOSTS`) so a
 DNS-rebinding page is refused, and cross-origin writes are refused: any
-`/api/*` request other than `GET` or `HEAD` gets 403 unless its `Origin`, or
+request other than `GET` or `HEAD` gets 403 unless its `Origin`, or
 else its `Referer`, matches the server's own origin. Binding another host is an
 explicit choice (`--host` or `HOST`, with `ORIGIN` set to the public URL when
 proxied), and it exposes an unauthenticated server that can run evaluations and

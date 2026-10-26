@@ -1,4 +1,4 @@
-// The API is same-origin only, and refuses writes from any other origin.
+// The server answers only known hosts, and refuses writes from any other origin.
 import assert from "node:assert/strict";
 import { handle } from "../src/hooks.server.js";
 
@@ -86,8 +86,20 @@ const missingHost = await handle({
 });
 assert.equal(missingHost.status, 403, "a request with no Host is refused");
 
-const page = await send("GET", "/proposals", {}, REBOUND);
-assert.equal(page.resolved, true, "pages carry no data and are not checked");
+// Routing decodes the path, so an encoded /api/ prefix reaches the same routes.
+for (const pathname of ["/proposals", "/", "/%61pi/transcripts", "/%61pi/dreams"]) {
+  const rebound = await send("GET", pathname, {}, REBOUND);
+  assert.equal(rebound.response.status, 403, `a rebinding GET of ${pathname}`);
+  assert.equal(rebound.resolved, false);
+}
+for (const pathname of ["/%61pi/dreams", "/%61pi/proposals/p.yaml/reject", "/proposals"]) {
+  const foreign = await send("POST", pathname, { origin: "http://evil.example" });
+  assert.equal(foreign.response.status, 403, `a cross-origin POST to ${pathname}`);
+  assert.equal(foreign.resolved, false);
+}
+for (const base of ["http://localhost:5173", "http://127.0.0.1:5173", "http://[::1]:5173"]) {
+  assert.equal((await send("GET", "/proposals", {}, base)).resolved, true, `a page load at ${base}`);
+}
 
 process.env.IMPROVE_ALLOWED_HOSTS = "box.internal, other.internal";
 assert.equal((await send("GET", "/api/status", {}, "http://box.internal:5173")).resolved, true);

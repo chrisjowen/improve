@@ -3,6 +3,7 @@
 // diff with ENOENT because a data file was read relative to a bundled module.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -98,6 +99,17 @@ try {
   assert.equal(foreign.status, 403);
   assert.equal(foreign.headers.get("access-control-allow-origin"), null);
   assert.match(fs.readFileSync(path.join(repo, ".harness", "proposals", "p.yaml"), "utf8"), /status: proposed/);
+
+  // A rebinding page gets nothing, even through a percent-encoded /api/ path.
+  for (const target of ["/%61pi/transcripts", "/api/transcripts", "/proposals"]) {
+    const status = await new Promise((resolve, reject) => {
+      http.get({ host: "127.0.0.1", port, path: target, headers: { host: `evil.example:${port}` } }, (response) => {
+        response.resume();
+        resolve(response.statusCode);
+      }).on("error", reject);
+    });
+    assert.equal(status, 403, `a foreign Host for ${target}`);
+  }
 
   // The UI's own page can. adapter-node assumes https unless told the origin,
   // which once refused every write the browser made over plain http.

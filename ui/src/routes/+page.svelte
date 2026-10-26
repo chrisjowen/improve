@@ -1,401 +1,191 @@
 <script>
-  import Badge from "$lib/components/Badge.svelte";
-  import Diff from "$lib/components/Diff.svelte";
+  import Pill from "$lib/components/Pill.svelte";
+  import Icon from "$lib/components/Icon.svelte";
+  import Trend from "$lib/components/Trend.svelte";
+  import JobCard from "$lib/components/JobCard.svelte";
+  import { api } from "$lib/client/api.js";
+  import { summary, findingCount } from "$lib/client/summary.svelte.js";
+  import { jobs } from "$lib/client/jobs.svelte.js";
+  import { SCOPE, ago, plural, score, waiting } from "$lib/client/format.js";
 
-  let proposals = $state([]);
-  let dreams = $state([]);
-  let loading = $state(true);
-  let error = $state(null);
-  let openFile = $state(null);
-  let diff = $state(null);
-  let busy = $state(null);
-  let rationale = $state("");
-  let notice = $state(null);
-  let confirmUnmarked = $state(false);
+  let objectives = $state([]);
+  $effect(() => {
+    api("/api/objectives").then((value) => { objectives = value.objectives ?? []; }).catch(() => {});
+  });
 
-  async function load() {
-    loading = true;
-    try {
-      const [p, d] = await Promise.all([
-        fetch("/api/proposals").then((r) => r.json()),
-        fetch("/api/dreams").then((r) => r.json())
-      ]);
-      proposals = p.proposals ?? [];
-      dreams = d.dreams ?? [];
-      error = p.error ?? null;
-    } catch (cause) {
-      error = cause.message;
-    } finally {
-      loading = false;
-    }
-  }
+  const status = $derived(summary.status);
+  const queue = $derived(summary.proposals.filter(waiting));
+  const due = $derived(status?.review_due_reasons);
+  const observed = $derived(status?.data_location != null);
+  const state = $derived(status?.state ?? {});
+  const recent = $derived(jobs.list.slice(0, 5));
+  const findings = $derived(findingCount());
 
-  async function importFinding(file, index) {
-    busy = `${file}:${index}`;
-    try {
-      const body = await (await fetch(`/api/dreams/${file}/import`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ index })
-      })).json();
-      notice = body.ok
-        ? { text: `Imported as ${body.proposal}. It is a draft with no approval.` }
-        : { bad: true, text: body.error };
-      if (body.ok) await load();
-    } finally {
-      busy = null;
-    }
-  }
-
-  async function dismiss(file) {
-    busy = file;
-    try {
-      const body = await (await fetch(`/api/dreams/${file}/dismiss`, { method: "POST" })).json();
-      notice = body.ok ? { text: `Dismissed ${body.dismissed}.` } : { bad: true, text: body.error };
-      if (body.ok) await load();
-    } finally {
-      busy = null;
-    }
-  }
-
-  $effect(() => { load(); });
-
-  const SCOPE_LABEL = {
-    harness: ["harness", "badge-success", "Changes only files that shape the agent."],
-    codebase: ["codebase change", "badge-danger", "Changes application files, not the agent's setup."],
-    mixed: ["mixed scope", "badge-warning", "Changes the agent's setup and application files."],
-    unknown: ["no files listed", "badge-warning", "The proposal does not say which files it changes."]
-  };
-
-  /** Poll a background job to completion. Jobs are short and single-user. */
-  async function waitFor(jobId) {
-    for (;;) {
-      await new Promise((r) => setTimeout(r, 1200));
-      const { job } = await (await fetch(`/api/jobs/${jobId}`)).json();
-      if (!job || job.status !== "running") return job;
-    }
-  }
-
-  async function draft(file) {
-    busy = file;
-    notice = null;
-    try {
-      const started = await (await fetch(`/api/proposals/${file}/draft-skill`, { method: "POST" })).json();
-      if (!started.ok) { notice = { bad: true, text: started.error }; return; }
-      const job = await waitFor(started.job.id);
-      if (job?.status !== "completed") {
-        notice = { bad: true, text: job?.error ?? "drafting failed" };
-        return;
-      }
-      await load();
-      await openDiff(file);
-      notice = { text: "Draft ready. Review the diff before applying." };
-    } catch (cause) {
-      notice = { bad: true, text: cause.message };
-    } finally {
-      busy = null;
-    }
-  }
-
-  async function openDiff(file) {
-    openFile = file;
-    diff = null;
-    confirmUnmarked = false;
-    const body = await (await fetch(`/api/proposals/${file}/diff`)).json();
-    diff = body.ok ? body : { error: body.error };
-  }
-
-  async function apply(file, { allowUnmarked = false } = {}) {
-    busy = file;
-    try {
-      const body = await (await fetch(`/api/proposals/${file}/apply`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          rationale,
-          // Pins the write to the bytes shown in the diff.
-          digest: diff?.digest,
-          idempotency_key: `${file}:${diff?.digest}`,
-          allow_unmarked_overwrite: allowUnmarked
-        })
-      })).json();
-      if (body.ok) {
-        notice = {
-          text: body.archived
-            ? `Wrote ${body.written}; previous version archived to ${body.archived}`
-            : `Wrote ${body.written}`
-        };
-        openFile = null; diff = null; rationale = "";
-        await load();
-      } else if (body.requires === "allow_unmarked_overwrite") {
-        // The target has no provenance, so it is assumed to be hand-written.
-        confirmUnmarked = true;
-        notice = { bad: true, text: body.error };
-      } else {
-        notice = { bad: true, text: body.error };
-      }
-    } finally {
-      busy = null;
-    }
-  }
-
-  async function reject(file) {
-    busy = file;
-    try {
-      const body = await (await fetch(`/api/proposals/${file}/reject`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ rationale, idempotency_key: `reject:${file}` })
-      })).json();
-      notice = body.ok ? { text: "Recorded as rejected." } : { bad: true, text: body.error };
-      if (body.ok) { openFile = null; diff = null; rationale = ""; await load(); }
-    } finally {
-      busy = null;
-    }
-  }
+  const headline = $derived.by(() => {
+    if (!status) return "";
+    if (!status.harness_initialized) return "This repository has no .harness directory yet. Run /improve init in Claude Code to start.";
+    const parts = [];
+    if (due?.length) parts.push("A harness review is due");
+    parts.push(queue.length ? `${plural(queue.length, "proposal")} waiting for you` : "Nothing is waiting for your review");
+    return `${parts.join(". ")}.`;
+  });
 </script>
 
-<div class="spread" style="margin-bottom:16px">
+<svelte:head><title>Overview · improve</title></svelte:head>
+
+<div class="page-head">
   <div>
-    <h1>Suggestions</h1>
-    <p class="muted small" style="margin:4px 0 0">
-      Improvement proposals from <code>.harness/proposals/</code>. A proposal is not approval.
-    </p>
+    <h1>Overview</h1>
+    <p>{headline}</p>
   </div>
-  <button onclick={load} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
 </div>
 
-{#if notice}
-  <div class="alert {notice.bad ? 'alert-danger' : ''}" style="margin-bottom:14px">{notice.text}</div>
-{/if}
-{#if error}
-  <div class="alert alert-danger" style="margin-bottom:14px">{error}</div>
-{/if}
-
-{#if !loading && proposals.length === 0}
-  <div class="card empty">
-    <p style="margin:0 0 6px"><strong>No proposals yet.</strong></p>
-    <p class="small muted" style="margin:0">
-      Run <code>/improve propose</code>, <code>/improve assess</code> or <code>/improve dream</code>
-      in Claude Code. Each writes a YAML proposal this page reads.
-    </p>
-  </div>
-{/if}
-
-{#each proposals as proposal (proposal.file)}
-  <div class="card">
-    <div class="card-header">
-      <h2>{proposal.title}</h2>
-      <Badge status={proposal.status}>{proposal.status}</Badge>
-      {#if proposal.confidence}<span class="badge">{proposal.confidence}</span>{/if}
-    </div>
-
-    {#if proposal.malformed}
-      <div class="alert alert-danger">Could not parse: {proposal.malformed}</div>
-    {:else}
-      {#if proposal.intervention?.summary}
-        <p class="small muted" style="margin:0 0 2px"><strong>What changes</strong></p>
-        <p style="margin:0 0 10px">{proposal.intervention.summary}</p>
-      {/if}
-      {#if proposal.hypothesis}
-        <p class="small muted" style="margin:0 0 2px"><strong>Why</strong></p>
-        <p class="small" style="margin:0 0 10px">{proposal.hypothesis}</p>
-      {/if}
-
-      {#if proposal.check}
-        {@const [label, tone, meaning] = SCOPE_LABEL[proposal.check.scope] ?? SCOPE_LABEL.unknown}
-        <div class="row small" style="margin-bottom:10px;gap:6px;flex-wrap:wrap">
-          <span class="badge {tone}" title={meaning}>{label}</span>
-          {#each proposal.scope?.files ?? [] as file}
-            <code class={proposal.check.outside.includes(file) ? "outside" : ""}>{file}</code>
+<div class="grid cols-main">
+  <div class="stack" style="gap:16px">
+    <section class="panel" aria-labelledby="waiting">
+      <div class="panel-head">
+        <h2 id="waiting"><Icon name="inbox" />Waiting for you</h2>
+        <a class="small" href="/proposals">All proposals</a>
+      </div>
+      {#if !summary.loaded}
+        <p class="empty small">Loading…</p>
+      {:else if queue.length === 0}
+        <div class="empty">
+          <strong>No proposals to review.</strong>
+          Run <code>/improve propose</code> or <code>/improve review</code> in Claude Code. Each writes a proposal to
+          <code>.harness/proposals/</code>, and it shows up here.
+        </div>
+      {:else}
+        <ul class="list">
+          {#each queue as proposal (proposal.file)}
+            {@const scope = SCOPE[proposal.check?.scope] ?? SCOPE.unknown}
+            <li>
+              <a class="list-row" href="/proposals?p={encodeURIComponent(proposal.file)}">
+                <span class="title">{proposal.title}</span>
+                {#if proposal.status === "draft"}<Pill>Draft</Pill>{/if}
+                {#if proposal.check?.scope !== "harness"}<Pill tone={scope.tone} title={scope.meaning}>{scope.label}</Pill>{/if}
+                <span class="meta">{ago(proposal.created_at)}</span>
+                <Icon name="chevron" />
+              </a>
+            </li>
           {/each}
+        </ul>
+      {/if}
+      {#if findings}
+        <div class="panel-body" style="border-top:1px solid var(--border)">
+          <a href="/findings" class="row">
+            <Icon name="sparkles" />{plural(findings, "background finding")} not yet triaged
+          </a>
         </div>
-        {#each proposal.check.findings as finding}
-          <div class="alert {finding.rule === 'scope-codebase' && proposal.check.scope === 'codebase' ? 'alert-danger' : ''}"
-               style="margin-bottom:10px">
-            <span class="small">{finding.detail}</span>
-          </div>
-        {/each}
-        {#if proposal.check.prose.length}
-          <details style="margin-bottom:10px">
-            <summary class="small muted">Writing: {proposal.check.prose.length} {proposal.check.prose.length === 1 ? "issue" : "issues"}</summary>
-            <ul class="small" style="margin:8px 0 0">
-              {#each proposal.check.prose as issue}
-                <li><code>{issue.rule}</code> in {issue.field}: "{issue.match}". {issue.fix}</li>
-              {/each}
-            </ul>
-          </details>
-        {/if}
       {/if}
-      <div class="row small muted" style="margin-bottom:10px">
-        <code>{proposal.source}</code>
-        {#if proposal.objective_id}<span>objective: {proposal.objective_id}</span>{/if}
-        {#if proposal.owner}<span>owner: {proposal.owner}</span>{/if}
-        {#if proposal.review_by}<span>review by {proposal.review_by}</span>{/if}
-      </div>
+    </section>
 
-      {#if proposal.evidence.length}
-        <details style="margin-bottom:10px">
-          <summary class="small muted">Evidence ({proposal.evidence.length})</summary>
-          <ul class="small" style="margin:8px 0 0">
-            {#each proposal.evidence as item}
-              <li><strong>{item.source ?? "source"}.</strong> {item.observation ?? JSON.stringify(item)}</li>
-            {/each}
-          </ul>
-        </details>
+    <section class="panel" aria-labelledby="runs">
+      <div class="panel-head">
+        <h2 id="runs"><Icon name="activity" />Recent runs</h2>
+        <a class="small" href="/runs">All runs</a>
+      </div>
+      {#if recent.length === 0}
+        <p class="empty small">No evaluations, drafts or background reviews have run from this page yet.</p>
+      {:else}
+        <ul class="list">
+          {#each recent as job (job.id)}<li><JobCard {job} compact /></li>{/each}
+        </ul>
       {/if}
+    </section>
+  </div>
 
-      <div class="row">
-        {#if proposal.skill_draft}
-          <button onclick={() => openDiff(proposal.file)}>Review draft</button>
-          <span class="badge badge-success">draft: {proposal.skill_draft.name}</span>
-        {:else if proposal.check?.scope !== "codebase"}
-          <button onclick={() => draft(proposal.file)} disabled={busy === proposal.file}>
-            {busy === proposal.file ? "Drafting…" : "Draft skill"}
-          </button>
-        {/if}
-        <button class="danger" onclick={() => reject(proposal.file)} disabled={busy === proposal.file}>
-          Reject
-        </button>
-      </div>
-    {/if}
-
-    {#if openFile === proposal.file}
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid hsl(var(--border))">
-        {#if !diff}
-          <p class="muted small">Loading diff…</p>
-        {:else if diff.error}
-          <div class="alert alert-danger">{diff.error}</div>
+  <div class="stack" style="gap:16px">
+    <section class="panel" aria-labelledby="health">
+      <div class="panel-head">
+        <h2 id="health"><Icon name="gauge" />Harness health</h2>
+        {#if due == null}
+          <Pill title="No plugin data directory was found, so hook observations cannot be read">Not observed</Pill>
+        {:else if due.length}
+          <Pill tone="warn">Review due</Pill>
         {:else}
-          <div class="spread" style="margin-bottom:10px">
-            <h3><code>{diff.target}</code></h3>
-            <span class="row" style="gap:6px">
-              <span class="badge">{diff.exists ? "overwrites existing" : "new file"}</span>
-              {#if diff.exists && diff.plugin_authored === false}
-                <span class="badge badge-warning">not authored by improve</span>
-              {/if}
-              {#if diff.sidecar}
-                <span class="badge" title="times the model invoked this skill">used {diff.sidecar.use}</span>
-              {/if}
-            </span>
-          </div>
-
-          {#if diff.findings?.length}
-            <div class="alert {diff.blocked ? 'alert-danger' : ''}" style="margin-bottom:10px">
-              <strong>{diff.blocked ? "This draft cannot be applied." : "Findings."}</strong>
-              <ul class="small" style="margin:6px 0 0">
-                {#each diff.findings as [family, detail]}
-                  <li><code>{family}</code>: {detail}</li>
-                {/each}
-              </ul>
-              {#if diff.blocked}
-                <p class="small" style="margin:6px 0 0">
-                  A skill body becomes a standing instruction, so a safety match blocks the write.
-                </p>
-              {/if}
-            </div>
-          {/if}
-
-          <Diff current={diff.current} proposed={diff.proposed} />
-          <div style="margin-top:12px">
-            <label for="why-{proposal.file}">Rationale (recorded with the decision)</label>
-            <textarea id="why-{proposal.file}" rows="2" bind:value={rationale}
-                      placeholder="Why this is or isn't the right change"></textarea>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button class="primary" onclick={() => apply(proposal.file)}
-                    disabled={busy === proposal.file || diff.blocked}>
-              {busy === proposal.file ? "Applying…" : "Apply"}
-            </button>
-            {#if confirmUnmarked}
-              <button class="danger" onclick={() => apply(proposal.file, { allowUnmarked: true })}
-                      disabled={busy === proposal.file}>
-                Overwrite the hand-written file
-              </button>
-            {/if}
-            <button onclick={() => { openFile = null; diff = null; confirmUnmarked = false; }}>Cancel</button>
-          </div>
+          <Pill tone="ok">No review due</Pill>
         {/if}
       </div>
-    {/if}
-  </div>
-{/each}
-
-{#if dreams.length}
-  <div style="margin:28px 0 12px">
-    <h1>Background findings</h1>
-    <p class="muted small" style="margin:4px 0 0">
-      Produced by a read-only background agent. These are untrusted and unreviewed,
-      live outside the repository, and become proposals only when you import one.
-    </p>
-  </div>
-
-  {#each dreams as report (report.file)}
-    <div class="card">
-      <div class="card-header">
-        <h2><code>{report.file}</code></h2>
-        <span class="badge {report.status === 'completed' ? '' : 'badge-warning'}">{report.status}</span>
-        {#if report.cost_usd}<span class="badge">${report.cost_usd.toFixed(3)}</span>{/if}
-      </div>
-
-      {#if report.error}
-        <div class="alert alert-danger">{report.error}</div>
-      {/if}
-
-      {#each report.findings as finding}
-        <div style="padding:12px 0;border-top:1px solid hsl(var(--border))">
-          <div class="spread">
-            <h3>{finding.title}</h3>
-            <span class="badge badge-warning">untrusted</span>
+      <div class="panel-body stack">
+        {#if due?.length}
+          <div>
+            <div class="section-label">Why a review is due</div>
+            <ul class="small">{#each due as reason}<li>{reason}</li>{/each}</ul>
           </div>
-          {#if finding.hypothesis}<p class="small" style="margin:6px 0">{finding.hypothesis}</p>{/if}
-          {#if finding.intervention}
-            <p class="small muted" style="margin:0 0 6px"><strong>Smallest change:</strong> {finding.intervention}</p>
-          {/if}
-          {#if finding.evidence.length}
-            <ul class="small" style="margin:6px 0">
-              {#each finding.evidence as item}
-                <li><strong>{item.source}.</strong> {item.observation}</li>
-              {/each}
-            </ul>
-          {/if}
-          {#if finding.prose?.length}
-            <details style="margin:6px 0">
-              <summary class="small muted">Writing: {finding.prose.length} {finding.prose.length === 1 ? "issue" : "issues"}</summary>
-              <ul class="small" style="margin:8px 0 0">
-                {#each finding.prose as issue}
-                  <li><code>{issue.rule}</code> in {issue.field}: "{issue.match}". {issue.fix}</li>
-                {/each}
-              </ul>
-            </details>
-          {/if}
-          {#if finding.reasons_to_reject.length}
-            <div class="alert" style="margin:8px 0">
-              <strong class="small">Reasons to reject</strong>
-              <ul class="small" style="margin:6px 0 0">
-                {#each finding.reasons_to_reject as reason}<li>{reason}</li>{/each}
-              </ul>
-            </div>
-          {/if}
-          <div class="row">
-            <button onclick={() => importFinding(report.file, finding.index)}
-                    disabled={busy === `${report.file}:${finding.index}`}>
-              Import as draft proposal
-            </button>
+        {/if}
+        {#if status?.repeated_correction && status.repeated_correction.count > 1}
+          <div>
+            <div class="section-label">Most repeated correction</div>
+            <p class="small">
+              Made {status.repeated_correction.count} times. Key words:
+              <code>{status.repeated_correction.key.replaceAll("-", " ")}</code>
+            </p>
           </div>
+        {/if}
+        <div>
+          <div class="section-label">Since the last review</div>
+          {#if observed}
+            <dl class="kv small">
+              <dt>Sessions</dt><dd class="num">{state.sessions_since_review ?? 0}</dd>
+              <dt>Tool calls</dt><dd class="num">{state.tool_calls_since_review ?? 0}</dd>
+              <dt>Tool failures</dt><dd class="num">{state.tool_failures_since_review ?? 0}</dd>
+              <dt>Corrections</dt><dd class="num">{state.corrections_since_review ?? 0}</dd>
+              <dt>Last review</dt><dd>{state.last_reviewed_at ? ago(state.last_reviewed_at) : "never"}</dd>
+            </dl>
+          {:else}
+            <p class="small muted">
+              No hook observations were found for this repository. They appear once the plugin's hooks have run in a
+              Claude Code session here.
+            </p>
+          {/if}
         </div>
-      {/each}
-
-      {#if report.findings.length === 0}
-        <p class="small muted" style="margin:0">This report contains no findings.</p>
-      {/if}
-
-      <div class="row" style="margin-top:12px;padding-top:12px;border-top:1px solid hsl(var(--border))">
-        <button class="danger" onclick={() => dismiss(report.file)} disabled={busy === report.file}>
-          Dismiss report
-        </button>
-        <span class="small muted">A dream may be deleted without action.</span>
+        <div>
+          <div class="section-label">Evidence for evaluations</div>
+          <dl class="kv small">
+            <dt>Session transcripts</dt>
+            <dd>{status?.transcripts?.count ? `${status.transcripts.count}, oldest ${status.transcripts.oldest_age_days} days` : "none found"}</dd>
+            <dt>Eval rig</dt>
+            <dd>
+              {#if status?.eval_rig?.installed}
+                {status.eval_rig.installed}{#if status.eval_rig.drifted}<span style="color:var(--warn)"> (plugin has {status.eval_rig.available})</span>{/if}
+              {:else}not installed{/if}
+            </dd>
+            <dt>Background reviews</dt>
+            <dd>{status?.background_dreaming_enabled ? "on, after sessions" : "off; run one from Background findings"}</dd>
+          </dl>
+        </div>
       </div>
-    </div>
-  {/each}
-{/if}
+    </section>
+
+    <section class="panel" aria-labelledby="objectives">
+      <div class="panel-head">
+        <h2 id="objectives"><Icon name="target" />Objectives</h2>
+        <a class="small" href="/objectives">Details</a>
+      </div>
+      {#if objectives.length === 0}
+        <p class="empty small">No objectives declared. Add them to <code>.harness/objectives.yaml</code>.</p>
+      {:else}
+        <ul class="list">
+          {#each objectives as objective (objective.id)}
+            <li>
+              <a class="list-row" href="/objectives#{objective.id}">
+                <span class="title">{objective.id}</span>
+                {#if !objective.covered}
+                  <Pill tone="bad">No suite</Pill>
+                {:else if !objective.encountered}
+                  <Pill>Not measured yet</Pill>
+                {:else}
+                  <Trend history={objective.history} width={72} height={22} />
+                  <span class="num" style="min-width:36px;text-align:right;color:{objective.latest?.success ? 'var(--ok)' : 'var(--bad)'}">
+                    {score(objective.latest?.score)}
+                  </span>
+                {/if}
+              </a>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  </div>
+</div>

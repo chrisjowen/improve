@@ -20,24 +20,24 @@
 </script>
 
 {#if rows.length}
-  <svg {width} {height} role="img" aria-label="Score by evaluation step">
+  <svg viewBox="0 0 {width} {height}" style="width:100%;max-width:{width}px;height:auto" role="img" aria-label="Score by evaluation step">
     {#each rows as row, i}
       <g transform="translate(0,{i * rowHeight})">
-        <text x="0" y={rowHeight / 2 + 4} font-size="12" fill="hsl(var(--muted-foreground))">
+        <text x="0" y={rowHeight / 2 + 4} font-size="12" fill="var(--text-3)">
           {row.id.length > 24 ? `${row.id.slice(0, 23)}…` : row.id}
         </text>
         <rect x={labelWidth} y={rowHeight / 2 - 6} width={x(1)} height="12" rx="3"
-              fill="hsl(var(--muted))" />
+              fill="var(--surface-2)" />
         <rect x={labelWidth} y={rowHeight / 2 - 6} width={Math.max(x(row.score), row.score > 0 ? 2 : 0)}
               height="12" rx="3"
               fill={row.status !== "completed"
-                ? "hsl(var(--muted-foreground))"
-                : row.passed ? "hsl(var(--success))" : "hsl(var(--destructive))"} />
+                ? "var(--text-3)"
+                : row.passed ? "var(--ok)" : "var(--bad)"} />
         <line x1={labelWidth + x(row.threshold)} x2={labelWidth + x(row.threshold)}
               y1={rowHeight / 2 - 9} y2={rowHeight / 2 + 9}
-              stroke="hsl(var(--foreground))" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
+              stroke="var(--text)" stroke-width="1" stroke-dasharray="2 2" opacity="0.5" />
         <text x={labelWidth + x(1) + 10} y={rowHeight / 2 + 4} font-size="12"
-              font-variant-numeric="tabular-nums" fill="hsl(var(--foreground))">
+              font-variant-numeric="tabular-nums" fill="var(--text)">
           {row.status === "completed" ? row.score.toFixed(2) : row.status}
         </text>
       </g>

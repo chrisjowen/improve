@@ -14,8 +14,9 @@ files them for a decision. It does not change Firstmate on its own.
 
 - **Evidence import.** Firstmate already records what went wrong: the
   ask-user findings workers escalate, the decisions and blockers in each
-  task's status log, stale-worker wakes, failed launches and recoveries,
-  teardown refusals, the captain's preferences in `data/captain.md`, and the
+  task's status history (including finished tasks, through the fleet ledger),
+  stale and stuck workers, failed launches and relaunches, teardown
+  refusals, the captain's preferences in `data/captain.md`, and the
   learnings in `data/learnings.md`. The importer reads those files, groups
   repeats across tasks, and counts review rounds and durations per task. It
   removes secrets, tokens, emails and the home's own path, and keeps only short

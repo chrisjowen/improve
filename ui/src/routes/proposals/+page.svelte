@@ -9,7 +9,7 @@
   import { api } from "$lib/client/api.js";
   import { summary, refreshSummary } from "$lib/client/summary.svelte.js";
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
-  import { SCOPE, STATUS, ago, when, plural, waiting } from "$lib/client/format.js";
+  import { STATUS, ago, when, plural, scopeLabel, showScope, waiting } from "$lib/client/format.js";
 
   /** @type {[string, string, (proposal: any) => boolean][]} */
   const VIEWS = [
@@ -145,7 +145,7 @@
     }
   }
 
-  const scope = $derived(SCOPE[selected?.check?.scope] ?? SCOPE.unknown);
+  const scope = $derived(scopeLabel(selected?.check));
   const status = $derived(STATUS[selected?.status] ?? { label: selected?.status, tone: "" });
   const decidable = $derived(selected && waiting(selected) && !selected.malformed);
 </script>
@@ -188,8 +188,8 @@
               <span class="row small faint">
                 <Pill tone={s.tone}>{s.label}</Pill>
                 {#if proposal.malformed}<Pill tone="bad">Unreadable</Pill>{/if}
-                {#if proposal.check && proposal.check.scope !== "harness"}
-                  <Pill tone={SCOPE[proposal.check.scope].tone}>{SCOPE[proposal.check.scope].label}</Pill>
+                {#if showScope(proposal.check)}
+                  <Pill tone={scopeLabel(proposal.check).tone}>{scopeLabel(proposal.check).label}</Pill>
                 {/if}
                 <span>{ago(proposal.created_at)}</span>
               </span>
@@ -253,7 +253,8 @@
               {#if selected.scope?.files?.length}
                 <div class="row">
                   {#each selected.scope.files as file}
-                    <span class="chip" class:outside={selected.check?.outside?.includes(file)}><Icon name="file" size={12} />{file}</span>
+                    {@const side = selected.check?.firstmate?.files?.[file]}
+                    <span class="chip" class:outside={selected.check?.outside?.includes(file)}><Icon name="file" size={12} />{file}{#if side === "captain-private" || side === "shared-tracked"}<span class="faint">{side === "captain-private" ? "captain-private" : "shared"}</span>{/if}</span>
                   {/each}
                 </div>
               {:else}

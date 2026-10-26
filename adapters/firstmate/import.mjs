@@ -19,11 +19,27 @@ import { homeRelative } from "./home.mjs";
  * Signals read, each from the file Firstmate documents as its owner:
  *
  *   state/<task>.status         needs-decision / resolved / blocked / failed lines
+ *                               of tasks still running
+ *   state/fleet-ledger.jsonl    when enabled: every task's status lines as
+ *                               `task.status` records, which outlive teardown
+ *                               retiring the status log, plus dispatch, PR-ready
+ *                               and merge times
  *   data/<task>/*findings*      no-mistakes ask-user findings escalated by a worker
- *   state/.wake-queue           stale wakes (a worker that stopped making progress)
- *   state/fleet-ledger.jsonl    dispatch, PR-ready and merge times, when enabled
+ *   data/<task>/brief.md        `## Progress note` sections bin/fm-control.sh
+ *                               appends when it relaunches a worker
+ *   state/.wake-queue           stale wakes not yet handled
+ *   state/.watch-cycle-exits.log  each watcher exit; `reason=actionable-stale`
+ *                               is a stale wake delivered to firstmate
+ *   state/.watch-triage.log     stale panes the watcher absorbed as still working
+ *   state/.stale-*, .wedge-escalations-*  per-window watcher markers: a pane
+ *                               classified stale, and wedge escalations (stuck)
+ *   state/.seen-procevent-*     process-event sources that failed to launch
  *   data/captain.md             the captain's preferences and corrections
  *   data/learnings.md           curated operational learnings
+ *
+ * Firstmate prints teardown refusals to the terminal and keeps no record of a
+ * relaunch beyond the brief, so those counts are lower bounds. Tasks finished
+ * before the ledger was turned on have no status history left at all.
  */
 
 export const EXCERPT_LIMIT = 160;
@@ -59,19 +75,34 @@ const VERBS = new Set([
 /**
  * One status line, in the grammar bin/fm-classify-lib.sh owns:
  * `<verb> [corr=<hex>] [at=<epoch>] [key=<slug>]: <text>`, with the tags in any
- * order before the first colon. The older `needs-decision: [key=x] text`
- * placement is accepted as well. Returns undefined for a line with no verb.
+ * order before the first colon. A time tag may hold colons of its own, so tags
+ * are read before the colon is looked for. The older `needs-decision: [key=x]
+ * text` placement is accepted as well. Returns undefined for a line with no
+ * verb.
  */
 export function parseStatusLine(line) {
   if (typeof line !== "string" || !line.trim()) return undefined;
-  const colon = line.indexOf(":");
-  if (colon === -1) return undefined;
-  const head = line.slice(0, colon);
-  let text = line.slice(colon + 1).trim();
-  const verb = head.trim().split(/\s+/)[0];
+  const verb = line.trim().split(/[\s:[]/)[0];
   if (!VERBS.has(verb)) return undefined;
-  const at = head.match(/\[at=(\d+)\]/)?.[1];
-  let key = head.match(/\[key=([^\]\s]+)\]/)?.[1];
+  // Time tags before the colon come off first, as _fm_status_unstamped does.
+  let head = "";
+  let tail = line.trim().slice(verb.length);
+  let at = null;
+  for (;;) {
+    const tag = tail.indexOf("[at=");
+    const colon = tail.indexOf(":");
+    const end = tail.indexOf("]", tag);
+    if (tag === -1 || (colon !== -1 && colon < tag) || end === -1) break;
+    const value = tail.slice(tag + 4, end);
+    if (at === null && /^\d+$/.test(value)) at = Number(value);
+    head += tail.slice(0, tag);
+    tail = tail.slice(end + 1);
+  }
+  const colon = tail.indexOf(":");
+  if (colon === -1) return undefined;
+  head += tail.slice(0, colon);
+  let key = head.match(/\[key=([^\]\s]+)\]/)?.[1] ?? null;
+  let text = tail.slice(colon + 1).trim();
   if (!key) {
     const leading = text.match(/^\[key=([^\]\s]+)\]\s*/);
     if (leading) {
@@ -79,35 +110,40 @@ export function parseStatusLine(line) {
       text = text.slice(leading[0].length);
     }
   }
-  return { verb, at: at ? Number(at) : null, key: key ?? null, text };
+  return { verb, at, key, text };
 }
 
 /**
- * Open and closed decisions in one status log, folded the way the status
- * contract describes: a keyed `resolved` closes the opener with that key, and a
- * bare `resolved` closes the newest open one.
+ * Every decision and blocker one task raised, folded the way
+ * bin/fm-classify-lib.sh folds them: a line with no key uses the key
+ * `default`; an opener replaces an open decision with the same key; `resolved`
+ * or `captain-held` closes the open decision with its key, so a bare
+ * `resolved` closes only a keyless one; and, for a ship or scout task, `done`
+ * or `failed` ends every open decision. Unlike that fold, closed decisions are
+ * kept, with how each one closed.
  */
-export function foldDecisions(events) {
+export function foldDecisions(events, { kind = "ship" } = {}) {
   const decisions = [];
-  const open = [];
+  const open = new Map();
+  const close = (decision, at, text, how) => {
+    decision.resolution = { at, text, how };
+    open.delete(decision.key ?? "default");
+  };
   for (const event of events) {
+    const slot = event.key ?? "default";
     if (event.verb === "needs-decision" || event.verb === "blocked") {
+      const previous = open.get(slot);
+      if (previous) close(previous, event.at, null, "superseded");
       const decision = { kind: event.verb, key: event.key, opened_at: event.at, text: event.text, resolution: null };
       decisions.push(decision);
-      open.push(decision);
-    } else if (event.verb === "resolved") {
-      let index = -1;
-      if (event.key) {
-        for (let i = open.length - 1; i >= 0; i -= 1) {
-          if (open[i].key === event.key) { index = i; break; }
-        }
-      } else {
-        index = open.length - 1;
-      }
-      if (index !== -1) {
-        const [decision] = open.splice(index, 1);
-        decision.resolution = { at: event.at, text: event.text };
-      }
+      open.set(slot, decision);
+    } else if (event.verb === "resolved" || event.verb === "captain-held") {
+      const decision = open.get(slot);
+      if (!decision) continue;
+      const how = event.verb === "captain-held" ? "captain-held" : /^answered:/i.test(event.text) ? "answered" : "resolved";
+      close(decision, event.at, event.text, how);
+    } else if ((event.verb === "done" || event.verb === "failed") && kind !== "secondmate") {
+      for (const decision of [...open.values()]) close(decision, event.at, null, "task-ended");
     }
   }
   return decisions;
@@ -210,9 +246,9 @@ export function parseBullets(text) {
   return items;
 }
 
-/** Tasks the home knows about: status logs and per-task data directories. */
-function taskIds(home) {
-  const ids = new Set();
+/** Tasks the home knows about: status logs, per-task data directories, and the ledger. */
+function taskIds(home, ledger) {
+  const ids = new Set(ledger?.keys() ?? []);
   for (const entry of listDir(path.join(home, "state"))) {
     if (entry.isFile() && entry.name.endsWith(".status") && !entry.name.startsWith(".")) {
       ids.add(entry.name.slice(0, -".status".length));
@@ -243,25 +279,166 @@ function readLedger(home) {
   return byTask;
 }
 
-/** Stale wakes per key from `epoch<TAB>seq<TAB>kind<TAB>key<TAB>payload`. */
-function readStaleWakes(home) {
-  const text = readText(path.join(home, "state", ".wake-queue"));
-  if (text === undefined) return [];
-  const byKey = new Map();
-  for (const line of text.split("\n")) {
-    const [epoch, , kind, key] = line.split("\t");
-    if (kind !== "stale" || !key) continue;
-    const at = Number(epoch) || null;
-    const entry = byKey.get(key) ?? { key, count: 0, first_at: at, last_at: at };
-    entry.count += 1;
-    if (at && (!entry.first_at || at < entry.first_at)) entry.first_at = at;
-    if (at && (!entry.last_at || at > entry.last_at)) entry.last_at = at;
-    byKey.set(key, entry);
+/**
+ * The task a watcher window or marker key names. Windows are
+ * `<session>:fm-<task>`; marker keys are the same with `:`, `/` and `.` turned
+ * into `_` (window_key in bin/fm-watch.sh). Anything else is returned as is.
+ */
+export function windowTask(name, tasks = new Set()) {
+  const candidate = String(name).match(/[:_]fm-(.+)$/)?.[1];
+  if (!candidate) return String(name);
+  if (tasks.has(candidate)) return candidate;
+  for (const task of tasks) {
+    if (task.replace(/[:/.]/g, "_") === candidate) return task;
   }
-  return [...byKey.values()];
+  return candidate;
 }
 
-const SPAWN_FAILURE = /\b(spawn|launch|start(ed)?|dispatch)\b.*\b(fail|failed|refused|could not|did not|timed out)\b|\b(fail|failed|could not)\b.*\b(spawn|launch|dispatch)\b/i;
+/**
+ * Stale and stuck workers, from what the watcher leaves on disk. The wake
+ * queue drains as firstmate handles wakes, so its `stale` rows are only the
+ * ones still waiting; each delivered stale wake is also one
+ * `reason=actionable-stale` exit in the watcher's cycle log. The triage log
+ * keeps (bounded) the stale panes absorbed as provably working (a pane paused
+ * on something external declared its wait and is not stale), and the
+ * per-window markers survive teardown: `.stale-<key>` for a pane classified
+ * stale, `.wedge-escalations-<key>` for how many times a quiet pane was
+ * escalated as a possible wedge.
+ */
+function readWatcher(home, tasks) {
+  const state = path.join(home, "state");
+  const byTask = new Map();
+  const entry = (task) => {
+    if (!byTask.has(task)) {
+      byTask.set(task, { task, queued_stale_wakes: 0, absorbed_stale: 0, stale_marker: false, wedge_escalations: 0, first_at: null, last_at: null });
+    }
+    return byTask.get(task);
+  };
+  const seen = (item, at) => {
+    if (!at) return;
+    if (!item.first_at || at < item.first_at) item.first_at = at;
+    if (!item.last_at || at > item.last_at) item.last_at = at;
+  };
+
+  // `epoch<TAB>seq<TAB>kind<TAB>key<TAB>payload`, key being the window.
+  for (const line of (readText(path.join(state, ".wake-queue")) ?? "").split("\n")) {
+    const [epoch, , kind, key] = line.split("\t");
+    if (kind !== "stale" || !key) continue;
+    const item = entry(windowTask(key, tasks));
+    item.queued_stale_wakes += 1;
+    seen(item, Number(epoch) || null);
+  }
+
+  // `[<ISO time>] absorbed <why>: <window>`
+  for (const line of (readText(path.join(state, ".watch-triage.log")) ?? "").split("\n")) {
+    const match = line.match(/^\[([^\]]+)\]\s+absorbed\s+(.*\bstale\b.*):\s+(\S+)\s*$/);
+    if (!match || /\bpaused\b|\bawaiting external\b/.test(match[2])) continue;
+    const item = entry(windowTask(match[3], tasks));
+    item.absorbed_stale += 1;
+    const at = Date.parse(match[1].replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));
+    seen(item, Number.isFinite(at) ? Math.floor(at / 1000) : null);
+  }
+
+  for (const marker of listDir(state)) {
+    if (!marker.isFile()) continue;
+    const escalations = marker.name.match(/^\.wedge-escalations-(.+)$/);
+    if (escalations) {
+      const count = Number.parseInt(readText(path.join(state, marker.name)) ?? "", 10);
+      entry(windowTask(escalations[1], tasks)).wedge_escalations += Number.isFinite(count) && count > 0 ? count : 1;
+      continue;
+    }
+    const stale = marker.name.match(/^\.stale-(?!since-)(.+)$/);
+    if (stale) entry(windowTask(stale[1], tasks)).stale_marker = true;
+  }
+
+  let delivered;
+  const cycles = readText(path.join(state, ".watch-cycle-exits.log"));
+  if (cycles !== undefined) {
+    delivered = cycles.split("\n").filter((line) => /(^|\t)reason=actionable-stale(\t|$)/.test(line)).length;
+  }
+  return { workers: [...byTask.values()].sort((a, b) => a.task.localeCompare(b.task)), delivered };
+}
+
+/**
+ * Process-event sources that failed to launch. The watcher marks each event it
+ * has seen with `.seen-procevent-<hex of the event id>`, and a launch failure's
+ * id is `procevent:<source>:launch-failed:<attempt>`. These are supervision
+ * extensions, not workers, so they are not spawn failures.
+ */
+function readProcessEventFailures(home) {
+  let count = 0;
+  for (const marker of listDir(path.join(home, "state"))) {
+    const hex = marker.name.match(/^\.seen-procevent-((?:[0-9a-f]{2})+)$/)?.[1];
+    if (hex && /^procevent:[^:]+:launch-failed:/.test(Buffer.from(hex, "hex").toString("utf8"))) count += 1;
+  }
+  return count;
+}
+
+/** Relaunches bin/fm-control.sh recorded in a task's brief, one per progress note. */
+function readRelaunches(home, task) {
+  const stamps = new Set();
+  for (const name of ["brief.md", "launch-brief.md"]) {
+    const text = readText(path.join(home, "data", task, name)) ?? "";
+    for (const match of text.matchAll(/^## Progress note \(([^)\n]*)\)\s*$/gm)) stamps.add(match[1]);
+  }
+  return [...stamps].sort().map((stamp) => {
+    const at = Date.parse(stamp);
+    return Number.isFinite(at) ? Math.floor(at / 1000) : null;
+  });
+}
+
+/** The task's kind from its record or its dispatch, which decides the `done` rule. */
+function taskKind(home, task, records) {
+  const meta = readText(path.join(home, "state", `${task}.meta`));
+  return meta?.match(/^kind=(\S+)$/m)?.[1]
+    ?? records.find((record) => record.event === "task.dispatched")?.kind
+    ?? "ship";
+}
+
+const REDELIVERY_WINDOW_S = 60;
+
+/**
+ * One task's status history. A running task still has its status log; a
+ * finished one's log is retired at teardown, and only the ledger's
+ * `task.status` copies remain. Both are read: a ledger record that repeats a
+ * log line, or repeats an identical record within a minute of it (the ledger
+ * delivers at least once), is dropped. Events are ordered by time, a line with
+ * no time tag taking the time before it.
+ */
+export function taskHistory(statusText, ledgerRecords = []) {
+  const signature = (event) => `${event.verb}\u0000${event.key ?? ""}\u0000${event.text.slice(0, 200)}`;
+  const fromLog = (statusText ?? "").split("\n").map(parseStatusLine).filter(Boolean)
+    .map((event) => ({ ...event, source: "status" }));
+  const inLog = new Map();
+  for (const event of fromLog) inLog.set(signature(event), (inLog.get(signature(event)) ?? 0) + 1);
+
+  const fromLedger = [];
+  const recorded = new Map();
+  for (const record of ledgerRecords) {
+    if (record.event !== "task.status" || !VERBS.has(record.state)) continue;
+    const key = typeof record.key === "string" && record.key ? record.key : null;
+    let text = String(record.text ?? "").trim();
+    if (key && text.startsWith(`[key=${key}]`)) text = text.slice(`[key=${key}]`.length).trim();
+    const event = { verb: record.state, at: Number.isFinite(record.ts) ? record.ts : null, key, text, source: "ledger" };
+    const sig = signature(event);
+    const left = inLog.get(sig) ?? 0;
+    if (left > 0) inLog.set(sig, left - 1);
+    else if (!recorded.has(sig) || (event.at !== null && recorded.get(sig) !== null
+      && Math.abs(event.at - recorded.get(sig)) > REDELIVERY_WINDOW_S)) fromLedger.push(event);
+    recorded.set(sig, event.at);
+  }
+
+  const timed = (events) => {
+    let last = null;
+    return events.map((event) => {
+      last = event.at ?? last;
+      return { event, t: last ?? -Infinity };
+    });
+  };
+  return [...timed(fromLog), ...timed(fromLedger)].sort((a, b) => a.t - b.t).map(({ event }) => event);
+}
+
+const SPAWN_FAILURE = /\b(spawn|launch|start(ed)?|dispatch)\b.*\b(fail|failed|refused|could not|did not|timed out)\b|\b(fail|failed|could not|did not|never)\b.*\b(spawn|launch|dispatch|start)\b|\bbrief pointer\b|\bready signal\b|\bfolder-trust\b/i;
 const TEARDOWN_REFUSAL = /\bteardown\b.*\brefus|\brefus\w*\b.*\bteardown\b/i;
 const RECOVERY = /\b(recover(ed|y)?|relaunch(ed)?|respawn(ed)?|resumed after)\b/i;
 
@@ -292,35 +469,58 @@ export function importEvidence(home, { now = Date.now() } = {}) {
   const decisions = [];
   const failures = [];
   const tasks = [];
+  const ids = taskIds(resolved, ledger);
+  const watcher = readWatcher(resolved, new Set(ids));
+  const workers = new Map(watcher.workers.map((worker) => [worker.task, worker]));
+  let statusLogs = 0;
+  let withoutHistory = 0;
+  let recoveries = 0;
 
-  for (const task of taskIds(resolved)) {
-    const statusFile = path.join(resolved, "state", `${task}.status`);
-    const statusText = readText(statusFile);
-    const events = statusText === undefined ? [] : statusText.split("\n").map(parseStatusLine).filter(Boolean);
-    const folded = foldDecisions(events);
+  for (const task of ids) {
+    const statusText = readText(path.join(resolved, "state", `${task}.status`));
+    if (statusText !== undefined) statusLogs += 1;
+    const records = ledger?.get(task) ?? [];
+    const events = taskHistory(statusText, records);
+    if (events.length === 0) withoutHistory += 1;
+    const kind = taskKind(resolved, task, records);
+    const folded = foldDecisions(events, { kind });
 
     for (const decision of folded) {
+      const resolution = decision.resolution;
       decisions.push({
         kind: decision.kind === "blocked" ? "blocker" : "decision",
         task,
         key: decision.key,
         opened_at: decision.opened_at,
-        resolved_at: decision.resolution?.at ?? null,
-        open: decision.resolution === null,
-        wait_s: decision.resolution?.at && decision.opened_at ? decision.resolution.at - decision.opened_at : null,
+        resolved_at: resolution?.at ?? null,
+        open: resolution === null,
+        // answered (firstmate recorded an answer), resolved (the worker cleared
+        // it), captain-held, superseded (raised again), or task-ended.
+        closed_by: resolution?.how ?? null,
+        wait_s: resolution?.at && decision.opened_at ? resolution.at - decision.opened_at : null,
         question: clean(decision.text),
-        answer: decision.resolution ? clean(decision.resolution.text) : null,
+        answer: resolution?.text ? clean(resolution.text) : null,
         fingerprint: fingerprint(clean(decision.text, 400))
       });
     }
 
-    for (const event of events) {
+    const firstProgress = events.findIndex((event) => event.verb !== "failed");
+    let recovered = 0;
+    events.forEach((event, index) => {
       const kind = TEARDOWN_REFUSAL.test(event.text) ? "teardown-refusal"
-        : event.verb === "failed" && SPAWN_FAILURE.test(event.text) ? "spawn-failure"
+        : event.verb === "failed" && (SPAWN_FAILURE.test(event.text) || firstProgress === -1 || index < firstProgress) ? "spawn-failure"
         : (event.verb === "working" || event.verb === "resolved" || event.verb === "note") && RECOVERY.test(event.text) ? "recovery"
         : null;
-      if (kind) failures.push({ kind, task, at: event.at, verb: event.verb, excerpt: clean(event.text) });
+      if (kind === "recovery") recovered += 1;
+      if (kind) failures.push({ kind, task, at: event.at, verb: event.verb, via: "status", excerpt: clean(event.text) });
+    });
+    const relaunches = readRelaunches(resolved, task);
+    for (const at of relaunches) {
+      failures.push({ kind: "recovery", task, at, verb: null, via: "relaunch-note", excerpt: `relaunched by bin/fm-control.sh (progress note in data/${task}/brief.md)` });
     }
+    // A worker's own "recovered after relaunch" line and the relaunch note can
+    // describe the same recovery, so the larger of the two counts.
+    recoveries += Math.max(recovered, relaunches.length);
 
     // Ask-user findings escalated through data/<task>/*findings*.
     const dataDir = path.join(resolved, "data", task);
@@ -328,10 +528,9 @@ export function importEvidence(home, { now = Date.now() } = {}) {
       if (!entry.isFile() || !/findings/i.test(entry.name)) continue;
       const file = path.join(dataDir, entry.name);
       const run = entry.name.match(/^nm-(.+?)-findings/)?.[1] ?? null;
-      const gate = run
-        ? folded.find((decision) => decision.key && decision.key.startsWith(`nm-${run}-`))
-          ?? folded.find((decision) => decision.text.includes(entry.name))
-        : folded.find((decision) => decision.text.includes(entry.name));
+      // The gate line names its snapshot file; a run's key prefix is the fallback.
+      const gate = folded.find((decision) => decision.text.includes(entry.name))
+        ?? (run ? folded.find((decision) => decision.key && decision.key.startsWith(`nm-${run}-`)) : undefined);
       for (const finding of parseFindings(readText(file))) {
         const description = clean(finding.description);
         findings.push({
@@ -346,7 +545,7 @@ export function importEvidence(home, { now = Date.now() } = {}) {
           description,
           fingerprint: fingerprint(description),
           gate_key: gate?.key ?? null,
-          decided: gate?.resolution ? clean(gate.resolution.text) : null
+          decided: gate?.resolution?.text ? clean(gate.resolution.text) : null
         });
       }
     }
@@ -354,20 +553,26 @@ export function importEvidence(home, { now = Date.now() } = {}) {
     // Review rounds: how many no-mistakes gates this task escalated, how many
     // times it reported done, and how long it ran.
     const stamps = events.map((event) => event.at).filter(Boolean);
-    const records = ledger?.get(task) ?? [];
     const at = (name) => records.find((record) => record.event === name)?.ts ?? null;
     const gateKeys = new Set(folded.filter((d) => d.key?.startsWith("nm-")).map((d) => d.key));
     const dispatched = at("task.dispatched") ?? (stamps.length ? Math.min(...stamps) : null);
     const finished = at("task.merged") ?? at("task.cleaned_up") ?? (stamps.length ? Math.max(...stamps) : null);
+    const worker = workers.get(task);
     tasks.push({
       task,
+      kind,
       status_lines: events.length,
+      status_log: statusText !== undefined,
       review_rounds: gateKeys.size,
       decisions: folded.filter((d) => d.kind === "needs-decision").length,
       blockers: folded.filter((d) => d.kind === "blocked").length,
       open_decisions: folded.filter((d) => d.resolution === null).length,
+      answered: folded.filter((d) => d.resolution?.how === "answered").length,
       done_reports: events.filter((event) => event.verb === "done").length,
       pr_ready_records: records.filter((record) => record.event === "task.pr_ready").length,
+      stale_detections: worker ? worker.queued_stale_wakes + worker.absorbed_stale : 0,
+      wedge_escalations: worker?.wedge_escalations ?? 0,
+      relaunches: relaunches.length,
       dispatched_at: dispatched,
       finished_at: finished,
       duration_s: dispatched && finished && finished >= dispatched ? finished - dispatched : null,
@@ -375,7 +580,10 @@ export function importEvidence(home, { now = Date.now() } = {}) {
     });
   }
 
-  const stale = readStaleWakes(resolved).map((entry) => ({ kind: "stale-wake", ...entry, key: clean(entry.key, 80) }));
+  const stale = watcher.workers.map((worker) => ({ kind: "stale-worker", ...worker, task: clean(worker.task, 80) }));
+  const staleWorkers = watcher.workers.filter((w) => w.stale_marker || w.queued_stale_wakes || w.absorbed_stale);
+  const stuckWorkers = watcher.workers.filter((w) => w.wedge_escalations > 0);
+  const queuedStale = watcher.workers.reduce((sum, w) => sum + w.queued_stale_wakes, 0);
 
   const preferences = [];
   for (const name of ["captain.md", "captain-shared.md"]) {
@@ -439,16 +647,34 @@ export function importEvidence(home, { now = Date.now() } = {}) {
     // Observations, not rules: nothing here is approved or canonical.
     trust: "observation",
     fleet_ledger: ledger !== undefined,
+    // Where task histories came from: live status logs, and the ledger for
+    // tasks whose log teardown retired. Tasks with neither finished before the
+    // ledger was on, and their decisions are not countable.
+    history: {
+      status_logs: statusLogs,
+      ledger_tasks: ledger?.size ?? 0,
+      tasks_without_history: withoutHistory
+    },
     counts: {
       tasks: tasks.length,
       ask_user_findings: findings.length,
       decisions: count(decisions, "decision"),
       blockers: count(decisions, "blocker"),
       open: decisions.filter((d) => d.open).length,
-      stale_wakes: stale.reduce((sum, entry) => sum + entry.count, 0),
+      answered: decisions.filter((d) => d.closed_by === "answered").length,
+      review_gates: decisions.filter((d) => d.key?.startsWith("nm-")).length,
+      captain_held: decisions.filter((d) => d.closed_by === "captain-held").length,
+      // Stale wakes delivered to firstmate, from the watcher's cycle log; the
+      // still-queued count when that log is absent.
+      stale_wakes: watcher.delivered ?? queuedStale,
+      stale_workers: staleWorkers.length,
+      stuck_workers: stuckWorkers.length,
+      wedge_escalations: stuckWorkers.reduce((sum, w) => sum + w.wedge_escalations, 0),
       teardown_refusals: count(failures, "teardown-refusal"),
       spawn_failures: count(failures, "spawn-failure"),
-      recoveries: count(failures, "recovery"),
+      recoveries,
+      relaunches: failures.filter((f) => f.via === "relaunch-note").length,
+      process_event_launch_failures: readProcessEventFailures(resolved),
       captain_preferences: preferences.length,
       learnings: learnings.length
     },
@@ -460,7 +686,7 @@ export function importEvidence(home, { now = Date.now() } = {}) {
     findings,
     decisions,
     failures,
-    stale_wakes: stale,
+    stale_workers: stale,
     captain_preferences: preferences,
     learnings
   };

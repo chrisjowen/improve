@@ -4,6 +4,7 @@ import {
   appendJsonl,
   dueReasons,
   eventRecord,
+  isImproveChild,
   loadConfig,
   parseJson,
   projectDataDir,
@@ -14,6 +15,9 @@ import {
 } from "./lib.mjs";
 import { detectFirstmate } from "../adapters/firstmate/home.mjs";
 import { periodicDueReasons, syncReviewState } from "../adapters/firstmate/schedule.mjs";
+
+// An agent this plugin started is not the human's session; see isImproveChild.
+if (isImproveChild()) process.exit(0);
 
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
@@ -37,7 +41,7 @@ try {
   const firstmate = detectFirstmate(root);
   syncReviewState(root, firstmate);
   const reasons = [...dueReasons(config, state), ...periodicDueReasons(root, firstmate)];
-  if (reasons.length > 0 && process.env.IMPROVE_DREAM_CHILD !== "1") {
+  if (reasons.length > 0) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "SessionStart",

@@ -83,8 +83,11 @@ Inspect, as relevant:
 Run the read-only observation summary:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" "${CLAUDE_PROJECT_DIR}"
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/scripts/status.mjs" "${CLAUDE_PROJECT_DIR}"
 ```
+
+When the plugin data directory is not passed in, the script finds it on disk and
+reports `data_source: "discovered"`.
 
 Do not treat missing observations as success. It may mean the plugin is new or capture is unavailable.
 
@@ -220,28 +223,30 @@ The adapter is off until `.harness/improve.json` enables it, and it never writes
 
 ## Review surface
 
-A local UI is bundled at `ui/` for reviewing proposals, inspecting objective
-scores, and running evaluations. It reads `.harness/` and writes only when the
-human applies something.
+A local UI is bundled at `ui/` for reviewing proposals, triaging background
+findings, running evaluations, and watching runs. It reads `.harness/` and
+writes only when the human approves, rejects, or applies something.
 
-Start it, or learn why it cannot start, with:
+Start it in the background with:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/ui.mjs"
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/scripts/ui.mjs" start "${CLAUDE_PROJECT_DIR}"
 ```
 
-The plugin ships without `node_modules`. If dependencies are absent the command
-prints the exact install steps rather than failing; run them, then start it
-again. Serve a repository other than the plugin's own with
-`IMPROVE_PROJECT_DIR`.
+It builds on first use, returns once the server answers, and prints the URL and
+its log. Give the human the URL. `ui.mjs status` and `ui.mjs stop` take the same
+repository argument. Do not run it in the foreground: it is a server and would
+hold the shell call open. The plugin ships without `node_modules`; if
+dependencies are absent the command prints the install step instead of failing.
 
 Offer the UI when the human is reviewing several proposals or comparing scores
 over time. Do not require it: every mode works without it, and an empty UI means
 no proposals exist yet.
 
-Skill drafting from a proposal runs a background agent with edit tools denied,
-stores the draft on the proposal, and writes nothing until the human applies the
-reviewed diff. This preserves invariants 5 and 10 together.
+Approving a proposal in the UI records the decision and changes no file; apply it
+with `/improve apply`. Skill drafting runs a background agent with edit tools
+denied, stores the draft on the proposal, and writes nothing until the human
+approves the reviewed diff. Both preserve invariants 5 and 10.
 
 ## Periodic evolution
 

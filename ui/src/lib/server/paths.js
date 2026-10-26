@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { resolvePluginDataDir } from "../../../../scripts/lib.mjs";
 
 /**
  * Repository the UI operates on. IMPROVE_PROJECT_DIR lets the server run from
@@ -65,16 +66,21 @@ export function ensureDir(dir) {
 }
 
 /**
- * Where the plugin keeps per-project observations, or undefined.
+ * Where the plugin keeps observations, or undefined.
  *
- * Mirrors scripts/lib.mjs so the UI reads the location the hooks write. The
- * directory name is derived from the plugin identifier by Claude Code, so it is
- * not reconstructable; without the variable the honest answer is that there is
- * no observation store to read rather than a guessed path.
+ * Mirrors scripts/lib.mjs so the UI reads the location the hooks write.
+ * CLAUDE_PLUGIN_DATA reaches hook processes only, so a UI started from a skill
+ * or a terminal usually lacks it; the directory is then found on disk. Without
+ * either, the honest answer is that there is no observation store to read.
  */
 export function pluginDataDir() {
-  const configured = process.env.CLAUDE_PLUGIN_DATA;
-  return configured ? path.resolve(configured) : undefined;
+  return resolvePluginDataDir(projectRoot())?.dir;
+}
+
+/** This project's directory inside the plugin data store, or undefined. */
+export function projectDataDir() {
+  const base = pluginDataDir();
+  return base ? path.join(base, "projects", projectId(projectRoot())) : undefined;
 }
 
 export function projectId(root) {

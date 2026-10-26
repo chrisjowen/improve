@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   appendJsonl,
   eventRecord,
+  isImproveChild,
   loadConfig,
   parseJson,
   projectDataDir,
@@ -13,6 +14,9 @@ import {
 } from "./lib.mjs";
 
 const eventName = process.argv[2] || "Unknown";
+// An agent this plugin started is not the human's session; see isImproveChild.
+if (isImproveChild()) process.exit(0);
+
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
 const config = loadConfig(root);

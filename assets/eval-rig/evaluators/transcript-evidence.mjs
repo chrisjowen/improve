@@ -56,7 +56,17 @@ export async function evaluate(context) {
       return pattern.test(command);
     });
     checks.push({ id: "verification-run", ok: ran });
-    if (!ran) {
+    // Without content capture a tool input is a digest, so the command cannot
+    // be read. Saying "no verification command was run" would then be false:
+    // the check failed for lack of evidence, and the note has to say so.
+    const unreadable = !ran && invoked.some((call) => call.name === "Bash" && call.input?.redacted === true);
+    if (unreadable) {
+      metrics.unreadable_commands = invoked.filter((call) => call.name === "Bash" && call.input?.redacted === true).length;
+      evidence.push({
+        kind: "transcript",
+        message: `${metrics.unreadable_commands} Bash commands recorded as digests only`
+      });
+    } else if (!ran) {
       evidence.push({ kind: "transcript", message: "no verification command matching the pattern was run" });
     }
   }
@@ -102,9 +112,14 @@ export async function evaluate(context) {
   return {
     success: failed.length === 0,
     score,
-    notes: failed.length
-      ? [`${failed.length} of ${checks.length} checks failed: ${failed.join(", ")}.`]
-      : [`All ${checks.length} transcript checks passed.`],
+    notes: [
+      failed.length
+        ? `${failed.length} of ${checks.length} checks failed: ${failed.join(", ")}.`
+        : `All ${checks.length} transcript checks passed.`,
+      ...(metrics.unreadable_commands
+        ? ["Commands were not captured, so verification could not be checked. Re-run with message and tool content included."]
+        : [])
+    ],
     evidence,
     metrics
   };

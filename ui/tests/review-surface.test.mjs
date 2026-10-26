@@ -7,6 +7,8 @@ import path from "node:path";
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), "improve-surface-"));
 process.env.IMPROVE_PROJECT_DIR = repo;
 delete process.env.CLAUDE_PLUGIN_DATA;
+// Isolate from any real plugin data on this machine, which would be discovered.
+process.env.CLAUDE_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "improve-config-"));
 
 const proposalsDir = path.join(repo, ".harness", "proposals");
 fs.mkdirSync(proposalsDir, { recursive: true });
@@ -41,7 +43,8 @@ assert.ok(Array.isArray(byId.hook.check.prose));
 
 // Without CLAUDE_PLUGIN_DATA the hook data cannot be read. That must come back
 // as null, not as zero, or "could not look" reads as "looked and saw nothing".
-const { readStatus, projectDataDir } = await import("../src/lib/server/status.js");
+const { readStatus } = await import("../src/lib/server/status.js");
+const { projectDataDir } = await import("../src/lib/server/paths.js");
 assert.equal(projectDataDir(), undefined);
 const blind = readStatus();
 assert.equal(blind.observations, null);

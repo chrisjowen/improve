@@ -132,6 +132,23 @@ def normalize_transcript(path: Path, include_content: bool) -> dict[str, Any]:
     return result
 
 
+def git(command: list[str], root: Path) -> subprocess.CompletedProcess:
+    """Run git, failing with git's own message rather than a traceback.
+
+    `check=True` raised CalledProcessError, whose text names the command and
+    exit status but not what git said, so a mistyped revision surfaced as
+    "returned non-zero exit status 128".
+    """
+    try:
+        completed = subprocess.run(command, cwd=root, text=True, capture_output=True, check=False)
+    except FileNotFoundError as error:
+        raise SystemExit(f"git is not installed or not on PATH: {error}") from error
+    if completed.returncode != 0:
+        reason = completed.stderr.strip().splitlines()
+        raise SystemExit(f"{' '.join(command[:2])} failed in {root}: {reason[0] if reason else f'exit {completed.returncode}'}")
+    return completed
+
+
 def git_changes(root: Path, base: str | None, head: str | None, include_patch: bool) -> dict[str, Any]:
     if base:
         range_spec = f"{base}..{head or 'HEAD'}"
@@ -140,7 +157,7 @@ def git_changes(root: Path, base: str | None, head: str | None, include_patch: b
     else:
         command = ["git", "status", "--porcelain=v1", "--untracked-files=all"]
         patch_command = ["git", "diff", "--binary", "HEAD"]
-    completed = subprocess.run(command, cwd=root, text=True, capture_output=True, check=True)
+    completed = git(command, root)
     files = []
     for line in completed.stdout.splitlines():
         parts = line.split("\t")
@@ -154,9 +171,7 @@ def git_changes(root: Path, base: str | None, head: str | None, include_patch: b
         "files": files,
     }
     if include_patch:
-        changes["patch"] = subprocess.run(
-            patch_command, cwd=root, text=True, capture_output=True, check=True
-        ).stdout
+        changes["patch"] = git(patch_command, root).stdout
     return changes
 
 

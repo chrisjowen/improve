@@ -15,6 +15,7 @@
   "background_dreaming": {
     "enabled": false,
     "every_days": 30,
-    "command": "claude"
+    "command": "claude",
+    "timeout_minutes": 20
   }
 }

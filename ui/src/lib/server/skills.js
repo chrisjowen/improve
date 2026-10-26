@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { contain, ensureDir, pluginDataDir, projectId, projectRoot, readTextSafe } from "./paths.js";
+import { contain, ensureDir, projectDataDir, projectRoot, readTextSafe } from "./paths.js";
 import { runAgent } from "../../../../scripts/spawn-agent.mjs";
-import { readProposal, recordDecision, updateStatus, claimKey, releaseKey, lookupKey } from "./proposals.js";
+import { readProposal, readProposalText, recordDecision, updateStatus, claimKey, releaseKey, lookupKey } from "./proposals.js";
 import { validateDraft } from "./guard.js";
 import { assertRealPathInside, digestOf, sweepOrphans, writeAtomic } from "./write.js";
 import { archiveSkill, isPluginAuthored, readSidecar, skillsRoot, stampApplied } from "./provenance.js";
@@ -26,9 +26,9 @@ export function skillPath(name) {
  * agent must still tie each guardrail to a specific one.
  */
 function correctionCandidates(limit = 12) {
-  const dataDir = pluginDataDir();
+  const dataDir = projectDataDir();
   if (!dataDir) return [];
-  const file = path.join(dataDir, "projects", projectId(projectRoot()), "corrections.jsonl");
+  const file = path.join(dataDir, "corrections.jsonl");
   const text = readTextSafe(file);
   if (text === undefined) return [];
   const seen = new Map();
@@ -82,7 +82,7 @@ ground the procedure in what is actually here.`;
  * the proposal. Nothing reaches .claude/skills until a human applies it, which
  * keeps a background job able to draft but never to change the harness.
  */
-export async function draftSkill(file, { command } = {}) {
+export async function draftSkill(file, { command, signal, logFile, progress } = {}) {
   const proposal = readProposal(file);
   if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
 
@@ -114,9 +114,14 @@ export async function draftSkill(file, { command } = {}) {
   const result = await runAgent({
     command: command || process.env.IMPROVE_AGENT_COMMAND || "claude",
     prompt,
-    cwd: projectRoot()
+    cwd: projectRoot(),
+    signal,
+    logFile,
+    onProgress: (update) => progress?.({ message: update.message, done: null, total: null })
   });
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return { ok: false, error: result.error, cancelled: result.cancelled, timedOut: result.timedOut };
+  }
 
   const { name, description, body } = result.payload ?? {};
   if (typeof name !== "string" || typeof body !== "string") {
@@ -292,9 +297,46 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
   return { ok: true, ...outcome };
 }
 
+/**
+ * Record a person's approval without changing any harness file.
+ *
+ * Applying stays with `/improve apply`, which revalidates the proposal and
+ * runs its evaluation; a skill draft has its own Apply. The approval is bound
+ * to the proposal's bytes as reviewed, so `/improve apply` can tell when the
+ * file changed after approval.
+ */
+export function approveProposal(file, { rationale, idempotencyKey } = {}) {
+  const proposal = readProposal(file);
+  if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
+  if (idempotencyKey) {
+    const previous = lookupKey(idempotencyKey);
+    if (previous) return { ok: true, replayed: true, ...previous };
+  }
+  if (["approved", "applying", "validated"].includes(proposal.status)) {
+    return { ok: false, status: 409, error: `This proposal is already ${proposal.status}.` };
+  }
+  const digest = digestOf(readProposalText(file));
+  const approvedAt = new Date().toISOString();
+  const decision = recordDecision(proposal, {
+    decision: "approved",
+    rationale: typeof rationale === "string" && rationale.trim() ? rationale.trim() : null,
+    digest,
+    idempotency_key: idempotencyKey ?? null
+  });
+  updateStatus(file, "approved", { approval: { approved_by: "ui", approved_at: approvedAt, digest } });
+  const outcome = { decision, next: `Nothing has changed yet. Run /improve apply ${proposal.id} to apply it.` };
+  if (idempotencyKey) claimKey(idempotencyKey, outcome);
+  return { ok: true, ...outcome };
+}
+
 export function rejectProposal(file, { rationale, idempotencyKey } = {}) {
   const proposal = readProposal(file);
   if (!proposal) return { ok: false, error: `no such proposal: ${file}` };
+  // A rejection keeps its reason so the same idea is not proposed again.
+  if (typeof rationale !== "string" || rationale.trim().length < 3) {
+    return { ok: false, status: 400, error: "Say why you are rejecting it. The reason is kept so the idea is not proposed again." };
+  }
+  rationale = rationale.trim();
   if (idempotencyKey) {
     const previous = lookupKey(idempotencyKey);
     if (previous) return { ok: true, replayed: true, ...previous };

@@ -1,6 +1,7 @@
 # Review UI — as built
 
 Status: **implemented**. This records what was built and why, after the fact.
+The 2026-10 runner and layout revision is summarised under "Revision" at the end.
 
 The UI is a local review surface for three things the harness already produces or
 can produce: proposals, objective scores, and evaluation runs.
@@ -22,10 +23,12 @@ be proxied.
 
 ```
 ui/src/lib/server/    paths, proposals, results, evaluate, skills, jobs
-ui/src/routes/        three pages and the API
-ui/src/lib/components Badge, Diff, Trend, StepBars, ScoreChart
-scripts/spawn-agent.mjs  shared read-only agent runner
-scripts/ui.mjs           launcher that explains missing dependencies
+ui/src/routes/        six pages and the API
+ui/src/lib/components Pill, Notice, Diff, JobCard, LogView, Trend, StepBars, ScoreChart
+scripts/run-process.mjs  process runner: timeout, cancel, process-group kill, log
+scripts/spawn-agent.mjs  shared read-only agent runner, streamed
+scripts/dream.mjs        one background review, used by the hook worker and the UI
+scripts/ui.mjs           start/stop/status launcher; explains missing dependencies
 ```
 
 Stack: SvelteKit 2 with Svelte 5 runes, `@sveltejs/adapter-node`, D3 for charts,
@@ -89,7 +92,9 @@ freeform Markdown.
 **Evaluations run only when asked.** No schedule, no batch runs. An observed
 objective cannot be replayed, so a background score would be meaningless.
 
-**One job at a time**, per repository. A second concurrent request gets 409.
+**One job at a time per lane**, per repository: one evaluation and one agent job
+(draft or background review). A second job in a busy lane gets 409 naming the
+job in the way. A single lane let a ten-minute draft block every evaluation.
 
 **No authentication**, for a single user on a trusted workspace. The residual
 risk is stated plainly in `ui/README.md`: the API runs evaluations, a suite's
@@ -122,7 +127,32 @@ layer including trend arithmetic, and the draft-diff-apply round trip.
 
 ## Not built
 
-No streaming of agent output (jobs are polled), no multi-repo view, no objective
+No multi-repo view, no objective
 editing, no auth, no proposal creation from the UI. Creating a proposal needs a
 `/improve` session or a background agent, which is where proposals come from by
 design.
+
+## Revision (2026-10)
+
+Exercising every path against a demo repository found the runner unreliable in
+ways the first build's tests did not cover. Fixed, each with a regression test:
+
+- an agent's failure reason (auth, budget, turns) is read from the CLI's result
+  envelope instead of being reported as "agent exited 1";
+- agents the plugin starts no longer fire its own hooks, which had counted their
+  prompts as corrections and their runs as sessions;
+- the launcher builds on first use and starts the server in the background, and
+  the status CLI and UI find the plugin data directory without the hook-only
+  environment variable;
+- evaluation errors (missing revision, Python, PyYAML) are stated plainly with
+  the next step; a structure-only run no longer claims no verification ran;
+- jobs have progress, cancel, a log, and records that survive a restart, and
+  timeouts stop the whole process tree;
+- the production build no longer fails every skill diff on a data file read
+  relative to a bundled module.
+
+The layout moved to a left sidebar with Overview, Proposals (list and detail,
+approve or reject with a reason), Background findings, Evaluations, Objectives,
+and Runs. Approving a proposal without a skill draft records the decision only;
+`/improve apply` applies it.
+

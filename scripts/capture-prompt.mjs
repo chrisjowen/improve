@@ -2,6 +2,7 @@
 import path from "node:path";
 import {
   appendJsonl,
+  isImproveChild,
   loadConfig,
   parseJson,
   projectDataDir,
@@ -20,6 +21,9 @@ import { redact } from "./redact.mjs";
  * egress rules before it is written. The hook stays cheap: a handful of regexes
  * and an append, with no model call.
  */
+// An agent this plugin started is not the human's session; see isImproveChild.
+if (isImproveChild()) process.exit(0);
+
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
 

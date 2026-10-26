@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mjs";
 
 /**
  * Tools a background agent must never hold.
@@ -16,80 +16,201 @@ export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
  * The caller writes any file the agent's output implies. The agent itself
  * never gets write tools, so a draft cannot become an applied change without
  * passing back through here.
+ *
+ * Output is streamed so a long run can report what it is doing, and every line
+ * goes to `logFile` when one is given. `onProgress` receives
+ * `{ turns, tools, last_tool, message }` as the agent works.
  */
-export function runAgent({ command = "claude", prompt, cwd, timeoutMs = 600_000, extraArgs = [] }) {
+export async function runAgent({
+  command = "claude",
+  prompt,
+  cwd,
+  timeoutMs = 600_000,
+  extraArgs = [],
+  signal,
+  logFile,
+  onProgress
+}) {
   const args = [
     "-p", prompt,
-    "--output-format", "json",
-    "--disallowed-tools", ...DENIED_TOOLS,
-    ...extraArgs
+    "--output-format", "stream-json",
+    "--verbose",
+    ...extraArgs,
+    // Variadic, so it goes last: anything after it would be read as a tool name.
+    "--disallowed-tools", ...DENIED_TOOLS
   ];
 
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawn(command, args, {
-        cwd,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, IMPROVE_AGENT_CHILD: "1" },
-        windowsHide: true
-      });
-    } catch (error) {
-      resolve({ ok: false, error: `spawn failed: ${error.message}` });
-      return;
-    }
+  const progress = { turns: 0, tools: 0, last_tool: null, message: "Starting the agent" };
+  const report = (message) => {
+    progress.message = message;
+    onProgress?.({ ...progress });
+  };
+  report("Starting the agent");
 
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      resolve({ ok: false, error: `agent timed out after ${timeoutMs}ms`, stderr: stderr.slice(-2000) });
-    }, timeoutMs);
-
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ ok: false, error: `agent unavailable: ${error.message}` });
-    });
-
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code !== 0) {
-        resolve({ ok: false, error: `agent exited ${code}`, stderr: stderr.slice(-2000) });
-        return;
+  const result = await runProcess(command, args, {
+    cwd,
+    // Both markers: every hook in this plugin skips its own children, so a
+    // draft or dream does not count as the human's session or corrections.
+    env: { ...process.env, IMPROVE_AGENT_CHILD: "1", IMPROVE_DREAM_CHILD: "1" },
+    timeoutMs,
+    signal,
+    logFile,
+    formatStdoutLog: describeEvent,
+    onStdoutLine: (line) => {
+      const event = parseLine(line);
+      if (!event) return;
+      if (event.type === "system" && event.subtype === "init") report("Agent started; reading the repository");
+      if (event.type === "assistant") {
+        progress.turns += 1;
+        for (const block of event.message?.content ?? []) {
+          if (block?.type === "tool_use") {
+            progress.tools += 1;
+            progress.last_tool = block.name ?? null;
+            report(`Using ${block.name}${describeInput(block.input)}`);
+          } else if (block?.type === "text") {
+            report("Writing its answer");
+          }
+        }
       }
-      resolve(parseAgentOutput(stdout, stderr));
-    });
+    }
   });
+
+  if (result.spawnError) {
+    return {
+      ok: false,
+      error: result.spawnError.code === "ENOENT"
+        ? `The agent command "${command}" was not found. Install Claude Code or set IMPROVE_AGENT_COMMAND.`
+        : `The agent could not start: ${result.spawnError.message}`,
+      progress
+    };
+  }
+  if (result.cancelled) return { ok: false, cancelled: true, error: "Cancelled.", progress };
+  if (result.timedOut) {
+    return {
+      ok: false,
+      timedOut: true,
+      error: `The agent did not finish within ${formatDuration(timeoutMs)} and was stopped.`,
+      progress
+    };
+  }
+
+  const parsed = parseAgentOutput(result.stdout, result.stderr);
+  if (result.code !== 0 && parsed.ok) {
+    return { ok: false, error: `The agent exited with code ${result.code}.`, progress };
+  }
+  if (!parsed.ok && result.code !== 0 && !parsed.envelope) {
+    // No envelope at all: the CLI died before it could explain itself.
+    const why = lastMeaningfulLine(result.stderr);
+    return {
+      ok: false,
+      error: `The agent exited with code ${result.code}${why ? `: ${why}` : "."}`,
+      stderr: result.stderr.slice(-2000),
+      progress
+    };
+  }
+  return { ...parsed, progress };
+}
+
+function parseLine(line) {
+  if (!line.trim().startsWith("{")) return undefined;
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
- * `--output-format json` wraps the reply in an envelope whose `result` is the
- * assistant's text. That text is expected to contain the JSON we asked for,
- * possibly inside a fenced block.
+ * One stream event as a log line a person can read. The raw stream repeats
+ * whole messages as escaped JSON; the log keeps what the agent did and how it
+ * ended, which is what someone reading a failed run needs.
+ */
+export function describeEvent(line) {
+  const event = parseLine(line);
+  if (!event) return line.trim() ? `out ${line}` : null;
+  if (event.type === "system") return event.subtype === "init" ? "agent started" : null;
+  if (event.type === "assistant") {
+    const parts = (event.message?.content ?? []).flatMap((block) => {
+      if (block?.type === "tool_use") return [`agent used ${block.name}${describeInput(block.input)}`];
+      if (block?.type === "text" && block.text?.trim()) return [`agent wrote: ${block.text.trim().replace(/\s+/g, " ").slice(0, 400)}`];
+      return [];
+    });
+    return parts.length ? parts.join("\n") : null;
+  }
+  if (event.type === "result") {
+    const cost = typeof event.total_cost_usd === "number" ? `, cost $${event.total_cost_usd.toFixed(2)}` : "";
+    return event.is_error
+      ? `agent failed (${event.subtype}${event.api_error_status ? `, HTTP ${event.api_error_status}` : ""}): ${String(event.result ?? "").slice(0, 400)}`
+      : `agent finished after ${event.num_turns ?? "?"} turns${cost}\nanswer: ${String(event.result ?? "").slice(0, 2000)}`;
+  }
+  return null;
+}
+
+function describeInput(input) {
+  const target = input?.file_path ?? input?.path ?? input?.pattern ?? input?.command;
+  if (typeof target !== "string" || !target) return "";
+  const short = target.length > 60 ? `${target.slice(0, 57)}…` : target;
+  return ` on ${short}`;
+}
+
+/**
+ * The CLI's final `result` envelope, from either output format.
+ *
+ * `--output-format json` prints one object; `stream-json` prints one object
+ * per line and ends with the result. A failed run still prints the envelope,
+ * with `is_error` set and the reason in `result`, which is the only place the
+ * reason appears: stderr carries unrelated notices.
+ */
+export function findEnvelope(stdout) {
+  const text = String(stdout ?? "").trim();
+  if (!text) return undefined;
+  try {
+    const whole = JSON.parse(text);
+    if (whole && typeof whole === "object" && !Array.isArray(whole)) return whole;
+  } catch {
+    // not a single object; try line by line
+  }
+  const lines = text.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const event = parseLine(lines[index]);
+    if (event?.type === "result") return event;
+  }
+  return undefined;
+}
+
+/**
+ * The envelope's `result` is the assistant's text. That text is expected to
+ * contain the JSON we asked for, possibly inside a fenced block.
  */
 export function parseAgentOutput(stdout, stderr = "") {
-  let envelope;
-  try {
-    envelope = JSON.parse(stdout);
-  } catch {
-    return { ok: false, error: "agent output was not JSON", raw: stdout.slice(0, 2000), stderr: stderr.slice(-2000) };
+  const envelope = findEnvelope(stdout);
+  if (!envelope) {
+    return { ok: false, error: "The agent printed no result.", raw: String(stdout ?? "").slice(0, 2000), stderr: String(stderr).slice(-2000) };
   }
+  const meta = { cost_usd: envelope.total_cost_usd ?? null, duration_ms: envelope.duration_ms ?? null, turns: envelope.num_turns ?? null };
+
+  if (envelope.is_error === true || (typeof envelope.subtype === "string" && envelope.subtype !== "success")) {
+    return { ok: false, error: agentFailure(envelope), envelope: meta };
+  }
+
   const text = typeof envelope.result === "string" ? envelope.result : JSON.stringify(envelope);
   const payload = extractJson(text);
   if (payload === undefined) {
-    return { ok: false, error: "agent returned no JSON object", raw: text.slice(0, 2000) };
+    return { ok: false, error: "The agent answered, but not with the JSON it was asked for.", raw: text.slice(0, 2000), envelope: meta };
   }
-  return { ok: true, payload, envelope: { cost_usd: envelope.total_cost_usd, duration_ms: envelope.duration_ms } };
+  return { ok: true, payload, envelope: meta };
+}
+
+function agentFailure(envelope) {
+  const reason = typeof envelope.result === "string" && envelope.result.trim()
+    ? envelope.result.trim().slice(0, 300)
+    : null;
+  if (envelope.api_error_status === 401) {
+    return `The agent could not sign in: ${reason ?? "authentication failed"}. If ANTHROPIC_API_KEY is set in the environment that started the UI, it takes precedence over your Claude login.`;
+  }
+  if (envelope.subtype === "error_max_turns") return "The agent ran out of turns before it answered.";
+  if (envelope.subtype === "error_max_budget_usd") return "The agent hit its spending limit before it answered.";
+  return `The agent failed: ${reason ?? envelope.subtype ?? "no reason given"}`;
 }
 
 export function extractJson(text) {

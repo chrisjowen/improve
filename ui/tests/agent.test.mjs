@@ -22,11 +22,11 @@ assert.equal(bare.payload.name, "a");
 
 const prose = parseAgentOutput(JSON.stringify({ result: "I could not do that." }));
 assert.equal(prose.ok, false);
-assert.match(prose.error, /no JSON object/);
+assert.match(prose.error, /not with the JSON/);
 
 const notJson = parseAgentOutput("segmentation fault");
 assert.equal(notJson.ok, false);
-assert.match(notJson.error, /not JSON/);
+assert.match(notJson.error, /printed no result/);
 
 // Surrounding prose must not defeat extraction.
 assert.deepEqual(extractJson('prefix {"a":1} suffix'), { a: 1 });

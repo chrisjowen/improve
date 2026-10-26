@@ -11,14 +11,19 @@ export const POST = async ({ request }) => {
   if (typeof body.suite !== "string") {
     return json({ ok: false, error: "suite is required" }, { status: 400 });
   }
-  const { job, error, status } = startJob("evaluate", { suite: body.suite }, () => runEvaluation({
-    suiteFile: body.suite,
-    transcript: body.transcript,
-    base: body.base,
-    head: body.head,
-    includeContent: Boolean(body.include_content),
-    includePatch: Boolean(body.include_patch)
-  }));
-  if (error) return json({ ok: false, error }, { status });
-  return json({ ok: true, job });
+  const started = startJob(
+    "evaluate",
+    { title: `Evaluate ${body.suite.replace(/\.ya?ml$/i, "")}`, detail: { suite: body.suite, base: body.base ?? null, head: body.head ?? null, transcript: body.transcript ?? null } },
+    (context) => runEvaluation({
+      suiteFile: body.suite,
+      transcript: body.transcript,
+      base: body.base,
+      head: body.head,
+      includeContent: Boolean(body.include_content),
+      includePatch: Boolean(body.include_patch),
+      ...context
+    })
+  );
+  if (started.error) return json({ ok: false, error: started.error, running: started.running }, { status: started.status });
+  return json({ ok: true, job: started.job });
 };

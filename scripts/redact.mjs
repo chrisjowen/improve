@@ -1,5 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
+// Imported rather than read from a path beside this file: the UI's production
+// build bundles this module into build/server/chunks/, where a path relative
+// to import.meta.dirname no longer finds the rules, and every skill diff and
+// apply failed with ENOENT.
+import BUNDLED from "../assets/eval-rig/redaction-rules.json" with { type: "json" };
 
 /**
  * Apply the shared egress rule set to text before it is persisted.
@@ -8,21 +12,21 @@ import path from "node:path";
  * and the caller receives the list. Missing evidence must never be mistaken for
  * clean evidence, which is the same reason the rig records truncation.
  */
-const RULES_FILE = path.resolve(
-  import.meta.dirname, "..", "assets", "eval-rig", "redaction-rules.json"
-);
-
 let cached;
 
-export function loadRules(file = RULES_FILE) {
-  if (cached && cached.file === file) return cached.rules;
-  const document = JSON.parse(fs.readFileSync(file, "utf8"));
-  const rules = (document.rules ?? []).map((rule) => ({
+function compile(document) {
+  return (document.rules ?? []).map((rule) => ({
     category: rule.category,
     name: rule.name,
     // Global, so every occurrence is replaced rather than only the first.
     pattern: new RegExp(rule.pattern, `${rule.flags ?? ""}g`)
   }));
+}
+
+/** The shared rules, or the rules in `file` when a caller names one. */
+export function loadRules(file) {
+  if (cached && cached.file === file) return cached.rules;
+  const rules = compile(file ? JSON.parse(fs.readFileSync(file, "utf8")) : BUNDLED);
   cached = { file, rules };
   return rules;
 }

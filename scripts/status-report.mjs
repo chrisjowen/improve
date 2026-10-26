@@ -7,6 +7,8 @@ import {
   readJson,
   topRepeatedCorrection
 } from "./lib.mjs";
+import { detectFirstmate } from "../adapters/firstmate/home.mjs";
+import { periodicDueReasons } from "../adapters/firstmate/schedule.mjs";
 
 /**
  * The read-only status summary, shared by `status.mjs` and the UI.
@@ -32,7 +34,27 @@ export function collectStatus(root, { dataDir, pluginRoot } = {}) {
     state: state ?? null,
     observations: observed ?? null,
     background_dreaming_enabled: config.background_dreaming.enabled,
+    firstmate: firstmate(root, dataDir),
     data_location: dataDir ?? null
+  };
+}
+
+/**
+ * The Firstmate adapter's state, or null when no Firstmate home is present.
+ * A saved import is summarized by its counts only; the observations stay in
+ * the plugin data directory.
+ */
+function firstmate(root, dataDir) {
+  const detection = detectFirstmate(root);
+  if (!detection.detected) return null;
+  const saved = dataDir ? readJson(path.join(dataDir, "firstmate", "observations.json"), null) : null;
+  return {
+    enabled: detection.enabled,
+    via: detection.via,
+    review_routing: Boolean(detection.enabled && detection.config.route_reviews && detection.code_root),
+    periodic_review_enabled: detection.config.periodic_review.enabled,
+    periodic_review_due_reasons: periodicDueReasons(root, detection),
+    last_import: saved ? { imported_at: saved.imported_at ?? null, counts: saved.counts ?? null } : null
   };
 }
 

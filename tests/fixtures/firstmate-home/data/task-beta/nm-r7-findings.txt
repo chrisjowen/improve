@@ -1,0 +1,1 @@
+{"id":"b-101","severity":"medium","file":"lib/load.js","line":10,"description":"Removing the fallback for a missing config file changes behavior; should a missing config file be an error or use defaults?","authority":"ask-user"}

@@ -1,0 +1,8 @@
+working [at=1790000000]: setup done on fm/task-alpha
+needs-decision [at=1790000600]: should the migration keep the legacy endpoint for one release?
+resolved [at=1790000900]: keep it for one release
+needs-decision [at=1790003000] [key=nm-r1-review]: ask-user findings=f-001,f-002 file=data/task-alpha/nm-r1-findings.txt
+resolved [key=nm-r1-review] [at=1790003600]: f-001 use defaults; f-002 fix the README
+blocked [at=1790004000]: no-mistakes daemon socket refused connections
+resolved [at=1790004300]: daemon restarted by firstmate
+done [at=1790005000]: PR https://github.com/example/widget/pull/1 checks green

@@ -1,0 +1,13 @@
+id: f-001
+severity: medium
+file: src/config.ts
+line: 42
+description: The change removes the fallback for a missing config file; should a missing file be an error or use defaults?
+authority: ask-user
+
+id: f-002
+severity: low
+file: README.md
+line: 3
+description: The README claims Node 18 support but the code needs Node 20.
+authority: ask-user

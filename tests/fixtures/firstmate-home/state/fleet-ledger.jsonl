@@ -1,0 +1,4 @@
+{"v":1,"ts":1789999900,"event":"task.dispatched","task":"task-alpha","kind":"ship","project":"widget","harness":"claude","model":null}
+{"v":1,"ts":1790005100,"event":"task.pr_ready","task":"task-alpha","pr":"https://github.com/example/widget/pull/1"}
+{"v":1,"ts":1790009000,"event":"task.merged","task":"task-alpha","via":"pr","pr":"https://github.com/example/widget/pull/1"}
+not json

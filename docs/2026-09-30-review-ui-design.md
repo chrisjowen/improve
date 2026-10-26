@@ -99,11 +99,12 @@ job in the way. A single lane let a ten-minute draft block every evaluation.
 local only by default (it binds `127.0.0.1`), the API is same-origin only (no
 CORS headers), every `/api/*` request must name an allowed `Host` (loopback,
 a specific `HOST`, the host of `ORIGIN`, or `IMPROVE_ALLOWED_HOSTS`) so a
-DNS-rebinding page is refused, and cross-origin writes are refused: any `/api/*` request other
-than `GET` or `HEAD` gets 403 unless its `Origin`, or else its `Referer`,
-matches the server's own origin. Binding another host is an explicit choice
-(`--host` or `HOST`, with `ORIGIN` set to the public URL when proxied), and it exposes an unauthenticated server that can run
-evaluations and paid agent runs; a suite's `core.command` evaluator executes
+DNS-rebinding page is refused, and cross-origin writes are refused: any
+`/api/*` request other than `GET` or `HEAD` gets 403 unless its `Origin`, or
+else its `Referer`, matches the server's own origin. Binding another host is an
+explicit choice (`--host` or `HOST`, with `ORIGIN` set to the public URL when
+proxied), and it exposes an unauthenticated server that can run evaluations and
+paid agent runs; a suite's `core.command` evaluator executes
 declared `argv`, so it also grants code execution. `ui/README.md` states this
 plainly. Path containment is enforced regardless, so a request cannot reach
 outside `.harness/` and `.claude/skills/`.
@@ -127,16 +128,16 @@ one seeded proposal, using a stub agent:
   decision with its rationale, and moved the proposal to `validated`
 - `GET /api/proposals/..%2F..%2Fetc%2Fpasswd` returned 400 `unsafe id`
 - the server bound `*:5199`, and CORS preflight returned the expected headers
+  (first build only; the revision binds `127.0.0.1` and answers no preflight)
 
 Tests: `ui/tests/` covers path containment, the agent output contract, the data
 layer including trend arithmetic, and the draft-diff-apply round trip.
 
 ## Not built
 
-No multi-repo view, no objective
-editing, no auth, no proposal creation from the UI. Creating a proposal needs a
-`/improve` session or a background agent, which is where proposals come from by
-design.
+No multi-repo view, no objective editing, no auth, no proposal creation from the
+UI. Creating a proposal needs a `/improve` session or a background agent, which
+is where proposals come from by design.
 
 ## Revision (2026-10)
 

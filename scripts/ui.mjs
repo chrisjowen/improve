@@ -144,13 +144,18 @@ function portFree(port, host) {
 async function recorded(project) {
   const state = readState(project);
   if (!state || !alive(state.pid)) return { state };
-  const answered = await health(state.port);
+  const answered = await health(state.host, state.port);
   return { state, ours: answered?.pid === state.pid && answered?.project === project };
 }
 
-async function health(port) {
+/** Where the launcher asks a server bound to `host` whether it is up. */
+export function healthUrl(host, port) {
+  return `${url(host, port)}/api/health`;
+}
+
+async function health(host, port) {
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(1500) });
+    const response = await fetch(healthUrl(host, port), { signal: AbortSignal.timeout(1500) });
     return response.ok ? await response.json() : undefined;
   } catch {
     return undefined;
@@ -158,7 +163,8 @@ async function health(port) {
 }
 
 function url(host, port) {
-  return `http://${host === "0.0.0.0" || host === "::" ? "localhost" : host}:${port}`;
+  if (host === "0.0.0.0" || host === "::") return `http://localhost:${port}`;
+  return `http://${host.includes(":") ? `[${host}]` : host}:${port}`;
 }
 
 async function start(options) {
@@ -173,7 +179,7 @@ async function start(options) {
   }
 
   if (!(await portFree(port, host))) {
-    const answered = await health(port);
+    const answered = await health(host, port);
     return fail(answered
       ? `Port ${port} is already serving the improve UI for ${answered.project}. Stop it with "node scripts/ui.mjs stop ${answered.project}", or pass --port.\n`
       : `Port ${port} is in use by another program. Pass --port with a free port.\n`);
@@ -212,7 +218,7 @@ async function start(options) {
 
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
-    const answered = await health(port);
+    const answered = await health(host, port);
     if (answered?.project === project) {
       process.stdout.write([
         `The improve UI is running for ${project}`,

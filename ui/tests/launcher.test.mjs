@@ -7,7 +7,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { parseArgs } from "../../scripts/ui.mjs";
+import { healthUrl, parseArgs } from "../../scripts/ui.mjs";
 import { projectId } from "../../scripts/lib.mjs";
 
 const plugin = path.resolve(import.meta.dirname, "..", "..");
@@ -27,6 +27,17 @@ const launcher = path.join(plugin, "scripts", "ui.mjs");
   assert.equal(parseArgs(["--host", "0.0.0.0"], {}, cwd).host, "0.0.0.0");
   assert.equal(parseArgs([], { HOST: "0.0.0.0" }, cwd).host, "0.0.0.0");
   assert.throws(() => parseArgs(["--bogus"], {}, cwd), /unknown argument/);
+}
+
+// --- where the launcher probes ----------------------------------------------
+// A server bound to one address answers only there, so the probe follows it.
+{
+  assert.equal(healthUrl("127.0.0.1", 5173), "http://127.0.0.1:5173/api/health");
+  assert.equal(healthUrl("10.0.0.5", 5173), "http://10.0.0.5:5173/api/health");
+  assert.equal(healthUrl("ui.internal", 80), "http://ui.internal:80/api/health");
+  assert.equal(healthUrl("0.0.0.0", 5173), "http://localhost:5173/api/health");
+  assert.equal(healthUrl("::", 5173), "http://localhost:5173/api/health");
+  assert.equal(healthUrl("::1", 5173), "http://[::1]:5173/api/health");
 }
 
 // --- a real start ---------------------------------------------------------

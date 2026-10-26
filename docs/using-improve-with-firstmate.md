@@ -20,11 +20,11 @@ files them for a decision. It does not change Firstmate on its own.
   repeats across tasks, and counts review rounds and durations per task. It
   removes secrets, tokens, emails and the home's own path, and keeps only short
   excerpts. It writes nothing into the home.
-- **Firstmate-aware proposals.** A proposal names the Firstmate surface it
-  changes. It also says whether the change is captain-private (`data/`,
-  `config/`), which can be applied locally after approval, or shared-tracked
-  (`AGENTS.md`, skills, `bin/`, docs), which goes upstream as a pull request
-  and is never edited in place.
+- **Firstmate-aware proposals.** The proposal check derives, from the files a
+  proposal lists, which Firstmate surfaces it changes and whether the change is
+  captain-private (`data/`, `config/`), which can be applied locally after
+  approval, or shared-tracked (`AGENTS.md`, skills, `bin/`, docs), which goes
+  upstream as a pull request and is never edited in place.
 - **Review routing.** `/improve review` files each proposal as a captain-held
   Firstmate task with `bin/fm-captain-hold.sh`, so it shows as a decision in
   Wheelhouse. The captain answers there the same way as any other call.

@@ -42,9 +42,9 @@ adapter in `adapters/firstmate/` lets `/improve` study Firstmate's own harness:
 its `AGENTS.md` contract, skills, `bin/` scripts, brief scaffold, and private
 home records. It imports sanitized evidence from the home (ask-user findings
 and their answers, blockers, stale-worker wakes, failed launches, captain
-preferences, learnings, review rounds). Each proposal says whether it changes
-captain-private files, which can be applied locally after approval, or shared
-Firstmate files, which go upstream as a pull request. `/improve review` files
+preferences, learnings, review rounds). The proposal check derives whether a
+proposal changes captain-private files, which can be applied locally after
+approval, or shared Firstmate files, which go upstream as a pull request. `/improve review` files
 each proposal as a captain-held Firstmate task so it shows as a decision in
 Wheelhouse.
 

@@ -212,7 +212,7 @@ while thresholds and aggregation remain runner concerns.
 When `node "${CLAUDE_PLUGIN_ROOT}/adapters/firstmate/cli.mjs" detect` reports `detected` and `enabled`, read [references/firstmate.md](references/firstmate.md) before any mode. In short:
 
 - `status` and `assess`: run its `import` and `inventory` for evidence from the home's status logs, ask-user findings, wakes, captain preferences, and learnings.
-- `propose`: say which Firstmate surface the proposal changes and whether it is captain-private or shared-tracked. One proposal changes one side.
+- `propose`: one proposal changes one side, captain-private or shared-tracked. `scripts/proposal-check-cli.mjs` derives the surfaces and visibility from `scope.files`; do not restate them in the proposal.
 - `review`: file each proposed proposal as a captain-held Firstmate task with `route`. Show the dry run first.
 - `apply`: read the captain's recorded answer with `decisions`. Apply captain-private changes through the normal apply steps. Never edit shared-tracked Firstmate files in place; they go upstream as a pull request.
 

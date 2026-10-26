@@ -364,8 +364,25 @@ for (const visible of [true, false]) {
     seed(repo, "overlap.yaml", { evaluation: { outputs: [output], commands: ["python3 .harness/evals/run.py --suite .harness/evals/suites/a.yaml"] } });
     const refused = await applyPlan("overlap.yaml");
     assert.equal(refused.status, 422, output);
-    assert.ok(refused.error.startsWith(`evaluation.outputs lists ${named}, which would let the run change ${input === ".harness/evals" ? "" : input}`), refused.error);
+    assert.ok(refused.error.startsWith(`evaluation.outputs lists ${named}, which would let the run change ${input}, an input`), refused.error);
   }
+
+  // An output may not be the runner or the suite a command reads; a flag's value it writes may be.
+  for (const [output, input] of [
+    [".harness/evals/run.py", ".harness/evals/run.py"],
+    [".harness/evals/suites", ".harness/evals/suites"],
+    [".harness/evals/suites", ".harness/evals/suites/a.yaml"]
+  ]) {
+    const suite = input.endsWith(".yaml") ? input : ".harness/evals/suites";
+    seed(repo, "overlap.yaml", { evaluation: { outputs: [output], commands: [`python3 .harness/evals/run.py --suite ${suite} --out .harness/evals/scores.json`] } });
+    const refused = await applyPlan("overlap.yaml");
+    assert.equal(refused.status, 422, `${output} over ${input}`);
+    assert.ok(refused.error.startsWith(`evaluation.outputs lists ${output}, which would let the run change ${input}, an input`), refused.error);
+  }
+  seed(repo, "overlap.yaml", { evaluation: { suite: ".harness/evals/suites", outputs: [".harness/evals/suites"] } });
+  assert.equal((await applyPlan("overlap.yaml")).status, 422, "the suite field is an input too");
+  seed(repo, "overlap.yaml", { evaluation: { outputs: [".harness/evals/scores.json"], commands: ["python3 .harness/evals/run.py --out=.harness/evals/scores.json"] } });
+  assert.equal((await applyPlan("overlap.yaml")).ok, true, "a path written through --out= may be an output");
 
   seed(repo, "listed.yaml", { evaluation: { outputs: [".harness/evals/scores.json"] } });
   assert.deepEqual((await applyPlan("listed.yaml")).outputs, [".harness/evals/scores.json"], "the confirm lists the declared outputs");

@@ -451,6 +451,23 @@ function namedPaths(value) {
 }
 
 /**
+ * `.harness/` paths a command reads: every path it names except the value of
+ * a flag such as `--out <path>` or `--out=<path>`. A suite flag's value is
+ * read, so it stays.
+ * @param {unknown} commands
+ */
+function commandInputs(commands) {
+  return (Array.isArray(commands) ? commands : []).flatMap((command) => {
+    const tokens = String(command).split(/\s+/);
+    return tokens.flatMap((token, index) => {
+      const flag = /^(--?[A-Za-z][\w-]*)=/.exec(token)?.[1]
+        ?? (index > 0 && /^--?[A-Za-z][\w-]*$/.test(tokens[index - 1]) ? tokens[index - 1] : null);
+      return flag && !/suite/i.test(flag) ? [] : namedPaths(token);
+    });
+  });
+}
+
+/**
  * The .harness/ files a run reads and must not change: this proposal,
  * improve.json, and the .harness/ files its evaluation names, including the
  * files under a directory it names. Outputs the evaluation writes are not
@@ -459,8 +476,9 @@ function namedPaths(value) {
  * itself, is skipped. `overflow` names a directory holding more than
  * MAX_ASSETS files, which are then not all listed. `invalid` explains an
  * evaluation.outputs entry outside .harness/, or one that equals or contains
- * an input: this proposal, improve.json, .harness/evals itself, or another
- * path the evaluation names. `output` tells whether a project-relative path
+ * an input: this proposal, improve.json, .harness/evals itself, a path its
+ * suite or commands read (see commandInputs), or another path the evaluation
+ * names apart from the output itself. `output` tells whether a project-relative path
  * is an output, and `outputs` lists the declared ones.
  *
  * @param {string} root
@@ -488,11 +506,14 @@ function harnessAssets(root, plan, evaluation) {
     if (rel?.startsWith(".harness/")) outputs.push(rel);
     else invalid ??= `evaluation.outputs lists ${name}, which is not under .harness/. Only .harness/ files can be evaluation outputs.`;
   }
+  /** @param {(string | null)[]} names */
+  const read = (names) => /** @type {string[]} */ (names.filter((rel) => rel !== null && !rel.startsWith(RESULTS)));
   const inputs = [
     `.harness/proposals/${plan.file}`,
     ".harness/improve.json",
     ".harness/evals",
-    ...namedPaths(evaluation).map(relative).filter((rel) => rel !== null && !rel.startsWith(RESULTS) && !outputs.includes(rel))
+    ...read([...namedPaths(evaluation?.suite), ...commandInputs(evaluation?.commands)].map(relative)),
+    ...read(namedPaths(evaluation).map(relative)).filter((rel) => !outputs.includes(rel))
   ];
   for (const o of outputs) {
     const guarded = inputs.find((rel) => rel === o || rel.startsWith(`${o}/`));

@@ -12,7 +12,7 @@
 - Give jobs progress, cancel and logs. Jobs survive a server restart.
 - Fix skill diffs failing in the production build.
 - Redesign the review UI around what needs a decision.
-- Bind the UI to 127.0.0.1 by default. The API is same-origin only and answers only known host names.
+- Bind the UI to 127.0.0.1 by default. The API is same-origin only, and the server answers only known host names.
 - Update the eval rig to 1.1.0.
 
 ## 0.1.0

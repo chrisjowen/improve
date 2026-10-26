@@ -159,6 +159,9 @@ version and are not returned. It changes no proposal. Then:
 - `upstream-pr`: do not edit the file. Report that the approved change needs a
   Firstmate pull request, and give the patch so Firstmate can dispatch it. The
   review UI refuses to apply a skill in a Firstmate home for the same reason.
+  Its Prepare upstream change button runs apply on a new branch
+  `improve/<id>` in a separate worktree and commits it if the evaluation
+  passes; nothing is pushed.
 
 ## Periodic review
 

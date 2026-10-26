@@ -23,6 +23,10 @@ import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mj
  * @property {string} [cwd]
  * @property {number} [timeoutMs]
  * @property {string[]} [extraArgs]
+ * @property {boolean} [allowEdits]
+ * @property {string[]} [allowedTools]
+ * @property {string[]} [settingSources]
+ * @property {string} [pluginDir]
  * @property {AbortSignal} [signal]
  * @property {string} [logFile]
  * @property {(progress: AgentProgress) => void} [onProgress]
@@ -53,11 +57,17 @@ import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mj
 export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
 
 /**
- * Run a read-only Claude Code agent and return its parsed JSON result.
+ * Run a Claude Code agent and return its parsed JSON result.
  *
- * The caller writes any file the agent's output implies. The agent itself
- * never gets write tools, so a draft cannot become an applied change without
- * passing back through here.
+ * Read-only by default: the caller writes any file the agent's output implies,
+ * so a draft cannot become an applied change without passing back through
+ * here. `allowEdits` is for applying a proposal a person approved and
+ * confirmed file by file; the caller checks afterwards that only those files
+ * changed. `allowedTools` then names the exact tool rules, such as
+ * `Bash(<command>)`, the run may use without a prompt nobody can answer.
+ * `settingSources: []` loads no user, project or local settings, so their
+ * allow rules cannot add to those; `pluginDir` then loads this plugin, which
+ * would otherwise come from user settings.
  *
  * Output is streamed so a long run can report what it is doing, and every line
  * goes to `logFile` when one is given. `onProgress` receives
@@ -72,6 +82,10 @@ export async function runAgent({
   cwd,
   timeoutMs = 600_000,
   extraArgs = [],
+  allowEdits = false,
+  allowedTools = [],
+  settingSources,
+  pluginDir,
   signal,
   logFile,
   onProgress
@@ -81,8 +95,12 @@ export async function runAgent({
     "--output-format", "stream-json",
     "--verbose",
     ...extraArgs,
-    // Variadic, so it goes last: anything after it would be read as a tool name.
-    "--disallowed-tools", ...DENIED_TOOLS
+    ...(settingSources ? ["--setting-sources", settingSources.join(",")] : []),
+    ...(pluginDir ? ["--plugin-dir", pluginDir] : []),
+    ...(allowEdits
+      ? ["--permission-mode", "acceptEdits", ...(allowedTools.length ? ["--allowedTools", ...allowedTools] : [])]
+      // Variadic, so it goes last: anything after it would be read as a tool name.
+      : ["--disallowed-tools", ...DENIED_TOOLS])
   ];
 
   /** @type {AgentProgress} */

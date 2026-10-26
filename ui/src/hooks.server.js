@@ -1,3 +1,5 @@
+import { LAUNCH_TOKEN } from "./lib/server/launch.js";
+
 /**
  * The API is same-origin only and has no authentication, so a state-changing
  * request must come from a page this server served. Without this, any web page
@@ -73,5 +75,8 @@ export async function handle({ event, resolve }) {
   if (!SAFE_METHODS.has(event.request.method) && requestOrigin(event.request) !== self) {
     return refuse("Cross-origin requests may not change anything.");
   }
-  return resolve(event);
+  // The page carries this launch's token; see lib/server/launch.js.
+  return resolve(event, {
+    transformPageChunk: ({ html }) => html.replace("%improve.token%", LAUNCH_TOKEN)
+  });
 }

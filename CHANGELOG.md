@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- Apply an approved proposal from the review UI. Apply runs `/improve apply` in the background after you confirm the exact files and the commands its evaluation declares in `evaluation.commands`, and shows progress, the diff, the evaluation and the log. A failed run puts the files back. In a Firstmate home, shared files are prepared on a branch for a pull request instead.
+
 ## 0.2.1
 
 - Count a Firstmate home's blockers, decisions, stale and stuck workers, and relaunches properly. The importer reads finished tasks' status lines from the fleet ledger, folds decisions the way Firstmate does, and reads the watcher's logs and markers.

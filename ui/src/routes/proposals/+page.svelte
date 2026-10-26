@@ -6,6 +6,7 @@
   import Diff from "$lib/components/Diff.svelte";
   import Notice from "$lib/components/Notice.svelte";
   import JobCard from "$lib/components/JobCard.svelte";
+  import ApplyResult from "$lib/components/ApplyResult.svelte";
   import { api } from "$lib/client/api.js";
   import { summary, refreshSummary } from "$lib/client/summary.svelte.js";
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
@@ -32,6 +33,8 @@
   let notice = $state(/** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */ (null));
   let reasonError = $state(/** @type {string | null} */ (null));
   let confirmOverwrite = $state(false);
+  let plan = $state(/** @type {any} */ (null));
+  let confirming = $state(false);
 
   /** @param {Record<string, string | null>} params */
   function go(params) {
@@ -69,6 +72,61 @@
     diff = null;
     if (key) loadDiff(key.split("|")[0]);
   });
+
+  // Re-read the plan whenever the proposal's record moves, so the confirm
+  // always lists what a run would change now.
+  const planKey = $derived(selected?.status === "approved"
+    ? `${selected.file}|${selected.last_apply?.at ?? ""}|${selected.upstream_change?.commit ?? ""}`
+    : null);
+
+  $effect(() => {
+    const key = planKey;
+    plan = null;
+    confirming = false;
+    if (key) loadPlan(key.split("|")[0]);
+  });
+
+  /** @param {string} file */
+  async function loadPlan(file) {
+    try {
+      plan = await api(`/api/proposals/${encodeURIComponent(file)}/apply-run`);
+    } catch (error) {
+      plan = { error: /** @type {Error} */ (error).message };
+    }
+  }
+
+  const applyJob = $derived(selected
+    ? jobs.list.find((job) => job.kind === "apply" && job.detail?.proposal === selected.file && job.status === "running")
+    : null);
+  const lastApplyJob = $derived(selected
+    ? jobs.list.find((job) => job.kind === "apply" && job.detail?.proposal === selected.file)
+    : null);
+
+  /** Start the run the person just confirmed: these files, this digest. */
+  async function startApply() {
+    busy = "apply-run";
+    notice = null;
+    const file = selected.file;
+    try {
+      const { job } = await api(`/api/proposals/${encodeURIComponent(file)}/apply-run`, {
+        method: "POST",
+        body: { digest: plan.digest, files: plan.files, commands: plan.commands, branch: plan.branch }
+      });
+      confirming = false;
+      busy = null;
+      await refreshJobs();
+      await settled(job.id);
+      await refreshSummary();
+      decisions = (await api(`/api/decisions?proposal=${encodeURIComponent(file)}`)).decisions ?? [];
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
+      notice = { tone: "bad", text: error.message, hint: error.hint };
+      confirming = false;
+      if (error.status === 409 || error.status === 403) loadPlan(file);
+    } finally {
+      busy = null;
+    }
+  }
 
   /** @param {string} file */
   async function loadDiff(file) {
@@ -374,6 +432,13 @@
               </div>
             {/if}
 
+            {#if lastApplyJob}
+              <div>
+                <div class="section-label">{lastApplyJob.detail?.mode === "upstream-pr" ? "Upstream change" : "Apply run"}</div>
+                <div class="panel panel-body"><ApplyResult job={lastApplyJob} /></div>
+              </div>
+            {/if}
+
             {#if decisions.length}
               <div>
                 <div class="section-label">Decisions</div>
@@ -414,7 +479,7 @@
                   {#if selected.skill_draft && diff && !diff.error}
                     Approving writes <code>{diff.target}</code> exactly as shown.
                   {:else}
-                    Approving records your decision only. Nothing changes until <code>/improve apply {selected.id}</code> runs.
+                    Approving records your decision only. Nothing changes until you apply it, here or with <code>/improve apply {selected.id}</code>.
                   {/if}
                 </p>
                 <div class="row">
@@ -438,7 +503,56 @@
             </footer>
           {:else if selected.status === "approved"}
             <footer class="decision">
-              <p>Approved and waiting to be applied. In Claude Code, run <code>/improve apply {selected.id}</code>; it rechecks the proposal, applies it, and runs its evaluation.</p>
+              {#if applyJob}
+                <JobCard job={applyJob} />
+              {:else if !plan}
+                <p class="small faint">Checking what applying would change…</p>
+              {:else if plan.error}
+                <p>Approved, but it cannot be applied from here: {plan.error}</p>
+                <p class="small faint" style="margin-top:4px">Fix the proposal, or run <code>/improve apply {selected.id}</code> in Claude Code.</p>
+              {:else if confirming}
+                <div class="stack" style="gap:10px" role="group" aria-labelledby="confirm-title">
+                  <p id="confirm-title"><strong>{plan.mode === "upstream-pr" ? `Prepare branch ${plan.branch}?` : "Apply this proposal?"}</strong></p>
+                  <p class="small">{plan.mode === "upstream-pr" ? "The run changes exactly these files on the new branch, not here:" : "The run changes exactly these files in this repository:"}</p>
+                  <ul class="confirm-files">
+                    {#each plan.files as file}<li><span class="chip"><Icon name="file" size={12} />{file}</span></li>{/each}
+                  </ul>
+                  <p class="small">The only commands it may run:</p>
+                  <ul class="confirm-commands small mono">
+                    {#each plan.commands as command}<li><code>{command}</code></li>{/each}
+                  </ul>
+                  <p class="small">What the evaluation may rewrite, besides <code>.harness/evals/results/</code>:</p>
+                  {#if plan.outputs?.length}
+                    <ul class="confirm-commands small mono">
+                      {#each plan.outputs as output}<li><code>{output}</code></li>{/each}
+                    </ul>
+                  {:else}
+                    <p class="small muted">Nothing else.</p>
+                  {/if}
+                  <p class="small muted">{plan.explanation} A change to any other file fails the run, and a command not listed stops it.</p>
+                  <div class="row" style="justify-content:flex-end">
+                    <button onclick={() => { confirming = false; }} disabled={busy !== null}>Back</button>
+                    <button class="primary" onclick={startApply} disabled={busy !== null}>
+                      <Icon name="check" size={14} />{busy === "apply-run" ? "Starting…" : plan.mode === "upstream-pr" ? "Confirm and prepare branch" : "Confirm and apply"}
+                    </button>
+                  </div>
+                </div>
+              {:else}
+                <div class="decision-actions" style="margin-top:0">
+                  <p class="small">
+                    {#if selected.upstream_change}
+                      Prepared on <code>{selected.upstream_change.branch}</code>; open its pull request, or prepare it again.
+                    {:else}
+                      Approved and waiting to be applied. {plan.mode === "upstream-pr" ? "These are shared Firstmate files, so the change is prepared on a branch for a pull request." : "Applying rechecks the proposal, makes the change, and runs its evaluation, as /improve apply does."}
+                    {/if}
+                  </p>
+                  <div class="row">
+                    <button class="primary" onclick={() => { confirming = true; }} disabled={busy !== null}>
+                      <Icon name="play" size={14} />{plan.action}…
+                    </button>
+                  </div>
+                </div>
+              {/if}
             </footer>
           {/if}
         {/if}
@@ -457,6 +571,8 @@
   .decision-actions p { flex: 1 1 260px; }
   .decision-actions .row { flex: none; margin-left: auto; }
   .evidence { border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .confirm-files { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .confirm-commands { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .evidence th, .evidence td { padding: 8px 12px; }
   @media (max-width: 960px) {
     .split { grid-template-columns: 1fr; }

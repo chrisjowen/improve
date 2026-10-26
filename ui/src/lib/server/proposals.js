@@ -72,6 +72,8 @@ function normalize(id, document, source) {
     approval: value.approval ?? null,
     outcome: value.outcome ?? null,
     skill_draft: value.skill_draft ?? null,
+    last_apply: value.last_apply ?? null,
+    upstream_change: value.upstream_change ?? null,
     reasons_to_reject: Array.isArray(value.reasons_to_reject) ? value.reasons_to_reject : [],
     provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,
     // Whether it changes the harness or the codebase, and how it reads. For

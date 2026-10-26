@@ -320,8 +320,9 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
 /**
  * Record a person's approval without changing any harness file.
  *
- * Applying stays with `/improve apply`, which revalidates the proposal and
- * runs its evaluation; a skill draft has its own Apply. The approval digest
+ * Applying is a separate, confirmed step: Apply in the UI or `/improve apply`
+ * in Claude Code, both of which revalidate the proposal and run its
+ * evaluation; a skill draft has its own Apply. The approval digest
  * records the proposal's bytes as they were reviewed, before this decision was
  * written into the file.
  *
@@ -347,7 +348,7 @@ export function approveProposal(file, { rationale, idempotencyKey } = {}) {
     idempotency_key: idempotencyKey ?? null
   });
   updateStatus(file, "approved", { approval: { approved_by: "ui", approved_at: approvedAt, digest } });
-  const outcome = { decision, next: `Nothing has changed yet. Run /improve apply ${proposal.id} to apply it.` };
+  const outcome = { decision, next: `Nothing has changed yet. Apply it here, or run /improve apply ${proposal.id} in Claude Code.` };
   if (idempotencyKey) claimKey(idempotencyKey, outcome);
   return { ok: true, ...outcome };
 }

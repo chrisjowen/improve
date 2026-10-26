@@ -204,6 +204,9 @@ async function start(options) {
       ...process.env,
       HOST: host,
       PORT: String(port),
+      // Without ORIGIN, adapter-node takes every request to be https, so the
+      // same-origin write check would refuse the page's own http writes.
+      ORIGIN: process.env.ORIGIN || url(host, port),
       IMPROVE_PROJECT_DIR: project,
       CLAUDE_PLUGIN_ROOT: pluginRoot,
       ...(data ? { CLAUDE_PLUGIN_DATA: data.dir } : {})

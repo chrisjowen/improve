@@ -99,6 +99,16 @@ try {
   assert.equal(foreign.headers.get("access-control-allow-origin"), null);
   assert.match(fs.readFileSync(path.join(repo, ".harness", "proposals", "p.yaml"), "utf8"), /status: proposed/);
 
+  // The UI's own page can. adapter-node assumes https unless told the origin,
+  // which once refused every write the browser made over plain http.
+  const own = await fetch(`http://127.0.0.1:${port}/api/proposals/p.yaml/reject`, {
+    method: "POST",
+    headers: { origin: `http://127.0.0.1:${port}`, "content-type": "application/json" },
+    body: JSON.stringify({ rationale: "not needed" })
+  });
+  assert.equal(own.status, 200, await own.text());
+  assert.match(fs.readFileSync(path.join(repo, ".harness", "proposals", "p.yaml"), "utf8"), /status: rejected/);
+
   // Starting again finds the running server instead of failing on the port.
   const again = run("start", repo, "--port", String(port), "--host", "127.0.0.1");
   assert.equal(again.status, 0, again.stderr);

@@ -14,6 +14,7 @@ import BUNDLED from "../assets/eval-rig/redaction-rules.json" with { type: "json
  */
 let cached;
 
+/** @param {{ rules?: Array<{ category: string, name: string, pattern: string, flags?: string }> }} document */
 function compile(document) {
   return (document.rules ?? []).map((rule) => ({
     category: rule.category,
@@ -23,7 +24,10 @@ function compile(document) {
   }));
 }
 
-/** The shared rules, or the rules in `file` when a caller names one. */
+/**
+ * The shared rules, or the rules in `file` when a caller names one.
+ * @param {string} [file]
+ */
 export function loadRules(file) {
   if (cached && cached.file === file) return cached.rules;
   const rules = compile(file ? JSON.parse(fs.readFileSync(file, "utf8")) : BUNDLED);

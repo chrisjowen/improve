@@ -38,6 +38,7 @@ export function listTranscripts(limit = 25) {
     .map((entry) => ({ ...entry, preview: firstPrompt(entry.file) }));
 }
 
+/** @param {string} file */
 function firstPrompt(file) {
   let text;
   try {

@@ -18,6 +18,11 @@ import { isHarnessPath } from "../../scripts/proposal-check.mjs";
  */
 
 const SURFACES = [
+  // Runtime records are written by Firstmate's scripts, never by a proposal.
+  { surface: "runtime-state", visibility: "runtime", pattern: /^state\// },
+  // Claude Code's own local files, gitignored like the home's records.
+  { surface: "contract", visibility: "captain-private", pattern: /(^|\/)CLAUDE\.local\.md$/ },
+  { surface: "claude-config", visibility: "captain-private", pattern: /(^|\/)\.claude\/settings\.local\.json$/ },
   // Shared, tracked Firstmate material.
   { surface: "contract", visibility: "shared-tracked", pattern: /^(AGENTS|CLAUDE)\.md$/ },
   { surface: "brief-scaffold", visibility: "shared-tracked", pattern: /^bin\/fm-brief(-[a-z-]+)?(\.sh|-lib\.sh)$/ },
@@ -32,11 +37,7 @@ const SURFACES = [
   { surface: "learnings", visibility: "captain-private", pattern: /^data\/learnings\.md$/ },
   { surface: "home-data", visibility: "captain-private", pattern: /^data\// },
   { surface: "home-config", visibility: "captain-private", pattern: /^config\// },
-  { surface: "improve-record", visibility: "captain-private", pattern: /^\.harness(\/|$)/ },
-  // Runtime records are written by Firstmate's scripts, never by a proposal.
-  { surface: "runtime-state", visibility: "runtime", pattern: /^state\// },
-  // Claude Code's own local file, gitignored like the home's records.
-  { surface: "contract", visibility: "captain-private", pattern: /(^|\/)CLAUDE\.local\.md$/ }
+  { surface: "improve-record", visibility: "captain-private", pattern: /^\.harness(\/|$)/ }
 ];
 
 function normalize(candidate) {

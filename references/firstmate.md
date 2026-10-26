@@ -90,6 +90,7 @@ Each file a proposal changes has a surface and a visibility:
 | `config/brief-include.md`, other `config/` | brief-include, home-config | captain-private | `/improve apply`, locally |
 | `.harness/` | improve-record | captain-private | `/improve apply`, locally |
 | `CLAUDE.local.md` | contract | captain-private | `/improve apply`, locally |
+| `.claude/settings.local.json` | claude-config | captain-private | `/improve apply`, locally |
 | `state/` | runtime-state | refused | never: Firstmate's scripts own it |
 | any other file the default check counts as harness: `.mcp.json`, nested `CLAUDE.md` or `AGENTS.md`, other agents' config | agent-config | shared-tracked | upstream PR |
 
@@ -161,7 +162,8 @@ Off by default. With `periodic_review.enabled`, a review is due after
 `every_tasks` new task briefs (`data/<task>/brief.md`) since the last review,
 or `every_days` after the last review. Before the first review, both count
 from when the SessionStart hook or `due` first saw it enabled, recorded as
-`enabled_at` in `.harness/firstmate/review-state.json`. The SessionStart reminder includes these reasons, and:
+`enabled_at` in `.harness/firstmate/review-state.json`. When they see it
+turned off, they clear `enabled_at`, so turning it on again starts afresh. The SessionStart reminder includes these reasons, and:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/adapters/firstmate/cli.mjs" due --project <home>       # exit 0 when due

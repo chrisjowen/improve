@@ -63,6 +63,9 @@ const expectations = {
   ".harness/objectives.yaml": ["improve-record", "captain-private"],
   "state/task.status": ["runtime-state", "runtime"],
   "CLAUDE.local.md": ["contract", "captain-private"],
+  ".claude/settings.local.json": ["claude-config", "captain-private"],
+  ".claude/settings.json": ["claude-config", "shared-tracked"],
+  "state/.claude/settings.local.json": ["runtime-state", "runtime"],
   ".mcp.json": ["agent-config", "shared-tracked"],
   "packages/web/CLAUDE.md": ["agent-config", "shared-tracked"],
   "data/task-alpha/AGENTS.md": ["home-data", "captain-private"],
@@ -88,6 +91,7 @@ for (const file of [".mcp.json", "CLAUDE.local.md", "sub/CLAUDE.md", "sub/AGENTS
 }
 assert.equal(deliveryFor([".mcp.json"]).delivery, "upstream-pr");
 assert.equal(deliveryFor(["CLAUDE.local.md", "data/captain.md"]).delivery, "local-apply");
+assert.equal(deliveryFor([".claude/settings.local.json", "data/captain.md"]).delivery, "local-apply");
 assert.equal(taskIdFor("IMP-20261026-Keep AGENTS small"), "improve-imp-20261026-keep-agents-small");
 assert.match(taskIdFor("x".repeat(200)), /^[a-z0-9._-]{1,80}$/);
 assert.equal(displayCommand({ argv: ["a", "b c"], env: { FM_HOME: "/h" } }), "FM_HOME=/h a 'b c'");
@@ -263,11 +267,25 @@ assert.equal(JSON.parse(cli(["decisions", "--apply"]).stdout)[0].outcome, "unrea
 assert.match(fs.readFileSync(path.join(home, ".harness", "proposals", "IMP-1.yaml"), "utf8"), /^status: proposed$/m);
 
 // --- periodic review ---------------------------------------------------------
+const hookData = path.join(temp, "plugin-data");
+const sessionStart = () => spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "session-start.mjs")], {
+  input: JSON.stringify({ session_id: "s1", source: "startup" }),
+  encoding: "utf8",
+  env: { ...baseEnv, CLAUDE_PLUGIN_DATA: hookData }
+});
 assert.equal(cli(["due"]).status, 1, "off by default");
 writeConfig({ enabled: true, periodic_review: { enabled: true, every_tasks: 2, every_days: 7 } });
 const reviewState = path.join(home, ".harness", "firstmate", "review-state.json");
 assert.equal(cli(["due"]).status, 1, "briefs written before periodic review was enabled do not count");
 assert.ok(JSON.parse(fs.readFileSync(reviewState, "utf8")).enabled_at, "the first check records when it started");
+
+// Turning it off forgets the start, so turning it on again months later is not overdue.
+fs.writeFileSync(reviewState, JSON.stringify({ enabled_at: new Date(Date.now() - 90 * 86_400_000).toISOString() }));
+writeConfig({ enabled: true, periodic_review: { enabled: false, every_tasks: 2, every_days: 7 } });
+assert.equal(sessionStart().status, 0);
+assert.equal(JSON.parse(fs.readFileSync(reviewState, "utf8")).enabled_at, undefined);
+writeConfig({ enabled: true, periodic_review: { enabled: true, every_tasks: 2, every_days: 7 } });
+assert.equal(cli(["due"]).status, 1, "re-enabling starts afresh");
 const later = new Date(Date.now() + 60_000);
 for (const task of ["task-alpha", "task-beta", "task-gamma"]) {
   fs.utimesSync(path.join(home, "data", task, "brief.md"), later, later);
@@ -276,12 +294,6 @@ const due = cli(["due"]);
 assert.equal(due.status, 0, due.stdout);
 assert.match(JSON.parse(due.stdout).reasons[0], /3 Firstmate tasks dispatched/);
 
-const hookData = path.join(temp, "plugin-data");
-const sessionStart = () => spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "session-start.mjs")], {
-  input: JSON.stringify({ session_id: "s1", source: "startup" }),
-  encoding: "utf8",
-  env: { ...baseEnv, CLAUDE_PLUGIN_DATA: hookData }
-});
 const reminded = sessionStart();
 assert.equal(reminded.status, 0, reminded.stderr);
 assert.match(reminded.stdout, /review is due \(3 Firstmate tasks dispatched/);

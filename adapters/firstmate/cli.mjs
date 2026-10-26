@@ -5,7 +5,7 @@ import { detectFirstmate } from "./home.mjs";
 import { importEvidence } from "./import.mjs";
 import { inventory } from "./inventory.mjs";
 import { executeRouting, planRouting, readDecisions } from "./route.mjs";
-import { markReviewed, periodicDueReasons, seedReviewState } from "./schedule.mjs";
+import { markReviewed, periodicDueReasons, syncReviewState } from "./schedule.mjs";
 
 const USAGE = `usage: cli.mjs <command> [--project <dir>] [options]
 
@@ -19,7 +19,7 @@ Commands (all read-only unless noted):
   decisions [--apply]    read the captain's recorded answers for filed proposals;
                          dry-run by default, --apply runs fm-tasks-axi.sh show
   due                    exit 0 and print reasons when a periodic review is due, else exit 1;
-                         the first run after enabling records the start in review-state.json
+                         records when periodic review was turned on or off in review-state.json
   reviewed               record that a review ran (writes .harness/firstmate/review-state.json)
 
 --project defaults to CLAUDE_PROJECT_DIR, then the working directory.
@@ -106,7 +106,7 @@ switch (command) {
     break;
   }
   case "due": {
-    seedReviewState(root, detection);
+    syncReviewState(root, detection);
     const reasons = periodicDueReasons(root, detection);
     print({ due: reasons.length > 0, reasons });
     process.exitCode = reasons.length > 0 ? 0 : 1;

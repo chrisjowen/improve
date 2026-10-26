@@ -8,8 +8,8 @@ import { daysSince, readJson, writeJsonAtomic } from "../../scripts/lib.mjs";
  * Measured in work, as the rest of the plugin is: a task is one brief under
  * `data/<task>/brief.md`, so "every N tasks" counts briefs written since the
  * last review. `every_days` is a long-stop. Both count from the last review,
- * or, before the first one, from when periodic review was first seen enabled
- * (`seedReviewState`), so turning this on never makes a home overdue on day one.
+ * or, before the first one, from when periodic review was last turned on
+ * (`syncReviewState`), so turning this on never makes a home overdue on day one.
  *
  * Cheap enough for the SessionStart hook: one directory listing and one stat
  * per task, no file contents.
@@ -31,12 +31,20 @@ export function markReviewed(root, now = Date.now()) {
 }
 
 /**
- * Record when periodic review was first seen enabled, once. Called by the
- * SessionStart hook and `due`, never by the read-only status report.
+ * Record when periodic review was turned on, and forget it while it is off, so
+ * the next enable starts afresh. Called by the SessionStart hook and `due`,
+ * never by the read-only status report.
  */
-export function seedReviewState(root, detection, now = Date.now()) {
-  if (!detection?.detected || !detection.enabled || !detection.config.periodic_review.enabled) return;
+export function syncReviewState(root, detection, now = Date.now()) {
+  if (!detection?.detected) return;
   const state = readReviewState(root);
+  if (!detection.enabled || !detection.config.periodic_review.enabled) {
+    if (state.enabled_at) {
+      const { enabled_at: _, ...rest } = state;
+      writeJsonAtomic(stateFile(root), rest);
+    }
+    return;
+  }
   if (state.last_reviewed_at || state.enabled_at) return;
   writeJsonAtomic(stateFile(root), { ...state, enabled_at: new Date(now).toISOString() });
 }

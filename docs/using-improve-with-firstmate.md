@@ -90,7 +90,8 @@ instead of editing the file.
 With this on, the session-start reminder fires after 20 new task briefs or 7
 days since the last review, whichever comes first. Before the first review,
 both count from the first session or `due` run after you turn it on, so
-existing briefs never make a home overdue on day one. Firstmate can also check on its own schedule:
+existing briefs never make a home overdue on day one. Turning it off and on
+again starts the count afresh. Firstmate can also check on its own schedule:
 
 ```bash
 node <plugin>/adapters/firstmate/cli.mjs due --project <home>    # exit 0 when due
@@ -105,7 +106,7 @@ node <plugin>/adapters/firstmate/cli.mjs due --project <home>    # exit 0 when d
 | `inventory` | `AGENTS.md`, skill, script and private file sizes | nothing |
 | `route [--apply]` | File proposals as captain-held tasks; dry run by default | with `--apply`, the home's backlog through its own scripts, and `.harness/firstmate/routed.json` |
 | `decisions [--apply]` | Read the captain's recorded answers; dry run by default | nothing |
-| `due` | Is a periodic review due | on its first run after enabling, `.harness/firstmate/review-state.json` |
+| `due` | Is a periodic review due | `.harness/firstmate/review-state.json`, when periodic review was turned on or off |
 | `reviewed` | Record that a review ran | `.harness/firstmate/review-state.json` |
 
 [references/firstmate.md](../references/firstmate.md) has the detailed rules

@@ -352,6 +352,23 @@ for (const visible of [true, false]) {
   const plan = await applyPlan("outside.yaml");
   assert.equal(plan.status, 422);
   assert.match(plan.error, /evaluation\.outputs lists CLAUDE\.md, which is not under \.harness\//);
+
+  // An output may not cover an input the evaluation reads.
+  for (const [output, input] of [
+    [".harness/evals/", ".harness/evals"],
+    [".harness/proposals", ".harness/proposals/overlap.yaml"],
+    [".harness/improve.json", ".harness/improve.json"],
+    [".harness/evals/suites", ".harness/evals/suites/a.yaml"]
+  ]) {
+    const named = output.replace(/\/$/, "");
+    seed(repo, "overlap.yaml", { evaluation: { outputs: [output], commands: ["python3 .harness/evals/run.py --suite .harness/evals/suites/a.yaml"] } });
+    const refused = await applyPlan("overlap.yaml");
+    assert.equal(refused.status, 422, output);
+    assert.ok(refused.error.startsWith(`evaluation.outputs lists ${named}, which would let the run change ${input === ".harness/evals" ? "" : input}`), refused.error);
+  }
+
+  seed(repo, "listed.yaml", { evaluation: { outputs: [".harness/evals/scores.json"] } });
+  assert.deepEqual((await applyPlan("listed.yaml")).outputs, [".harness/evals/scores.json"], "the confirm lists the declared outputs");
 }
 
 // --- a named directory too large to guard refuses the plan --------------------

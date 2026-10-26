@@ -48,7 +48,7 @@ const RESULTS = ".harness/evals/results/";
  * @typedef {{
  *   ok: true, file: string, id: string, title: string,
  *   mode: "local-apply" | "upstream-pr", action: string, files: string[],
- *   commands: string[], digest: string, branch: string | null, explanation: string
+ *   commands: string[], outputs: string[], digest: string, branch: string | null, explanation: string
  * }} ApplyPlan
  * @typedef {{ ok: false, status: number, error: string }} Refusal
  * @typedef {{ path: string, before: string | null, after: string | null, change: string, truncated?: boolean }} FileChange
@@ -141,10 +141,8 @@ export async function applyPlan(file) {
     `node ${path.join(pluginRoot(), "scripts", "proposal-check-cli.mjs")} .harness/proposals/${file}`,
     ...declared.filter((c) => typeof c === "string" && c.trim() !== "").map((c) => String(c).trim())
   ])];
-  const { overflow, invalid } = harnessAssets(root, { file }, proposal.evaluation);
-  if (invalid) {
-    return { ok: false, status: 422, error: `evaluation.outputs lists ${invalid}, which is not under .harness/. Only .harness/ files can be evaluation outputs.` };
-  }
+  const { overflow, invalid, outputs } = harnessAssets(root, { file }, proposal.evaluation);
+  if (invalid) return { ok: false, status: 422, error: invalid };
   if (overflow) {
     return { ok: false, status: 422, error: `The evaluation names ${overflow}, which holds more than ${MAX_ASSETS} files, too many to guard during a run. Name the files it reads instead.` };
   }
@@ -171,6 +169,7 @@ export async function applyPlan(file) {
         action: "Prepare upstream change",
         files,
         commands,
+        outputs,
         digest,
         branch,
         explanation: `These are shared Firstmate files, so they are not edited here. The run makes the change on a new branch, ${branch}, in a separate worktree, runs the evaluation there, and commits it if it passes. Nothing is pushed: you open the pull request.`
@@ -186,6 +185,7 @@ export async function applyPlan(file) {
     action: "Apply",
     files,
     commands,
+    outputs,
     digest,
     branch: null,
     explanation: "The run edits these files in this repository and runs the proposal's evaluation. If it fails, the files are put back as they were."
@@ -457,14 +457,16 @@ function namedPaths(value) {
  * inputs: anything under .harness/evals/results/, and the paths listed in
  * evaluation.outputs. A name that resolves outside .harness/, or to .harness/
  * itself, is skipped. `overflow` names a directory holding more than
- * MAX_ASSETS files, which are then not all listed; `invalid` names an
- * evaluation.outputs entry outside .harness/; `output` tells whether a
- * project-relative path is an output.
+ * MAX_ASSETS files, which are then not all listed. `invalid` explains an
+ * evaluation.outputs entry outside .harness/, or one that equals or contains
+ * an input: this proposal, improve.json, .harness/evals itself, or another
+ * path the evaluation names. `output` tells whether a project-relative path
+ * is an output, and `outputs` lists the declared ones.
  *
  * @param {string} root
  * @param {{ file: string }} plan
  * @param {any} evaluation
- * @returns {{ assets: Map<string, string>, overflow: string | null, invalid: string | null, output: (rel: string) => boolean }} project-relative path to its real source
+ * @returns {{ assets: Map<string, string>, overflow: string | null, invalid: string | null, output: (rel: string) => boolean, outputs: string[] }} project-relative path to its real source
  */
 function harnessAssets(root, plan, evaluation) {
   const harness = contain(root, ".harness");
@@ -473,15 +475,28 @@ function harnessAssets(root, plan, evaluation) {
   const outputs = [];
   /** @type {string | null} */
   let invalid = null;
-  for (const name of Array.isArray(evaluation?.outputs) ? evaluation.outputs : []) {
-    let rel = null;
+  /** @param {string} name */
+  const relative = (name) => {
     try {
-      rel = path.relative(root, contain(root, String(name))).split(path.sep).join("/");
+      return path.relative(root, contain(root, name)).split(path.sep).join("/");
     } catch {
-      // reported below
+      return null;
     }
+  };
+  for (const name of Array.isArray(evaluation?.outputs) ? evaluation.outputs : []) {
+    const rel = relative(String(name));
     if (rel?.startsWith(".harness/")) outputs.push(rel);
-    else invalid ??= String(name);
+    else invalid ??= `evaluation.outputs lists ${name}, which is not under .harness/. Only .harness/ files can be evaluation outputs.`;
+  }
+  const inputs = [
+    `.harness/proposals/${plan.file}`,
+    ".harness/improve.json",
+    ".harness/evals",
+    ...namedPaths(evaluation).map(relative).filter((rel) => rel !== null && !rel.startsWith(RESULTS) && !outputs.includes(rel))
+  ];
+  for (const o of outputs) {
+    const guarded = inputs.find((rel) => rel === o || rel.startsWith(`${o}/`));
+    if (guarded) invalid ??= `evaluation.outputs lists ${o}, which would let the run change ${guarded}, an input the evaluation reads. List only the files the evaluation writes.`;
   }
   /** @param {string} rel */
   const output = (rel) => rel.startsWith(RESULTS) || outputs.some((o) => rel === o || rel.startsWith(`${o}/`));
@@ -513,7 +528,7 @@ function harnessAssets(root, plan, evaluation) {
       }
     }
   }
-  return { assets, overflow, invalid, output };
+  return { assets, overflow, invalid, output, outputs };
 }
 
 /**
@@ -596,7 +611,8 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   /** @type {string | null} */
   let base = null;
   let restoreExclude = () => {};
-  const { assets, overflow, output } = harnessAssets(root, plan, parsed?.evaluation);
+  const { assets, overflow, invalid, output } = harnessAssets(root, plan, parsed?.evaluation);
+  if (invalid) return { ok: false, error: `${invalid} Nothing was changed.` };
   if (overflow) {
     return { ok: false, error: `The evaluation names ${overflow}, which now holds more than ${MAX_ASSETS} files, too many to guard. Nothing was changed.` };
   }

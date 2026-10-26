@@ -521,6 +521,14 @@
                   <ul class="confirm-commands small mono">
                     {#each plan.commands as command}<li><code>{command}</code></li>{/each}
                   </ul>
+                  <p class="small">What the evaluation may rewrite, besides <code>.harness/evals/results/</code>:</p>
+                  {#if plan.outputs?.length}
+                    <ul class="confirm-commands small mono">
+                      {#each plan.outputs as output}<li><code>{output}</code></li>{/each}
+                    </ul>
+                  {:else}
+                    <p class="small muted">Nothing else.</p>
+                  {/if}
                   <p class="small muted">{plan.explanation} A change to any other file fails the run, and a command not listed stops it.</p>
                   <div class="row" style="justify-content:flex-end">
                     <button onclick={() => { confirming = false; }} disabled={busy !== null}>Back</button>

@@ -104,7 +104,10 @@ added there. These are checked even when git ignores them, and a named
 directory holding more than 500 files refuses the plan. What the evaluation
 writes is output, not input, and may change: anything under
 `.harness/evals/results/` and the `.harness/` paths listed in its
-`evaluation.outputs`. Paths mentioned in `baseline` or `candidate` are inputs.
+`evaluation.outputs`, which the confirm step lists. An output that is or
+contains an input (this proposal, `improve.json`, `.harness/evals` itself, or
+another path the evaluation names) refuses the plan. Paths mentioned in
+`baseline` or `candidate` are inputs.
 In a Firstmate worktree those outputs are not copied, so the evaluation can
 write them. The UI's own records (other proposals, decisions) are exempt too. Other changes git cannot see, in ignored files
 outside the confirmed list, are not detected; outside a git repository nothing

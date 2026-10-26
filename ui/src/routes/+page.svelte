@@ -6,7 +6,7 @@
   import { api } from "$lib/client/api.js";
   import { summary, findingCount } from "$lib/client/summary.svelte.js";
   import { jobs } from "$lib/client/jobs.svelte.js";
-  import { SCOPE, ago, plural, score, waiting } from "$lib/client/format.js";
+  import { ago, plural, score, scopeLabel, showScope, waiting } from "$lib/client/format.js";
 
   let objectives = $state([]);
   $effect(() => {
@@ -58,12 +58,12 @@
       {:else}
         <ul class="list">
           {#each queue as proposal (proposal.file)}
-            {@const scope = SCOPE[proposal.check?.scope] ?? SCOPE.unknown}
+            {@const scope = scopeLabel(proposal.check)}
             <li>
               <a class="list-row" href="/proposals?p={encodeURIComponent(proposal.file)}">
                 <span class="title">{proposal.title}</span>
                 {#if proposal.status === "draft"}<Pill>Draft</Pill>{/if}
-                {#if proposal.check?.scope !== "harness"}<Pill tone={scope.tone} title={scope.meaning}>{scope.label}</Pill>{/if}
+                {#if showScope(proposal.check)}<Pill tone={scope.tone} title={scope.meaning}>{scope.label}</Pill>{/if}
                 <span class="meta">{ago(proposal.created_at)}</span>
                 <Icon name="chevron" />
               </a>

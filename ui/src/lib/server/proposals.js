@@ -4,7 +4,7 @@ import YAML from "yaml";
 import { contain, ensureDir, harnessDir, projectRoot, readDirSafe, readTextSafe, safeId } from "./paths.js";
 import { checkProposal } from "../../../../scripts/proposal-check.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
-import { isFirstmateHarnessPath } from "../../../../adapters/firstmate/surfaces.mjs";
+import { classifySurface, deliveryFor, isFirstmateHarnessPath } from "../../../../adapters/firstmate/surfaces.mjs";
 
 const PROPOSAL_STATUSES = new Set([
   "draft", "proposed", "approved", "applying", "validated", "rejected", "rolled-back"
@@ -15,9 +15,27 @@ function proposalsDir() {
 }
 
 /** A Firstmate home that opted in counts its bin/ scripts and home files as harness. */
-function scopeOptions() {
+function firstmateEnabled() {
   const firstmate = detectFirstmate(projectRoot());
-  return firstmate.detected && firstmate.enabled ? { isHarness: isFirstmateHarnessPath } : {};
+  return firstmate.detected && firstmate.enabled;
+}
+
+/**
+ * The scope check, plus, in a Firstmate home that opted in, which side of the
+ * home each file is on, so `data/captain.md` reads as the captain's own file
+ * rather than as part of the codebase.
+ * @param {any} value
+ */
+function check(value) {
+  if (!firstmateEnabled()) return checkProposal(value);
+  const result = checkProposal(value, { isHarness: isFirstmateHarnessPath });
+  const files = Array.isArray(value.scope?.files) ? value.scope.files.filter((/** @type {unknown} */ f) => typeof f === "string") : [];
+  const { delivery, visibility } = deliveryFor(files);
+  return {
+    ...result,
+    // Keyed by the file as the proposal wrote it, so the UI can mark each chip.
+    firstmate: { delivery, visibility, files: Object.fromEntries(files.map((/** @type {string} */ file) => [file, classifySurface(file).visibility])) }
+  };
 }
 
 function decisionsDir() {
@@ -58,7 +76,7 @@ function normalize(id, document, source) {
     provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,
     // Whether it changes the harness or the codebase, and how it reads. For
     // the reviewer only: nothing is blocked on it.
-    check: checkProposal(value, scopeOptions()),
+    check: check(value),
     source
   };
 }

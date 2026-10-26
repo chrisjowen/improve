@@ -93,6 +93,35 @@ export const SCOPE = {
 };
 
 /**
+ * Which side of a Firstmate home a harness proposal changes, when the adapter
+ * is on. The captain's own files are harness material, never application code.
+ * @type {Record<string, { label: string, tone: string, meaning: string }>}
+ */
+export const FIRSTMATE_SCOPE = {
+  "captain-private": { label: "Captain-private", tone: "ok", meaning: "Changes only the captain's own home files. Applied locally after approval." },
+  "shared-tracked": { label: "Shared Firstmate files", tone: "ok", meaning: "Changes files committed to the Firstmate repository. Delivered upstream as a pull request." },
+  mixed: { label: "Captain-private and shared", tone: "warn", meaning: "Mixes the captain's own files with shared Firstmate files. Split it into one proposal per side." }
+};
+
+/**
+ * How to label a proposal's scope check.
+ * @param {{ scope?: string, firstmate?: { visibility?: string | null } } | null | undefined} check
+ */
+export function scopeLabel(check) {
+  const side = check?.scope === "harness" ? FIRSTMATE_SCOPE[check.firstmate?.visibility ?? ""] : undefined;
+  return side ?? SCOPE[check?.scope ?? ""] ?? SCOPE.unknown;
+}
+
+/**
+ * Whether a list row should show the scope at all: always when it is not
+ * plain harness, and in a Firstmate home so the captain sees whose files change.
+ * @param {{ scope?: string, firstmate?: unknown } | null | undefined} check
+ */
+export function showScope(check) {
+  return Boolean(check) && (check?.scope !== "harness" || Boolean(check?.firstmate));
+}
+
+/**
  * Proposals a person still has to decide on.
  * @param {{ status?: string }} proposal
  */

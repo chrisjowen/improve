@@ -276,11 +276,11 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
-/** Run `p.yaml` with `.harness/evals/` ignored by git and the stand-in writing `touch`. */
-async function applyTouching(touch, evaluation, mode = "edit-eval") {
+/** Run `p.yaml` with the stand-in writing `touch`, and `.harness/evals/` ignored by git unless `visible`. */
+async function applyTouching(touch, evaluation, mode = "edit-eval", { visible = false } = {}) {
   const exclude = path.join(repo, ".git", "info", "exclude");
   const excluded = fs.readFileSync(exclude, "utf8");
-  fs.writeFileSync(exclude, `${excluded}.harness/evals/\n`);
+  if (!visible) fs.writeFileSync(exclude, `${excluded}.harness/evals/\n`);
   process.env.IMPROVE_STANDIN = mode;
   process.env.IMPROVE_STANDIN_TOUCH = touch;
   seed(repo, "p.yaml", { evaluation });
@@ -334,17 +334,20 @@ for (const touch of [".harness/evals/suites/a.yaml", ".harness/evals/suites/easy
 }
 
 // --- a path listed in evaluation.outputs may be rewritten ---------------------
-{
+for (const visible of [true, false]) {
   fs.mkdirSync(path.join(repo, ".harness", "evals"), { recursive: true });
+  fs.writeFileSync(path.join(repo, ".harness", "evals", "run.py"), "THRESHOLD = 3\n");
   fs.writeFileSync(path.join(repo, ".harness", "evals", "scores.json"), "{}\n");
-  const job = await applyTouching(".harness/evals/scores.json", {
-    outputs: [".harness/evals/scores.json"],
-    commands: ["node .harness/evals/check.mjs --out .harness/evals/scores.json"]
-  }, "pass");
-  assert.equal(job.status, "completed", job.error);
-  assert.deepEqual(job.result.stray, []);
+  const evaluation = { outputs: [".harness/evals/scores.json"], commands: ["python3 .harness/evals/run.py --out .harness/evals/scores.json"] };
+  const output = await applyTouching(".harness/evals/scores.json", evaluation, "pass", { visible });
+  assert.equal(output.status, "completed", `visible ${visible}: ${output.error}`);
+  assert.deepEqual(output.result.stray, []);
+  const input = await applyTouching(".harness/evals/run.py", evaluation, "pass", { visible });
+  assert.equal(input.status, "failed", `visible ${visible}`);
+  assert.deepEqual(input.result.stray, [".harness/evals/run.py"]);
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
-
+}
+{
   seed(repo, "outside.yaml", { evaluation: { outputs: ["CLAUDE.md"] } });
   const plan = await applyPlan("outside.yaml");
   assert.equal(plan.status, 422);

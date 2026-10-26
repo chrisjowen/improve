@@ -364,22 +364,23 @@ function compare(before, after) {
 /**
  * Paths outside the confirmed files whose content the run changed, including
  * files that were already uncommitted before it. Only records the UI writes
- * while a run is going are exempt: other proposals, decisions, evaluation
- * results and its job directory. This proposal, improve.json and evaluation
- * assets are not.
+ * while a run is going and the evaluation's outputs are exempt: other
+ * proposals, decisions, its job directory, and what `output` accepts. This
+ * proposal, improve.json and evaluation inputs are not.
  *
  * @param {Map<string, string | null>} before
  * @param {Map<string, string | null>} after
  * @param {ApplyPlan} plan
  * @param {string} root
+ * @param {(rel: string) => boolean} output
  */
-function strayPaths(before, after, plan, root) {
+function strayPaths(before, after, plan, root, output) {
   const jobs = path.relative(root, jobsDir());
   const ownJobs = jobs && !jobs.startsWith("..") && !path.isAbsolute(jobs) ? `${jobs.split(path.sep).join("/")}/` : null;
   /** @param {string} p */
   const record = (p) => (p.startsWith(".harness/proposals/") && p !== `.harness/proposals/${plan.file}`)
     || p.startsWith(".harness/decisions/")
-    || p.startsWith(RESULTS)
+    || output(p)
     || Boolean(ownJobs && p.startsWith(ownJobs));
   return [...new Set([...before.keys(), ...after.keys()])]
     .filter((p) => before.get(p) !== after.get(p))
@@ -457,12 +458,13 @@ function namedPaths(value) {
  * evaluation.outputs. A name that resolves outside .harness/, or to .harness/
  * itself, is skipped. `overflow` names a directory holding more than
  * MAX_ASSETS files, which are then not all listed; `invalid` names an
- * evaluation.outputs entry outside .harness/.
+ * evaluation.outputs entry outside .harness/; `output` tells whether a
+ * project-relative path is an output.
  *
  * @param {string} root
  * @param {{ file: string }} plan
  * @param {any} evaluation
- * @returns {{ assets: Map<string, string>, overflow: string | null, invalid: string | null }} project-relative path to its real source
+ * @returns {{ assets: Map<string, string>, overflow: string | null, invalid: string | null, output: (rel: string) => boolean }} project-relative path to its real source
  */
 function harnessAssets(root, plan, evaluation) {
   const harness = contain(root, ".harness");
@@ -511,7 +513,7 @@ function harnessAssets(root, plan, evaluation) {
       }
     }
   }
-  return { assets, overflow, invalid };
+  return { assets, overflow, invalid, output };
 }
 
 /**
@@ -594,7 +596,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   /** @type {string | null} */
   let base = null;
   let restoreExclude = () => {};
-  const { assets, overflow } = harnessAssets(root, plan, parsed?.evaluation);
+  const { assets, overflow, output } = harnessAssets(root, plan, parsed?.evaluation);
   if (overflow) {
     return { ok: false, error: `The evaluation names ${overflow}, which now holds more than ${MAX_ASSETS} files, too many to guard. Nothing was changed.` };
   }
@@ -647,7 +649,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     const listed = harnessAssets(cwd, plan, parsed?.evaluation);
     const assetsAfter = hashes(cwd, [...listed.assets.keys()]);
     const stray = [...new Set([
-      ...(dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan, cwd) : []),
+      ...(dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan, cwd, output) : []),
       ...[...new Set([...assetsBefore.keys(), ...assetsAfter.keys()])]
         .filter((p) => !plan.files.includes(p) && assetsBefore.get(p) !== assetsAfter.get(p)),
       ...(listed.overflow ? [`${listed.overflow}/`] : [])

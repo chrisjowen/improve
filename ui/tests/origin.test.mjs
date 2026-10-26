@@ -64,6 +64,22 @@ for (const base of ["http://localhost:5173", "http://127.0.0.1:4500", "http://[:
   assert.equal(local.resolved, true, `${base} is accepted`);
 }
 
+// The launcher pins ORIGIN to one loopback URL, so event.url keeps that host
+// even when the page was opened at another loopback name for the same server.
+for (const [opened, pinned] of [
+  ["http://localhost:5173", "http://127.0.0.1:5173"],
+  ["http://127.0.0.1:5173", "http://localhost:5173"]
+]) {
+  const url = new URL("/api/proposals/p.yaml/approve", pinned);
+  const request = new Request(url, { method: "POST", headers: { host: new URL(opened).host, origin: opened } });
+  let resolved = false;
+  await handle({ event: { request, url }, resolve: async () => ((resolved = true), new Response("{}")) });
+  assert.equal(resolved, true, `a page opened at ${opened} may write when ORIGIN is ${pinned}`);
+  const other = new Request(url, { method: "POST", headers: { host: new URL(opened).host, origin: "http://localhost:9999" } });
+  const refused = await handle({ event: { request: other, url }, resolve: async () => new Response("{}") });
+  assert.equal(refused.status, 403, "another loopback port is still another origin");
+}
+
 const missingHost = await handle({
   event: { request: new Request(`${ORIGIN}/api/transcripts`), url: new URL(`${ORIGIN}/api/transcripts`) },
   resolve: async () => new Response("{}")

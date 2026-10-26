@@ -54,10 +54,14 @@ function refuse(error) {
 
 export async function handle({ event, resolve }) {
   if (!event.url.pathname.startsWith("/api/")) return resolve(event);
-  if (!allowedHosts().has(hostname(event.request.headers.get("host") ?? ""))) {
+  const host = event.request.headers.get("host") ?? "";
+  if (!allowedHosts().has(hostname(host))) {
     return refuse("This server does not answer to that host name. See ui/README.md, No authentication.");
   }
-  if (!SAFE_METHODS.has(event.request.method) && requestOrigin(event.request) !== event.url.origin) {
+  // ORIGIN pins event.url to one loopback name, but the same server is just as
+  // much itself at the others, so a loopback page's own origin is its Host.
+  const self = LOOPBACK.includes(hostname(host)) ? `http://${host.trim().toLowerCase()}` : event.url.origin;
+  if (!SAFE_METHODS.has(event.request.method) && requestOrigin(event.request) !== self) {
     return refuse("Cross-origin requests may not change anything.");
   }
   return resolve(event);

@@ -4,9 +4,9 @@ import { handle } from "../src/hooks.server.js";
 
 const ORIGIN = "http://127.0.0.1:5173";
 
-async function send(method, pathname, headers = {}) {
-  const url = new URL(pathname, ORIGIN);
-  const request = new Request(url, { method, headers });
+async function send(method, pathname, headers = {}, base = ORIGIN) {
+  const url = new URL(pathname, base);
+  const request = new Request(url, { method, headers: { host: url.host, ...headers } });
   let resolved = false;
   const response = await handle({
     event: { request, url },
@@ -47,5 +47,48 @@ assert.equal(read.response.headers.get("access-control-allow-origin"), null);
 
 const preflight = await send("OPTIONS", "/api/dreams", { origin: "http://evil.example" });
 assert.equal(preflight.response.status, 403, "no CORS preflight is answered");
+
+// --- host allowlist: DNS rebinding -----------------------------------------
+// A page on evil.example whose name now resolves to 127.0.0.1 is same-origin
+// with itself, so only the Host header gives it away.
+const REBOUND = "http://evil.example:5173";
+for (const method of ["POST", "GET"]) {
+  const rebound = await send(method, "/api/dreams", { origin: REBOUND }, REBOUND);
+  assert.equal(rebound.response.status, 403, `a rebinding ${method}`);
+  assert.equal(rebound.resolved, false);
+  assert.match((await rebound.response.json()).error, /host/);
+}
+
+for (const base of ["http://localhost:5173", "http://127.0.0.1:4500", "http://[::1]:5173"]) {
+  const local = await send("POST", "/api/dreams", { origin: base }, base);
+  assert.equal(local.resolved, true, `${base} is accepted`);
+}
+
+const missingHost = await handle({
+  event: { request: new Request(`${ORIGIN}/api/transcripts`), url: new URL(`${ORIGIN}/api/transcripts`) },
+  resolve: async () => new Response("{}")
+});
+assert.equal(missingHost.status, 403, "a request with no Host is refused");
+
+const page = await send("GET", "/proposals", {}, REBOUND);
+assert.equal(page.resolved, true, "pages carry no data and are not checked");
+
+process.env.IMPROVE_ALLOWED_HOSTS = "box.internal, other.internal";
+assert.equal((await send("GET", "/api/status", {}, "http://box.internal:5173")).resolved, true);
+assert.equal((await send("GET", "/api/status", {}, "http://other.internal")).resolved, true);
+assert.equal((await send("GET", "/api/status", {}, REBOUND)).response.status, 403);
+delete process.env.IMPROVE_ALLOWED_HOSTS;
+assert.equal((await send("GET", "/api/status", {}, "http://box.internal:5173")).response.status, 403);
+
+process.env.ORIGIN = "https://ui.example.dev";
+const proxied = await send("POST", "/api/dreams", { origin: "https://ui.example.dev" }, "https://ui.example.dev");
+assert.equal(proxied.resolved, true, "ORIGIN's host is accepted");
+delete process.env.ORIGIN;
+
+process.env.HOST = "10.0.0.5";
+assert.equal((await send("GET", "/api/status", {}, "http://10.0.0.5:5173")).resolved, true, "a specific HOST is accepted");
+process.env.HOST = "0.0.0.0";
+assert.equal((await send("GET", "/api/status", {}, "http://0.0.0.0:5173")).response.status, 403, "a wildcard HOST adds nothing");
+delete process.env.HOST;
 
 console.log("origin tests passed");

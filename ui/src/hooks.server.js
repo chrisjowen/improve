@@ -3,8 +3,38 @@
  * request must come from a page this server served. Without this, any web page
  * open in the person's browser could start evaluations and paid agent runs, or
  * approve, reject and apply proposals.
+ *
+ * The origin check alone trusts the Host header, which a DNS-rebinding page
+ * controls, so every API request must also name a host this server answers to.
  */
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
+const LOOPBACK = ["127.0.0.1", "localhost", "[::1]"];
+
+function hostname(value) {
+  const host = value.trim().toLowerCase();
+  if (!host) return undefined;
+  const bareIPv6 = host.split(":").length > 2 && !host.startsWith("[");
+  try {
+    return new URL(`http://${bareIPv6 ? `[${host}]` : host}`).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+function allowedHosts(env = process.env) {
+  const allowed = new Set(LOOPBACK);
+  if (env.HOST && env.HOST !== "0.0.0.0" && env.HOST !== "::") allowed.add(hostname(env.HOST));
+  if (env.ORIGIN) {
+    try {
+      allowed.add(new URL(env.ORIGIN).hostname);
+    } catch {
+      // adapter-node refuses a malformed ORIGIN itself
+    }
+  }
+  for (const extra of (env.IMPROVE_ALLOWED_HOSTS ?? "").split(",")) allowed.add(hostname(extra));
+  allowed.delete(undefined);
+  return allowed;
+}
 
 function requestOrigin(request) {
   const origin = request.headers.get("origin");
@@ -18,16 +48,17 @@ function requestOrigin(request) {
   }
 }
 
+function refuse(error) {
+  return new Response(JSON.stringify({ error }), { status: 403, headers: { "content-type": "application/json" } });
+}
+
 export async function handle({ event, resolve }) {
-  if (
-    event.url.pathname.startsWith("/api/") &&
-    !SAFE_METHODS.has(event.request.method) &&
-    requestOrigin(event.request) !== event.url.origin
-  ) {
-    return new Response(JSON.stringify({ error: "Cross-origin requests may not change anything." }), {
-      status: 403,
-      headers: { "content-type": "application/json" }
-    });
+  if (!event.url.pathname.startsWith("/api/")) return resolve(event);
+  if (!allowedHosts().has(hostname(event.request.headers.get("host") ?? ""))) {
+    return refuse("This server does not answer to that host name. See ui/README.md, No authentication.");
+  }
+  if (!SAFE_METHODS.has(event.request.method) && requestOrigin(event.request) !== event.url.origin) {
+    return refuse("Cross-origin requests may not change anything.");
   }
   return resolve(event);
 }

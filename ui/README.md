@@ -37,6 +37,8 @@ dev server in the foreground.
 | `CLAUDE_PLUGIN_ROOT` | Plugin location, used to compare eval-rig versions. |
 | `IMPROVE_AGENT_COMMAND` | Command for the drafting and background-review agent. Defaults to `claude`. |
 | `IMPROVE_PYTHON` | Python interpreter for the eval rig. Defaults to `python3`. |
+| `ORIGIN` | Public URL when served through a proxy or on another host. Its host is accepted, and writes must come from it. |
+| `IMPROVE_ALLOWED_HOSTS` | Extra comma-separated host names the API answers to. |
 
 ## Runs
 
@@ -85,11 +87,21 @@ There is none, by choice, for a single user on their own machine. Instead:
 - The server is local only by default: it binds `127.0.0.1`.
 - The API is same-origin only. It sends no CORS headers, so another site's page
   cannot read its answers.
+- Only known host names are answered. Every `/api/*` request, reads included,
+  gets 403 unless its `Host` is `127.0.0.1`, `localhost` or `[::1]`, the
+  specific host in `HOST`, the host of `ORIGIN`, or one listed in
+  `IMPROVE_ALLOWED_HOSTS` (comma-separated). This stops a DNS-rebinding page
+  from posing as this server.
 - Cross-origin writes are refused. Any `/api/*` request other than `GET` or
   `HEAD` gets 403 unless its `Origin` header (or, without one, its `Referer`)
   is this server's own origin. That covers starting evaluations, drafts and
   background reviews, approving, rejecting and applying, importing and
   dismissing findings, and cancelling jobs.
+
+Serving through a proxy, or on a non-loopback host, is an explicit opt-in. Pass
+`--host` and set `ORIGIN` to the public URL the browser uses (for example
+`ORIGIN=https://ui.example.dev`), so writes from that page match the server's
+own origin. Add any further host names to `IMPROVE_ALLOWED_HOSTS`.
 
 Binding another host with `--host` or `HOST` exposes an unauthenticated server
 to everyone who can reach it. They can read the repository's proposals and

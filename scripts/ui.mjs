@@ -287,6 +287,11 @@ const HELP = `Usage:
   node scripts/ui.mjs check                                 type-check the UI
 
 repo defaults to IMPROVE_PROJECT_DIR, then CLAUDE_PROJECT_DIR, then the current directory.
+
+The UI listens on 127.0.0.1 only. To serve it through a proxy or on another
+host, pass --host and set ORIGIN to the public URL the browser uses (add extra
+host names to IMPROVE_ALLOWED_HOSTS). That exposes an unauthenticated server
+that can run evaluations and paid agent runs; see ui/README.md first.
 `;
 
 async function main() {

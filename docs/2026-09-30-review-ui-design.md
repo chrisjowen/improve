@@ -97,10 +97,12 @@ job in the way. A single lane let a ten-minute draft block every evaluation.
 
 **No authentication**, for a single user on their own machine. The server is
 local only by default (it binds `127.0.0.1`), the API is same-origin only (no
-CORS headers), and cross-origin writes are refused: any `/api/*` request other
+CORS headers), every `/api/*` request must name an allowed `Host` (loopback,
+a specific `HOST`, the host of `ORIGIN`, or `IMPROVE_ALLOWED_HOSTS`) so a
+DNS-rebinding page is refused, and cross-origin writes are refused: any `/api/*` request other
 than `GET` or `HEAD` gets 403 unless its `Origin`, or else its `Referer`,
 matches the server's own origin. Binding another host is an explicit choice
-(`--host` or `HOST`), and it exposes an unauthenticated server that can run
+(`--host` or `HOST`, with `ORIGIN` set to the public URL when proxied), and it exposes an unauthenticated server that can run
 evaluations and paid agent runs; a suite's `core.command` evaluator executes
 declared `argv`, so it also grants code execution. `ui/README.md` states this
 plainly. Path containment is enforced regardless, so a request cannot reach

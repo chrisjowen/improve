@@ -233,6 +233,7 @@ assert.equal(imp2.captain_decision, null, "a call still held has no answer, and 
 assert.equal(imp2.proposal_changed_since_filing, false);
 
 // An answer to an earlier version is never reported for the re-filed one.
+// fm-captain-hold.sh answer puts the newest decision first, so answers are newest first.
 const imp2Show = (...answers) => fs.writeFileSync(path.join(showDir, "improve-imp-2"), [
   "task:",
   "  id: improve-imp-2",
@@ -255,7 +256,7 @@ assert.equal(JSON.parse(cli(["route", "--apply"]).stdout).find((e) => e.file ===
 const refiled = JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml");
 assert.equal(refiled.proposal_changed_since_filing, false);
 assert.equal(refiled.captain_decision, null, "the answer to the earlier version is not the captain's answer now");
-imp2Show("Approved IMP-2.", "Rejected IMP-2.");
+imp2Show("Rejected IMP-2.", "Approved IMP-2.");
 assert.equal(JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml").captain_decision,
   "Rejected IMP-2.");
 fs.writeFileSync(path.join(home, ".harness", "firstmate", "routed.json"), JSON.stringify({

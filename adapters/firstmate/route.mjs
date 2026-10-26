@@ -185,7 +185,10 @@ export function showField(output, field) {
   return value;
 }
 
-/** Every `Captain decision:` answer recorded in a tasks-axi show, oldest first. */
+/**
+ * Every `Captain decision:` answer recorded in a tasks-axi show, newest first:
+ * `fm-captain-hold.sh answer` puts each new resolution above the older ones.
+ */
 function captainDecisions(output) {
   const body = showField(output, "body");
   const text = typeof body === "string" ? body : String(output);
@@ -278,7 +281,9 @@ export function readDecisions(root, detection, { dryRun = true, runner = spawnSy
       decisions.push({ file, ...record, outcome: "unreadable", exit: shown.status });
       continue;
     }
-    const said = captainDecisions(shown.stdout).slice(record.decisions_before_filing ?? 0).at(-1) ?? null;
+    // The oldest `decisions_before_filing` answers belong to an earlier version.
+    const answers = captainDecisions(shown.stdout);
+    const said = answers.slice(0, answers.length - (record.decisions_before_filing ?? 0))[0] ?? null;
     decisions.push({
       file,
       ...record,

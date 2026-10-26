@@ -132,7 +132,7 @@ export function planRouting(root, detection) {
       surfaces: scope.surfaces,
       digest: proposal.digest,
       commands: [
-        { purpose: "check", argv: [tasksAxi, "show", base.task_id], env },
+        { purpose: "check", argv: [tasksAxi, "show", base.task_id, "--full"], env },
         {
           purpose: "hold",
           argv: [
@@ -185,6 +185,15 @@ export function showField(output, field) {
   return value;
 }
 
+/** Every `Captain decision:` answer recorded in a tasks-axi show, oldest first. */
+function captainDecisions(output) {
+  const body = showField(output, "body");
+  const text = typeof body === "string" ? body : String(output);
+  return [...text.matchAll(/Captain decision:\s*([\s\S]*?)(?:\n\s*\n|$)/g)]
+    .map((match) => match[1].trim())
+    .filter(Boolean);
+}
+
 /**
  * Run the plan, or print it. Returns one result per entry. Live mode records
  * each filed task in `.harness/firstmate/routed.json` so a second review does
@@ -228,6 +237,8 @@ export function executeRouting(root, plan, { dryRun = true, runner = spawnSync, 
       task_id: entry.task_id,
       delivery: entry.delivery,
       digest: entry.digest,
+      // Answers already in the task belong to an earlier version of the proposal.
+      decisions_before_filing: exists ? captainDecisions(shown.stdout).length : 0,
       routed_at: new Date().toISOString()
     };
     log(`held ${entry.file} as Firstmate task ${entry.task_id}`);
@@ -254,6 +265,7 @@ export function readDecisions(root, detection, { dryRun = true, runner = spawnSy
   const tasksAxi = path.join(detection.code_root, "bin", "fm-tasks-axi.sh");
   const env = { FM_HOME: detection.home };
   const decisions = [];
+  const current = new Map(readProposals(root).map((proposal) => [proposal.file, proposal.digest]));
   for (const [file, record] of Object.entries(readLedger(root).proposals)) {
     const command = { argv: [tasksAxi, "show", record.task_id, "--full"], env };
     if (dryRun) {
@@ -266,15 +278,14 @@ export function readDecisions(root, detection, { dryRun = true, runner = spawnSy
       decisions.push({ file, ...record, outcome: "unreadable", exit: shown.status });
       continue;
     }
-    const body = showField(shown.stdout, "body");
-    const text = typeof body === "string" ? body : shown.stdout;
-    const said = text.match(/Captain decision:\s*([\s\S]*?)(?:\n\s*\n|$)/)?.[1]?.trim() ?? null;
+    const said = captainDecisions(shown.stdout).slice(record.decisions_before_filing ?? 0).at(-1) ?? null;
     decisions.push({
       file,
       ...record,
       outcome: "read",
       state: showField(shown.stdout, "state") ?? null,
       held: showField(shown.stdout, "held") ?? null,
+      proposal_changed_since_filing: current.get(file) !== record.digest,
       captain_decision: said ? redact(said).text.slice(0, 2000) : null
     });
   }

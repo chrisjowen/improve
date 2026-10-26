@@ -89,7 +89,9 @@ Each file a proposal changes has a surface and a visibility:
 | `data/captain.md`, `data/learnings.md`, other `data/` | captain-preferences, learnings, home-data | captain-private | `/improve apply`, locally |
 | `config/brief-include.md`, other `config/` | brief-include, home-config | captain-private | `/improve apply`, locally |
 | `.harness/` | improve-record | captain-private | `/improve apply`, locally |
+| `CLAUDE.local.md` | contract | captain-private | `/improve apply`, locally |
 | `state/` | runtime-state | refused | never: Firstmate's scripts own it |
+| any other file the default check counts as harness: `.mcp.json`, nested `CLAUDE.md` or `AGENTS.md`, other agents' config | agent-config | shared-tracked | upstream PR |
 
 Tests, CI, and project code are not harness here either. A defect in them is
 evidence.
@@ -99,17 +101,10 @@ change goes to the Firstmate repository as a pull request, through Firstmate's
 own ship workflow. One proposal changes one side only. A proposal that mixes
 captain-private and shared-tracked files fails the check; split it.
 
-Add this block to a Firstmate proposal, beside `scope`:
-
-```yaml
-firstmate:
-  visibility: captain-private | shared-tracked
-  delivery: local-apply | upstream-pr
-```
-
+A proposal does not state its visibility or delivery.
 `scripts/proposal-check-cli.mjs` derives both from `scope.files` when the
-adapter is on, prints them under `firstmate`, and reports a stated value that
-disagrees. It exits 1 for a split proposal or one that touches `state/`.
+adapter is on and prints them under `firstmate`. It exits 1 for a split
+proposal or one that touches `state/`.
 
 ## Review routing
 
@@ -143,9 +138,12 @@ node "${CLAUDE_PLUGIN_ROOT}/adapters/firstmate/cli.mjs" decisions --apply --proj
 ```
 
 This runs `bin/fm-tasks-axi.sh show <task> --full` for each filed proposal and
-returns the task state and the text after `Captain decision:`. It changes no
-proposal. Then:
+returns the task state and the text after the latest `Captain decision:`.
+Answers recorded before the proposal was last filed belong to an older
+version and are not returned. It changes no proposal. Then:
 
+- When `proposal_changed_since_filing` is true, the proposal was edited after
+  the captain last saw it. Route it again; do not apply it on the old answer.
 - The captain's words approve only when they explicitly approve that proposal
   id. Anything else is a rejection, a deferral, or a question; record it as
   such and do not apply.
@@ -161,8 +159,9 @@ proposal. Then:
 
 Off by default. With `periodic_review.enabled`, a review is due after
 `every_tasks` new task briefs (`data/<task>/brief.md`) since the last review,
-or `every_days` after the last review. The day limit only counts once a review
-has run. The SessionStart reminder includes these reasons, and:
+or `every_days` after the last review. Before the first review, both count
+from when the SessionStart hook or `due` first saw it enabled, recorded as
+`enabled_at` in `.harness/firstmate/review-state.json`. The SessionStart reminder includes these reasons, and:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/adapters/firstmate/cli.mjs" due --project <home>       # exit 0 when due

@@ -1,3 +1,5 @@
+import { isHarnessPath } from "../../scripts/proposal-check.mjs";
+
 /**
  * Which Firstmate surface a proposal changes, and who may change it.
  *
@@ -32,7 +34,9 @@ const SURFACES = [
   { surface: "home-config", visibility: "captain-private", pattern: /^config\// },
   { surface: "improve-record", visibility: "captain-private", pattern: /^\.harness(\/|$)/ },
   // Runtime records are written by Firstmate's scripts, never by a proposal.
-  { surface: "runtime-state", visibility: "runtime", pattern: /^state\// }
+  { surface: "runtime-state", visibility: "runtime", pattern: /^state\// },
+  // Claude Code's own local file, gitignored like the home's records.
+  { surface: "contract", visibility: "captain-private", pattern: /(^|\/)CLAUDE\.local\.md$/ }
 ];
 
 function normalize(candidate) {
@@ -50,6 +54,9 @@ export function classifySurface(candidate) {
   for (const entry of SURFACES) {
     if (entry.pattern.test(file)) return { file, surface: entry.surface, visibility: entry.visibility };
   }
+  // Every other file the default harness test accepts (`.mcp.json`, nested
+  // `CLAUDE.md`, other agents' config) is still harness here, and tracked.
+  if (isHarnessPath(file)) return { file, surface: "agent-config", visibility: "shared-tracked" };
   return { file, surface: null, visibility: null };
 }
 
@@ -111,49 +118,14 @@ export function deliveryFor(files) {
   };
 }
 
-/**
- * The optional `firstmate:` block a Firstmate proposal carries, read from YAML
- * text without a parser: top-level `firstmate:` and its indented scalar keys.
- */
-export function readFirstmateBlock(text) {
-  if (typeof text !== "string") return {};
-  const lines = text.split("\n");
-  const at = lines.findIndex((line) => /^firstmate:\s*$/.test(line));
-  if (at === -1) return {};
-  const block = {};
-  for (const line of lines.slice(at + 1)) {
-    if (/^\S/.test(line)) break;
-    const match = line.match(/^\s+([a-z_]+):\s*(.*?)\s*$/);
-    if (match && match[2] && !match[2].startsWith("[")) {
-      block[match[1]] = match[2].replace(/^["']|["']$/g, "");
-    }
-  }
-  return block;
-}
-
-/**
- * Findings for the reviewer about a Firstmate proposal's scope. The derived
- * delivery is authoritative; a stated one that disagrees is reported.
- */
-export function checkFirstmateScope(files, stated = {}) {
+/** Findings for the reviewer about a Firstmate proposal's scope. */
+export function checkFirstmateScope(files) {
   const derived = deliveryFor(files);
   const findings = [];
   if (derived.delivery === "refuse") {
     findings.push({ rule: "firstmate-scope", detail: `This proposal ${derived.reason}.` });
   } else if (derived.delivery === "split") {
     findings.push({ rule: "firstmate-split", detail: `This proposal ${derived.reason}.` });
-  }
-  if (stated.visibility && derived.visibility && stated.visibility !== derived.visibility) {
-    findings.push({
-      rule: "firstmate-visibility-mismatch",
-      detail: `firstmate.visibility says ${stated.visibility}, but scope.files are ${derived.visibility}.`
-    });
-  }
-  if (stated.delivery && !["refuse", "split"].includes(derived.delivery) && stated.delivery !== derived.delivery) {
-    findings.push({
-      rule: "firstmate-delivery-mismatch",
-      detail: `firstmate.delivery says ${stated.delivery}, but scope.files call for ${derived.delivery}.`
-    });
   }
   return { ...derived, findings };
 }

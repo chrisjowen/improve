@@ -13,7 +13,7 @@ import {
   writeJsonAtomic
 } from "./lib.mjs";
 import { detectFirstmate } from "../adapters/firstmate/home.mjs";
-import { periodicDueReasons } from "../adapters/firstmate/schedule.mjs";
+import { periodicDueReasons, seedReviewState } from "../adapters/firstmate/schedule.mjs";
 
 const input = parseJson(await readStdin());
 const root = projectRoot(input);
@@ -34,7 +34,9 @@ try {
 
   // A Firstmate home that opted in to periodic review adds its own cadence:
   // tasks dispatched and days since the last review. Off by default.
-  const reasons = [...dueReasons(config, state), ...periodicDueReasons(root, detectFirstmate(root))];
+  const firstmate = detectFirstmate(root);
+  seedReviewState(root, firstmate);
+  const reasons = [...dueReasons(config, state), ...periodicDueReasons(root, firstmate)];
   if (reasons.length > 0 && process.env.IMPROVE_DREAM_CHILD !== "1") {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {

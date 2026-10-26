@@ -3,11 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { classifyScope, lintProse, readScopeFiles } from "./proposal-check.mjs";
 import { detectFirstmate } from "../adapters/firstmate/home.mjs";
-import {
-  checkFirstmateScope,
-  isFirstmateHarnessPath,
-  readFirstmateBlock
-} from "../adapters/firstmate/surfaces.mjs";
+import { checkFirstmateScope, isFirstmateHarnessPath } from "../adapters/firstmate/surfaces.mjs";
 
 /**
  * Check proposal files before a human sees them.
@@ -53,7 +49,7 @@ for (const file of files) {
   const prose = lintProse(joined).map(({ rule, match, fix }) => ({ rule, match, fix }));
   const report = { file, scope, outside, prose };
   if (scopeOptions.isHarness) {
-    const { delivery, visibility, surfaces, findings } = checkFirstmateScope(scopeFiles, readFirstmateBlock(text));
+    const { delivery, visibility, surfaces, findings } = checkFirstmateScope(scopeFiles);
     report.firstmate = { delivery, visibility, surfaces, findings };
     if (delivery === "refuse" || delivery === "split") failed = true;
   }

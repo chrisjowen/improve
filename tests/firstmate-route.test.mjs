@@ -3,13 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import {
-  checkFirstmateScope,
-  classifySurface,
-  deliveryFor,
-  isFirstmateHarnessPath,
-  readFirstmateBlock
-} from "../adapters/firstmate/surfaces.mjs";
+import { classifySurface, deliveryFor, isFirstmateHarnessPath } from "../adapters/firstmate/surfaces.mjs";
+import { isHarnessPath } from "../scripts/proposal-check.mjs";
 import { displayCommand, taskIdFor } from "../adapters/firstmate/route.mjs";
 
 // The fixture's bin/fm-tasks-axi.sh and bin/fm-captain-hold.sh are stubs that
@@ -67,6 +62,10 @@ const expectations = {
   "config/crew-dispatch.json": ["home-config", "captain-private"],
   ".harness/objectives.yaml": ["improve-record", "captain-private"],
   "state/task.status": ["runtime-state", "runtime"],
+  "CLAUDE.local.md": ["contract", "captain-private"],
+  ".mcp.json": ["agent-config", "shared-tracked"],
+  "packages/web/CLAUDE.md": ["agent-config", "shared-tracked"],
+  "data/task-alpha/AGENTS.md": ["home-data", "captain-private"],
   "tests/fm-spawn.test.sh": [null, null],
   ".github/workflows/ci.yml": [null, null]
 };
@@ -81,10 +80,14 @@ assert.equal(deliveryFor(["data/learnings.md", "AGENTS.md"]).delivery, "split");
 assert.equal(deliveryFor([]).delivery, "refuse");
 assert.equal(deliveryFor(["state/x.status"]).delivery, "refuse");
 assert.equal(deliveryFor(["tests/x.test.sh"]).delivery, "refuse");
-const stated = readFirstmateBlock("id: x\nfirstmate:\n  visibility: captain-private\n  delivery: local-apply\nscope:\n  files: []\n");
-assert.deepEqual(stated, { visibility: "captain-private", delivery: "local-apply" });
-assert.deepEqual(checkFirstmateScope(["AGENTS.md"], stated).findings.map((f) => f.rule),
-  ["firstmate-visibility-mismatch", "firstmate-delivery-mismatch"]);
+// The adapter widens the default harness; it never narrows it.
+for (const file of [".mcp.json", "CLAUDE.local.md", "sub/CLAUDE.md", "sub/AGENTS.md", "GEMINI.md", ".cursorrules",
+  ".codex/config.toml", ".github/copilot-instructions.md", "sub/.claude/settings.json", ".harness/x.yaml"]) {
+  assert.equal(isHarnessPath(file), true, file);
+  assert.equal(isFirstmateHarnessPath(file), true, `${file} stays harness with the adapter on`);
+}
+assert.equal(deliveryFor([".mcp.json"]).delivery, "upstream-pr");
+assert.equal(deliveryFor(["CLAUDE.local.md", "data/captain.md"]).delivery, "local-apply");
 assert.equal(taskIdFor("IMP-20261026-Keep AGENTS small"), "improve-imp-20261026-keep-agents-small");
 assert.match(taskIdFor("x".repeat(200)), /^[a-z0-9._-]{1,80}$/);
 assert.equal(displayCommand({ argv: ["a", "b c"], env: { FM_HOME: "/h" } }), "FM_HOME=/h a 'b c'");
@@ -145,7 +148,7 @@ assert.match(byFile["IMP-4.yaml"].why, /status is draft/);
 assert.match(byFile["IMP-5.yaml"].why, /outside Firstmate's harness/);
 assert.match(byFile["IMP-6.yaml"].why, /runtime records/);
 // The printed commands are the home's own scripts, addressed at the home.
-assert.match(dry.stderr, /would run: FM_HOME=\S+ \S+\/bin\/fm-tasks-axi\.sh show improve-imp-1\n/);
+assert.match(dry.stderr, /would run: FM_HOME=\S+ \S+\/bin\/fm-tasks-axi\.sh show improve-imp-1 --full\n/);
 assert.match(dry.stderr, /would run: FM_HOME=\S+ \S+\/bin\/fm-captain-hold\.sh hold improve-imp-1 --title 'Improve: Add a delivery preference to data\/captain\.md' --reason /);
 assert.match(dry.stderr, /--repo firstmate/);
 assert.match(dry.stderr, /captain-private/);
@@ -223,6 +226,34 @@ assert.equal(imp1.captain_decision, "Approved IMP-1, apply it.");
 const imp2 = decisions.find((entry) => entry.file === "IMP-2.yaml");
 assert.equal(imp2.state, "queued");
 assert.equal(imp2.captain_decision, null, "a call still held has no answer, and none is invented");
+assert.equal(imp2.proposal_changed_since_filing, false);
+
+// An answer to an earlier version is never reported for the re-filed one.
+const imp2Show = (...answers) => fs.writeFileSync(path.join(showDir, "improve-imp-2"), [
+  "task:",
+  "  id: improve-imp-2",
+  "  state: queued",
+  "  held: yes",
+  `  body: ${JSON.stringify(answers.map((a) => `Captain decision:\n${a}\n`).join("\n"))}`,
+  ""
+].join("\n"));
+imp2Show("Approved IMP-2.");
+assert.equal(JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml").captain_decision,
+  "Approved IMP-2.");
+proposal("IMP-2.yaml", {
+  id: "IMP-2",
+  title: "Say in AGENTS.md when to load the bearings, stow, and helm skills",
+  files: ["AGENTS.md", ".agents/skills/bearings/SKILL.md"]
+});
+const edited = JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml");
+assert.equal(edited.proposal_changed_since_filing, true, "an edit after filing is flagged");
+assert.equal(JSON.parse(cli(["route", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml").outcome, "held");
+const refiled = JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml");
+assert.equal(refiled.proposal_changed_since_filing, false);
+assert.equal(refiled.captain_decision, null, "the answer to the earlier version is not the captain's answer now");
+imp2Show("Approved IMP-2.", "Rejected IMP-2.");
+assert.equal(JSON.parse(cli(["decisions", "--apply"]).stdout).find((e) => e.file === "IMP-2.yaml").captain_decision,
+  "Rejected IMP-2.");
 fs.writeFileSync(path.join(home, ".harness", "firstmate", "routed.json"), JSON.stringify({
   schema_version: 1,
   proposals: { "IMP-9.yaml": { proposal: "IMP-9", task_id: "improve-imp-9" } }
@@ -234,6 +265,13 @@ assert.match(fs.readFileSync(path.join(home, ".harness", "proposals", "IMP-1.yam
 // --- periodic review ---------------------------------------------------------
 assert.equal(cli(["due"]).status, 1, "off by default");
 writeConfig({ enabled: true, periodic_review: { enabled: true, every_tasks: 2, every_days: 7 } });
+const reviewState = path.join(home, ".harness", "firstmate", "review-state.json");
+assert.equal(cli(["due"]).status, 1, "briefs written before periodic review was enabled do not count");
+assert.ok(JSON.parse(fs.readFileSync(reviewState, "utf8")).enabled_at, "the first check records when it started");
+const later = new Date(Date.now() + 60_000);
+for (const task of ["task-alpha", "task-beta", "task-gamma"]) {
+  fs.utimesSync(path.join(home, "data", task, "brief.md"), later, later);
+}
 const due = cli(["due"]);
 assert.equal(due.status, 0, due.stdout);
 assert.match(JSON.parse(due.stdout).reasons[0], /3 Firstmate tasks dispatched/);
@@ -256,7 +294,6 @@ for (const task of ["task-alpha", "task-beta", "task-gamma"]) {
 assert.equal(cli(["reviewed"]).status, 0);
 assert.equal(cli(["due"]).status, 1);
 assert.doesNotMatch(sessionStart().stdout, /review is due/);
-const reviewState = path.join(home, ".harness", "firstmate", "review-state.json");
 fs.writeFileSync(reviewState, JSON.stringify({ last_reviewed_at: new Date(Date.now() - 8 * 86_400_000).toISOString() }));
 assert.match(JSON.parse(cli(["due"]).stdout).reasons.join(" "), /7 days since the last Firstmate harness review/);
 

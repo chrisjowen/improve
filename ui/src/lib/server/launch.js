@@ -7,7 +7,8 @@ import crypto from "node:crypto";
  * The same-origin check in hooks.server.js already refuses other sites. Apply
  * is the one request that lets an agent edit the repository, so it must also
  * carry this token, which only a page this server rendered can read. A token
- * from an earlier launch is refused, so a stale tab cannot start a run.
+ * from an earlier launch is refused, so a stale tab cannot start a run. This
+ * is intended defence in depth for the one route that grants edit tools.
  */
 export const LAUNCH_TOKEN = crypto.randomBytes(24).toString("hex");
 

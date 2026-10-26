@@ -25,6 +25,8 @@ import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mj
  * @property {string[]} [extraArgs]
  * @property {boolean} [allowEdits]
  * @property {string[]} [allowedTools]
+ * @property {string[]} [settingSources]
+ * @property {string} [pluginDir]
  * @property {AbortSignal} [signal]
  * @property {string} [logFile]
  * @property {(progress: AgentProgress) => void} [onProgress]
@@ -63,6 +65,9 @@ export const DENIED_TOOLS = ["Edit", "Write", "NotebookEdit", "MultiEdit"];
  * confirmed file by file; the caller checks afterwards that only those files
  * changed. `allowedTools` then names the exact tool rules, such as
  * `Bash(<command>)`, the run may use without a prompt nobody can answer.
+ * `settingSources: []` loads no user, project or local settings, so their
+ * allow rules cannot add to those; `pluginDir` then loads this plugin, which
+ * would otherwise come from user settings.
  *
  * Output is streamed so a long run can report what it is doing, and every line
  * goes to `logFile` when one is given. `onProgress` receives
@@ -79,6 +84,8 @@ export async function runAgent({
   extraArgs = [],
   allowEdits = false,
   allowedTools = [],
+  settingSources,
+  pluginDir,
   signal,
   logFile,
   onProgress
@@ -88,6 +95,8 @@ export async function runAgent({
     "--output-format", "stream-json",
     "--verbose",
     ...extraArgs,
+    ...(settingSources ? ["--setting-sources", settingSources.join(",")] : []),
+    ...(pluginDir ? ["--plugin-dir", pluginDir] : []),
     ...(allowEdits
       ? ["--permission-mode", "acceptEdits", ...(allowedTools.length ? ["--allowedTools", ...allowedTools] : [])]
       // Variadic, so it goes last: anything after it would be read as a tool name.

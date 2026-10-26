@@ -85,13 +85,18 @@ with `--permission-mode acceptEdits`: the same recheck, change and evaluation
 as in Claude Code. Its `--allowedTools` holds exactly the commands the
 proposal's `evaluation.commands` declares, plus improve's own proposal check;
 the confirm lists them, and an evaluation that needs any other command fails
-the run and names it instead of widening permissions. The request must carry
+the run and names it instead of widening permissions. It runs with
+`--setting-sources ""` and `--plugin-dir` set to this plugin, so allow rules
+from your user, project and local settings do not apply. The request must carry
 the proposal's digest, the confirmed files and commands, and a token minted
 when the server started, so an edited proposal or a stale tab is refused.
 Afterwards the server compares the files itself, by content, including files
 that were already uncommitted. If the run fails, its evaluation fails, or it
 changes a file you did not confirm, the confirmed files are put back and
-anything else it changed is named. Changes git cannot see, in ignored files
+anything else it changed is named. That includes this proposal,
+`.harness/improve.json` and the `.harness/` files its evaluation names, which
+are checked even when git ignores them; only the UI's own records (other
+proposals, decisions, evaluation results) are exempt. Other changes git cannot see, in ignored files
 outside the confirmed list, are not detected; outside a git repository nothing
 outside the confirmed files can be checked, and the result says so.
 

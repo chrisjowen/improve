@@ -255,7 +255,7 @@ export function applyPrompt(plan, proposalText, approvedAt) {
     "Rules for this run:",
     "- Recheck the proposal and the repository first. If an assumption no longer holds, change nothing and answer with applied false and the reason.",
     "- Change only the confirmed files. A change to any other file fails the run.",
-    "- Do not edit anything under .harness/. The UI records the decision and the outcome from your answer.",
+    "- Do not edit anything under .harness/: a change to this proposal, improve.json or an evaluation file fails the run. The UI records the decision and the outcome from your answer.",
     "- These are the only commands you may run, exactly as written:",
     ...plan.commands.map((c) => `  - ${c}`),
     "  If the evaluation needs any other command, stop: do not run it or a substitute, and answer with applied false and that command as undeclared_command.",
@@ -353,22 +353,37 @@ function compare(before, after) {
 
 /**
  * Paths outside the confirmed files whose content the run changed, including
- * files that were already uncommitted before it. The UI's own records under
- * .harness/ and its job directory are not the run's change.
+ * files that were already uncommitted before it. Only records the UI writes
+ * while a run is going are exempt: other proposals, decisions, evaluation
+ * results and its job directory. This proposal, improve.json and evaluation
+ * assets are not.
  *
  * @param {Map<string, string | null>} before
  * @param {Map<string, string | null>} after
- * @param {string[]} files
+ * @param {ApplyPlan} plan
  * @param {string} root
  */
-function strayPaths(before, after, files, root) {
+function strayPaths(before, after, plan, root) {
   const jobs = path.relative(root, jobsDir());
   const ownJobs = jobs && !jobs.startsWith("..") && !path.isAbsolute(jobs) ? `${jobs.split(path.sep).join("/")}/` : null;
+  /** @param {string} p */
+  const record = (p) => (p.startsWith(".harness/proposals/") && p !== `.harness/proposals/${plan.file}`)
+    || p.startsWith(".harness/decisions/")
+    || p.startsWith(".harness/evals/results/")
+    || Boolean(ownJobs && p.startsWith(ownJobs));
   return [...new Set([...before.keys(), ...after.keys()])]
     .filter((p) => before.get(p) !== after.get(p))
-    .filter((p) => !files.includes(p))
-    .filter((p) => !p.startsWith(".harness/") && !(ownJobs && p.startsWith(ownJobs)))
+    .filter((p) => !plan.files.includes(p) && !record(p))
     .sort();
+}
+
+/**
+ * Content hashes of `paths` under `cwd`.
+ * @param {string} cwd
+ * @param {string[]} paths
+ */
+function hashes(cwd, paths) {
+  return new Map(paths.map((p) => [p, hashOf(contain(cwd, p))]));
 }
 
 /**
@@ -417,23 +432,21 @@ function readEvaluation(payload) {
 }
 
 /**
- * Copy into the worktree what `/improve apply` needs from this repository's
- * .harness/, which a fresh checkout usually lacks: this proposal, improve.json,
- * and the .harness/ files its evaluation names. Copies are read-only, and a
- * name that resolves outside .harness/ is skipped.
+ * The .harness/ files a run depends on and must not change: this proposal,
+ * improve.json, and the .harness/ files its evaluation names. A name that
+ * resolves outside .harness/, or is not an existing file, is skipped.
  *
  * @param {string} root
- * @param {string} cwd
  * @param {ApplyPlan} plan
  * @param {unknown} evaluation
- * @returns {string[]} the copied paths, relative to the project
+ * @returns {Map<string, string>} project-relative path to its real source
  */
-function copyHarness(root, cwd, plan, evaluation) {
+function harnessAssets(root, plan, evaluation) {
   const harness = contain(root, ".harness");
   const named = JSON.stringify(evaluation ?? {}).match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? [];
   const wanted = [`.harness/proposals/${plan.file}`, ".harness/improve.json", ...named.map((p) => p.replace(/[.:]+$/, ""))];
-  /** @type {Set<string>} */
-  const copied = new Set();
+  /** @type {Map<string, string>} */
+  const assets = new Map();
   for (const name of wanted) {
     let source;
     try {
@@ -442,15 +455,27 @@ function copyHarness(root, cwd, plan, evaluation) {
       continue;
     }
     if (!fs.statSync(source, { throwIfNoEntry: false })?.isFile()) continue;
-    const rel = path.relative(root, contain(root, name)).split(path.sep).join("/");
-    if (copied.has(rel)) continue;
+    assets.set(path.relative(root, contain(root, name)).split(path.sep).join("/"), source);
+  }
+  return assets;
+}
+
+/**
+ * Copy the run's .harness/ assets into the worktree, which a fresh checkout
+ * usually lacks, read-only.
+ *
+ * @param {string} cwd
+ * @param {Map<string, string>} assets
+ * @returns {string[]} the copied paths, relative to the project
+ */
+function copyHarness(cwd, assets) {
+  for (const [rel, source] of assets) {
     const target = contain(cwd, rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(source, target);
     fs.chmodSync(target, 0o444);
-    copied.add(rel);
   }
-  return [...copied];
+  return [...assets.keys()];
 }
 
 /**
@@ -515,6 +540,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   /** @type {string | null} */
   let base = null;
   let restoreExclude = () => {};
+  const assets = harnessAssets(root, plan, parsed?.evaluation);
   if (plan.mode === "upstream-pr") {
     progress({ message: `Creating branch ${plan.branch} in a separate worktree` });
     const head = await git(["rev-parse", "HEAD"], root);
@@ -529,7 +555,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     }
     cwd = path.join(worktree, prefix);
     try {
-      const copied = copyHarness(root, cwd, plan, parsed?.evaluation);
+      const copied = copyHarness(cwd, assets);
       note(logFile, `copied read-only into the worktree: ${copied.join(", ")}`);
       restoreExclude = await excludeCopies(cwd, prefix, copied);
     } catch (error) {
@@ -541,6 +567,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   try {
     const before = snapshot(cwd, plan.files);
     const dirtyBefore = await dirtyPaths(cwd);
+    const assetsBefore = hashes(cwd, [...assets.keys()]);
     note(logFile, `confirmed files: ${plan.files.join(", ")}`);
 
     const agent = await runAgent({
@@ -550,6 +577,8 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       timeoutMs: TIMEOUT_MS,
       allowEdits: true,
       allowedTools: plan.commands.map((c) => `Bash(${c})`),
+      settingSources: [],
+      pluginDir: pluginRoot(),
       signal,
       logFile,
       onProgress: (update) => progress({ message: update.message, done: null, total: null })
@@ -558,7 +587,10 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     progress({ message: "Checking what changed" });
     const changes = compare(before, snapshot(cwd, plan.files));
     const dirtyAfter = await dirtyPaths(cwd);
-    const stray = dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan.files, cwd) : [];
+    const stray = [...new Set([
+      ...(dirtyBefore && dirtyAfter ? strayPaths(dirtyBefore, dirtyAfter, plan, cwd) : []),
+      ...strayPaths(assetsBefore, hashes(cwd, [...assets.keys()]), plan, cwd)
+    ])].sort();
     const unchecked = dirtyBefore && dirtyAfter ? null : "This project is not a git repository, so changes outside the confirmed files could not be checked.";
     const changed = changes.filter((c) => c.change !== "unchanged");
     const evaluation = readEvaluation(agent.payload);

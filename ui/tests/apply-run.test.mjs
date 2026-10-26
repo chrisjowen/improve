@@ -182,6 +182,8 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   const args = JSON.parse(fs.readFileSync(argsFile, "utf8"));
   assert.ok(args.includes("acceptEdits"), "the apply agent may edit");
   assert.ok(!args.includes("--disallowed-tools"));
+  assert.equal(args[args.indexOf("--setting-sources") + 1], "", "no user, project or local settings, so no other allow rules");
+  assert.equal(args[args.indexOf("--plugin-dir") + 1], pluginRoot(), "the plugin is loaded without user settings");
   assert.deepEqual(args.slice(args.indexOf("--allowedTools") + 1), [`Bash(${check("p.yaml")})`, "Bash(node .harness/evals/check.mjs)"], "exactly the declared commands");
 
   const proposal = readProposal("p.yaml");
@@ -252,6 +254,26 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   assert.equal(job.result.unchecked, null);
   assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
   fs.unlinkSync(path.join(repo, "stray.txt"));
+}
+
+// --- a change to an evaluation asset fails the run, even when git ignores it --
+{
+  fs.mkdirSync(path.join(repo, ".harness", "evals"), { recursive: true });
+  fs.writeFileSync(path.join(repo, ".harness", "evals", "suite.yaml"), "threshold: 3\n");
+  const exclude = path.join(repo, ".git", "info", "exclude");
+  const excluded = fs.readFileSync(exclude, "utf8");
+  fs.writeFileSync(exclude, `${excluded}.harness/evals/\n`);
+  process.env.IMPROVE_STANDIN = "edit-eval";
+  seed(repo, "p.yaml", { evaluation: { commands: ["node .harness/evals/check.mjs --suite .harness/evals/suite.yaml"] } });
+  const { job } = await apply("p.yaml");
+  delete process.env.IMPROVE_STANDIN;
+  fs.writeFileSync(exclude, excluded);
+  assert.equal(job.status, "failed");
+  assert.match(job.error, /outside the ones you confirmed: \.harness\/evals\/suite\.yaml/);
+  assert.deepEqual(job.result.stray, [".harness/evals/suite.yaml"]);
+  assert.equal(read(repo, "CLAUDE.md"), "# Project\n", "confirmed files are put back");
+  assert.equal(readProposal("p.yaml").status, "approved");
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
 // --- an evaluation that needs an undeclared command fails, naming it ----------

@@ -408,18 +408,18 @@
                   {/if}
                 </p>
                 <div class="row">
-                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null}>
+                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null || Boolean(draftJob)}>
                     <Icon name="x" size={14} />{busy === "reject" ? "Rejecting…" : "Reject"}
                   </button>
                   {#if confirmOverwrite}
-                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null}>Overwrite the hand-written file</button>
+                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob)}>Overwrite the hand-written file</button>
                   {/if}
                   {#if selected.skill_draft && diff && !diff.error}
-                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || diff.blocked}>
+                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || diff.blocked}>
                       <Icon name="check" size={14} />{busy === "apply" ? "Writing…" : "Approve and write skill"}
                     </button>
                   {:else}
-                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null}>
+                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null || Boolean(draftJob)}>
                       <Icon name="check" size={14} />{busy === "approve" ? "Approving…" : "Approve"}
                     </button>
                   {/if}

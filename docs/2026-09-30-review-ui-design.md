@@ -17,9 +17,8 @@ both without adding a new source of truth.
 ## Shape
 
 One SvelteKit app in `ui/`, whose `+server.js` routes are the API. There is no
-second process: the page and its data come from the same origin, so CORS is
-mostly moot, but `/api/*` answers cross-origin anyway because the workspace may
-be proxied.
+second process: the page and its data come from the same origin, and `/api/*`
+answers that origin only.
 
 ```
 ui/src/lib/server/    paths, proposals, results, evaluate, skills, jobs
@@ -96,11 +95,16 @@ objective cannot be replayed, so a background score would be meaningless.
 (draft or background review). A second job in a busy lane gets 409 naming the
 job in the way. A single lane let a ten-minute draft block every evaluation.
 
-**No authentication**, for a single user on a trusted workspace. The residual
-risk is stated plainly in `ui/README.md`: the API runs evaluations, a suite's
-`core.command` evaluator executes declared `argv`, and the port therefore grants
-code execution. Path containment is enforced regardless, so a request cannot
-reach outside `.harness/` and `.claude/skills/`.
+**No authentication**, for a single user on their own machine. The server is
+local only by default (it binds `127.0.0.1`), the API is same-origin only (no
+CORS headers), and cross-origin writes are refused: any `/api/*` request other
+than `GET` or `HEAD` gets 403 unless its `Origin`, or else its `Referer`,
+matches the server's own origin. Binding another host is an explicit choice
+(`--host` or `HOST`), and it exposes an unauthenticated server that can run
+evaluations and paid agent runs; a suite's `core.command` evaluator executes
+declared `argv`, so it also grants code execution. `ui/README.md` states this
+plainly. Path containment is enforced regardless, so a request cannot reach
+outside `.harness/` and `.claude/skills/`.
 
 **Dependencies are not bundled.** `node_modules` is gitignored, so a fresh
 install cannot run the UI. `scripts/ui.mjs` detects this and prints the install

@@ -1,27 +1,33 @@
 /**
- * The UI may be served through the ONA proxy while the browser talks to a
- * different origin, so the API answers cross-origin requests. There is no auth
- * by deliberate choice, so this is not loosening a boundary that exists.
+ * The API is same-origin only and has no authentication, so a state-changing
+ * request must come from a page this server served. Without this, any web page
+ * open in the person's browser could start evaluations and paid agent runs, or
+ * approve, reject and apply proposals.
  */
-const ALLOW_ORIGIN = process.env.IMPROVE_CORS_ORIGIN || "*";
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
+
+function requestOrigin(request) {
+  const origin = request.headers.get("origin");
+  if (origin) return origin;
+  const referer = request.headers.get("referer");
+  if (!referer) return undefined;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function handle({ event, resolve }) {
-  if (event.request.method === "OPTIONS" && event.url.pathname.startsWith("/api/")) {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "access-control-allow-origin": ALLOW_ORIGIN,
-        "access-control-allow-methods": "GET, POST, OPTIONS",
-        "access-control-allow-headers": "content-type",
-        "access-control-max-age": "86400"
-      }
+  if (
+    event.url.pathname.startsWith("/api/") &&
+    !SAFE_METHODS.has(event.request.method) &&
+    requestOrigin(event.request) !== event.url.origin
+  ) {
+    return new Response(JSON.stringify({ error: "Cross-origin requests may not change anything." }), {
+      status: 403,
+      headers: { "content-type": "application/json" }
     });
   }
-
-  const response = await resolve(event);
-  if (event.url.pathname.startsWith("/api/")) {
-    response.headers.set("access-control-allow-origin", ALLOW_ORIGIN);
-    response.headers.set("vary", "origin");
-  }
-  return response;
+  return resolve(event);
 }

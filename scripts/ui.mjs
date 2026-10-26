@@ -42,9 +42,9 @@ export function parseArgs(argv, env = process.env, cwd = process.cwd()) {
   }
   options.project = path.resolve(options.project || env.IMPROVE_PROJECT_DIR || env.CLAUDE_PROJECT_DIR || cwd);
   options.port = Number.isInteger(options.port) && options.port > 0 ? options.port : Number(env.PORT) || 5173;
-  // 0.0.0.0 so the UI is reachable when the workspace is remote. The server
-  // has no authentication; see ui/README.md before exposing it.
-  options.host = options.host || env.HOST || "0.0.0.0";
+  // Local only by default. The server has no authentication, so binding any
+  // other host is an explicit choice; see ui/README.md before making it.
+  options.host = options.host || env.HOST || "127.0.0.1";
   return options;
 }
 
@@ -109,8 +109,10 @@ function newestSource() {
       else newest = Math.max(newest, fs.statSync(full).mtimeMs);
     }
   };
-  // The server imports scripts/ directly, so the bundle goes stale with it.
+  // The server imports scripts/ directly, so the bundle goes stale with it,
+  // and scripts/redact.mjs bundles the eval rig's redaction rules.
   for (const dir of [path.join(uiDir, "src"), path.join(pluginRoot, "scripts")]) walk(dir);
+  newest = Math.max(newest, fs.statSync(path.join(pluginRoot, "assets", "eval-rig", "redaction-rules.json")).mtimeMs);
   for (const file of ["package.json", "svelte.config.js", "vite.config.js"]) {
     try {
       newest = Math.max(newest, fs.statSync(path.join(uiDir, file)).mtimeMs);
@@ -138,6 +140,14 @@ function portFree(port, host) {
   });
 }
 
+/** The recorded server, only if it still answers as that pid for that project. */
+async function recorded(project) {
+  const state = readState(project);
+  if (!state || !alive(state.pid)) return { state };
+  const answered = await health(state.port);
+  return { state, ours: answered?.pid === state.pid && answered?.project === project };
+}
+
 async function health(port) {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(1500) });
@@ -156,13 +166,10 @@ async function start(options) {
   if (!has("package.json")) return fail(instructions("ui/package.json is missing", project));
   if (!has("node_modules")) return fail(instructions("dependencies are not installed", project));
 
-  const previous = readState(project);
-  if (previous && alive(previous.pid)) {
-    const answered = await health(previous.port);
-    if (answered?.project === project) {
-      process.stdout.write(`The improve UI is already running for ${project}\n  ${url(previous.host, previous.port)}\n  log: ${previous.log}\n`);
-      return 0;
-    }
+  const { state: previous, ours } = await recorded(project);
+  if (ours) {
+    process.stdout.write(`The improve UI is already running for ${project}\n  ${url(previous.host, previous.port)}\n  log: ${previous.log}\n`);
+    return 0;
   }
 
   if (!(await portFree(port, host))) {
@@ -225,9 +232,11 @@ async function start(options) {
 }
 
 async function stop({ project }) {
-  const state = readState(project);
-  if (!state || !alive(state.pid)) {
-    process.stdout.write(`The improve UI is not running for ${project}.\n`);
+  const { state, ours } = await recorded(project);
+  if (!ours) {
+    process.stdout.write(state
+      ? `The improve UI is not running for ${project}. Removed its stale record (pid ${state.pid}); no process was signalled.\n`
+      : `The improve UI is not running for ${project}.\n`);
     fs.rmSync(path.join(stateDir(project), "server.json"), { force: true });
     return 0;
   }
@@ -240,9 +249,8 @@ async function stop({ project }) {
 }
 
 async function status({ project }) {
-  const state = readState(project);
-  const answered = state && alive(state.pid) ? await health(state.port) : undefined;
-  if (answered?.project === project) {
+  const { state, ours } = await recorded(project);
+  if (ours) {
     process.stdout.write(`running  ${url(state.host, state.port)}  pid ${state.pid}\n  log: ${state.log}\n`);
   } else {
     process.stdout.write(`not running for ${project}\n`);

@@ -203,5 +203,19 @@ assert.ok(
   "evidence without guardrails is reported"
 );
 
+// --- a decision made while a draft runs -----------------------------------
+// The draft takes minutes; a person who rejects meanwhile must stay rejected.
+const slow = path.join(repo, "agent-slow");
+fs.writeFileSync(slow, `#!/bin/sh\nsleep 1\nexec ${stubAgent({ name: "slow-skill", description: "Use when releasing", body: BODY.replace(/release-check/g, "slow-skill") })}\n`, { mode: 0o755 });
+seed("v.yaml");
+const { rejectProposal } = await import("../src/lib/server/skills.js");
+const { readProposal } = await import("../src/lib/server/proposals.js");
+const racing = draftSkill("v.yaml", { command: slow });
+assert.equal(rejectProposal("v.yaml", { rationale: "not needed here" }).ok, true);
+assert.equal((await racing).ok, true);
+const raced = readProposal("v.yaml");
+assert.equal(raced.status, "rejected", "a finished draft does not undo the decision");
+assert.equal(raced.skill_draft.name, "slow-skill");
+
 fs.rmSync(repo, { recursive: true, force: true });
 console.log("apply path tests passed");

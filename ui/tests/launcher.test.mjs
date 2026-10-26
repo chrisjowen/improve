@@ -6,8 +6,9 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { parseArgs } from "../../scripts/ui.mjs";
+import { projectId } from "../../scripts/lib.mjs";
 
 const plugin = path.resolve(import.meta.dirname, "..", "..");
 const launcher = path.join(plugin, "scripts", "ui.mjs");
@@ -22,7 +23,9 @@ const launcher = path.join(plugin, "scripts", "ui.mjs");
   assert.equal(parseArgs(["start", "/repo", "--port", "4500"], {}, cwd).port, 4500);
   assert.equal(parseArgs(["stop", "/repo"], {}, cwd).mode, "stop");
   assert.equal(parseArgs([], { IMPROVE_PROJECT_DIR: "/env" }, cwd).project, "/env");
-  assert.equal(parseArgs([], {}, cwd).host, "0.0.0.0");
+  assert.equal(parseArgs([], {}, cwd).host, "127.0.0.1");
+  assert.equal(parseArgs(["--host", "0.0.0.0"], {}, cwd).host, "0.0.0.0");
+  assert.equal(parseArgs([], { HOST: "0.0.0.0" }, cwd).host, "0.0.0.0");
   assert.throws(() => parseArgs(["--bogus"], {}, cwd), /unknown argument/);
 }
 
@@ -73,6 +76,18 @@ try {
   assert.equal(diff.status, 200, JSON.stringify(body));
   assert.equal(body.target, ".claude/skills/release-check/SKILL.md");
 
+  assert.equal(diff.headers.get("access-control-allow-origin"), null);
+
+  // Another site's page cannot change anything.
+  const foreign = await fetch(`http://127.0.0.1:${port}/api/proposals/p.yaml/reject`, {
+    method: "POST",
+    headers: { origin: "http://evil.example", "content-type": "application/json" },
+    body: JSON.stringify({ rationale: "cross-site" })
+  });
+  assert.equal(foreign.status, 403);
+  assert.equal(foreign.headers.get("access-control-allow-origin"), null);
+  assert.match(fs.readFileSync(path.join(repo, ".harness", "proposals", "p.yaml"), "utf8"), /status: proposed/);
+
   // Starting again finds the running server instead of failing on the port.
   const again = run("start", repo, "--port", String(port), "--host", "127.0.0.1");
   assert.equal(again.status, 0, again.stderr);
@@ -83,5 +98,24 @@ try {
   assert.equal(stopped.status, 0, stopped.stderr);
 }
 assert.match(run("status", repo).stdout, /not running/);
+
+// A stale record whose pid now belongs to another process is not signalled.
+{
+  const bystander = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });
+  const dir = path.join(os.tmpdir(), "improve-ui", projectId(repo));
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "server.json"), JSON.stringify({ pid: bystander.pid, port, host: "127.0.0.1", project: repo }));
+  try {
+    assert.match(run("status", repo).stdout, /not running/);
+    const stale = run("stop", repo);
+    assert.equal(stale.status, 0, stale.stderr);
+    assert.match(stale.stdout, /stale record/);
+    assert.equal(bystander.exitCode, null);
+    assert.doesNotThrow(() => process.kill(bystander.pid, 0));
+    assert.equal(fs.existsSync(path.join(dir, "server.json")), false);
+  } finally {
+    bystander.kill();
+  }
+}
 
 console.log("launcher tests passed");

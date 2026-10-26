@@ -58,7 +58,7 @@ export async function startDream({ signal, logFile, progress } = {}) {
     ok: outcome.ok,
     error: outcome.error,
     cancelled: outcome.status === "cancelled",
-    timedOut: /did not finish within/.test(outcome.error ?? ""),
+    timedOut: outcome.timedOut,
     file: outcome.file,
     findings: outcome.report.findings.length
   };

@@ -21,8 +21,9 @@ node scripts/ui.mjs stop /path/to/repo
 ```
 
 `start` returns once the server answers and prints its URL and log file. It
-binds `0.0.0.0:5173` by default so the UI is reachable when the workspace is
-remote; pass `--port` and `--host 127.0.0.1` to change that. The repository
+binds `127.0.0.1:5173` by default, so only this machine can reach it; pass
+`--port` to change the port. Binding another host (`--host` or `HOST`) is an
+explicit choice; read [No authentication](#no-authentication) first. The repository
 defaults to `IMPROVE_PROJECT_DIR`, then `CLAUDE_PROJECT_DIR`, then the current
 directory. The build is redone when the UI or `scripts/` sources change.
 
@@ -36,7 +37,6 @@ dev server in the foreground.
 | `CLAUDE_PLUGIN_ROOT` | Plugin location, used to compare eval-rig versions. |
 | `IMPROVE_AGENT_COMMAND` | Command for the drafting and background-review agent. Defaults to `claude`. |
 | `IMPROVE_PYTHON` | Python interpreter for the eval rig. Defaults to `python3`. |
-| `IMPROVE_CORS_ORIGIN` | Allowed origin for `/api/*`. Defaults to `*`. |
 
 ## Runs
 
@@ -80,10 +80,23 @@ a particular harness change.
 
 ## No authentication
 
-There is none, by choice, for a single user on a trusted workspace. The API can
-run evaluations, and a suite's `core.command` evaluator executes the `argv` it
-declares. Anyone who can reach the port can therefore execute code in the
-repository. Do not expose the port on a shared or untrusted network.
+There is none, by choice, for a single user on their own machine. Instead:
+
+- The server is local only by default: it binds `127.0.0.1`.
+- The API is same-origin only. It sends no CORS headers, so another site's page
+  cannot read its answers.
+- Cross-origin writes are refused. Any `/api/*` request other than `GET` or
+  `HEAD` gets 403 unless its `Origin` header (or, without one, its `Referer`)
+  is this server's own origin. That covers starting evaluations, drafts and
+  background reviews, approving, rejecting and applying, importing and
+  dismissing findings, and cancelling jobs.
+
+Binding another host with `--host` or `HOST` exposes an unauthenticated server
+to everyone who can reach it. They can read the repository's proposals and
+session-transcript previews, run evaluations, and start paid agent runs. A
+suite's `core.command` evaluator executes the `argv` it declares, so they can
+also execute code in the repository. Do not bind another host on a shared or
+untrusted network.
 
 Path containment is enforced on every filesystem route regardless, so a request
 cannot read or write outside `.harness/` and `.claude/skills/`.

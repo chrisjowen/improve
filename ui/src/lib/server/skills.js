@@ -142,7 +142,9 @@ export async function draftSkill(file, { command, signal, logFile, progress } = 
     requireGuardrails: (proposal.evidence ?? []).length > 0
   });
 
-  updateStatus(file, proposal.status, {
+  const latest = readProposal(file);
+  if (!latest) return { ok: false, error: `no such proposal: ${file}` };
+  updateStatus(file, latest.status, {
     skill_draft: {
       name,
       description: description ?? null,
@@ -301,9 +303,9 @@ export function applySkill(file, { rationale, digest, idempotencyKey, allowUnmar
  * Record a person's approval without changing any harness file.
  *
  * Applying stays with `/improve apply`, which revalidates the proposal and
- * runs its evaluation; a skill draft has its own Apply. The approval is bound
- * to the proposal's bytes as reviewed, so `/improve apply` can tell when the
- * file changed after approval.
+ * runs its evaluation; a skill draft has its own Apply. The approval digest
+ * records the proposal's bytes as they were reviewed, before this decision was
+ * written into the file.
  */
 export function approveProposal(file, { rationale, idempotencyKey } = {}) {
   const proposal = readProposal(file);

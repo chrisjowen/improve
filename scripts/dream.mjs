@@ -74,5 +74,5 @@ export async function runDream({ root, dataDir, command = "claude", timeoutMs = 
   state.updated_at = state.last_dream_finished_at;
   writeJsonAtomic(stateFile, state);
 
-  return { ok: Boolean(result.ok), status, file: path.basename(outputFile), report, error: report.error, log: logFile };
+  return { ok: Boolean(result.ok), status, timedOut: Boolean(result.timedOut), file: path.basename(outputFile), report, error: report.error, log: logFile };
 }

@@ -1,3 +1,4 @@
+import os from "node:os";
 import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mjs";
 
 /**
@@ -116,7 +117,7 @@ export async function runAgent({
     cwd,
     // Both markers: every hook in this plugin skips its own children, so a
     // draft or dream does not count as the human's session or corrections.
-    env: { ...process.env, IMPROVE_AGENT_CHILD: "1", IMPROVE_DREAM_CHILD: "1" },
+    env: { ...agentEnv(), IMPROVE_AGENT_CHILD: "1", IMPROVE_DREAM_CHILD: "1" },
     timeoutMs,
     signal,
     logFile,
@@ -168,12 +169,39 @@ export async function runAgent({
     const why = lastMeaningfulLine(result.stderr);
     return {
       ok: false,
-      error: `The agent exited with code ${result.code}${why ? `: ${why}` : "."}`,
+      error: why && isNotLoggedIn(why)
+        ? notLoggedIn(why)
+        : `The agent exited with code ${result.code}${why ? `: ${why}` : "."}`,
       stderr: result.stderr.slice(-2000),
       progress
     };
   }
   return { ...parsed, progress };
+}
+
+/**
+ * The environment an agent CLI runs with: this process's, plus the account
+ * name when the launcher left it out. A launcher that passes only PATH, HOME
+ * and LANG drops USER, and on macOS Claude Code then cannot find its Keychain
+ * login and reports "Not logged in". Values that are set are never replaced.
+ *
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {() => { username: string }} [userInfo]
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function agentEnv(env = process.env, userInfo = os.userInfo) {
+  const result = { ...env };
+  if (result.USER && result.LOGNAME) return result;
+  let username = "";
+  try {
+    username = userInfo().username;
+  } catch {
+    // no account entry for this uid; leave the environment as it was
+  }
+  if (!username) return result;
+  if (!result.USER) result.USER = username;
+  if (!result.LOGNAME) result.LOGNAME = username;
+  return result;
 }
 
 /**
@@ -292,9 +320,25 @@ function agentFailure(envelope) {
   if (envelope.api_error_status === 401) {
     return `The agent could not sign in: ${reason ?? "authentication failed"}. If ANTHROPIC_API_KEY is set in the environment that started the UI, it takes precedence over your Claude login.`;
   }
+  if (reason && isNotLoggedIn(reason)) return notLoggedIn(reason);
   if (envelope.subtype === "error_max_turns") return "The agent ran out of turns before it answered.";
   if (envelope.subtype === "error_max_budget_usd") return "The agent hit its spending limit before it answered.";
   return `The agent failed: ${reason ?? envelope.subtype ?? "no reason given"}`;
+}
+
+/** @param {string} text */
+function isNotLoggedIn(text) {
+  return /not logged in|please run \/login/i.test(text);
+}
+
+/**
+ * The CLI's own words name the symptom, not the cause, which is often the
+ * environment the UI was started from rather than the login itself.
+ *
+ * @param {string} reason
+ */
+function notLoggedIn(reason) {
+  return `The agent could not sign in: ${reason}. Check that Claude Code is logged in (run \`claude\`, then /login). If it is, check the environment the UI was started from: it needs USER and HOME, and a launcher that strips the environment hides the login from the agent.`;
 }
 
 /**

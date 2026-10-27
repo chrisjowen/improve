@@ -143,6 +143,22 @@ Changes to Firstmate itself are prepared as a pull request instead.
 It is off until you turn it on. See
 [Using improve with Firstmate](docs/using-improve-with-firstmate.md).
 
+### See it in Wheelhouse
+
+This repository is also a Wheelhouse plugin. It adds an Improvements page, a
+Harness tab on the home page, a header pill when a review is due or proposals
+wait, and the proposal on each decision task it files. Install it with:
+
+```sh
+wheelhouse plugin install chrisjowen/improve
+```
+
+Wheelhouse shows what the plugin adds and asks before it keeps it. Restart
+Wheelhouse to load it. It shows only in a Firstmate home where the adapter is
+on. A Wheelhouse that still has Improve built in refuses a second plugin named
+`improve`, and already shows the same pages. See
+[wheelhouse/README.md](wheelhouse/README.md).
+
 ## FAQ
 
 **What does it change?**
@@ -187,4 +203,6 @@ to confirm, and reverts only that change.
   its security model.
 - [Using improve with Firstmate](docs/using-improve-with-firstmate.md): turning
   on the adapter and its commands.
+- [The Wheelhouse plugin](wheelhouse/README.md): what it shows, how it reads
+  improve, and how to build it.
 - [Changelog](CHANGELOG.md)

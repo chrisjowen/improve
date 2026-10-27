@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/chrisjowen/wheelhouse/main/packages/plugin-sdk/plugin.schema.json",
+  "name": "improve",
+  "displayName": "Improve",
+  "version": "0.4.0",
+  "description": "improve's proposals, review schedule and evidence for a Firstmate home, read through improve's Firstmate adapter.",
+  "author": { "name": "Chris Owen", "url": "https://github.com/chrisjowen" },
+  "repository": "https://github.com/chrisjowen/improve",
+  "license": "MIT",
+  "keywords": ["harness", "firstmate", "claude-code"],
+  "wheelhouse": {
+    "apiVersion": 1,
+    "server": "wheelhouse/server/index.js",
+    "ui": "wheelhouse/ui/index.js",
+    "enabledWhenHomeFile": ".harness/improve.json",
+    "contributions": [
+      { "id": "improvements", "slot": "nav.page" },
+      { "id": "health", "slot": "home.card" },
+      { "id": "indicator", "slot": "header.indicator" },
+      { "id": "proposal", "slot": "task.section" }
+    ],
+    "services": [{ "id": "ui", "scope": "fleet" }]
+  }
+}

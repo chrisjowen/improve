@@ -43,6 +43,8 @@ bare `/improve` when no other command uses that name.
 | `assets/eval-rig/` | The evaluation starter copied into a repository on approval |
 | `adapters/firstmate/` | The opt-in Firstmate adapter |
 | `ui/` | The local review UI (SvelteKit) |
+| `.wheelhouse-plugin/` | The Wheelhouse plugin manifest (`plugin.json`) |
+| `wheelhouse/` | The Wheelhouse plugin: its sources, its build, and the built server entry and UI bundle Wheelhouse loads |
 | `tests/` | Plugin tests |
 
 The layout `init` proposes inside a repository (`.harness/` and `.claude/`) is
@@ -154,7 +156,9 @@ approval, or shared Firstmate files, which go upstream as a pull request.
 shows as a decision in Wheelhouse.
 
 The adapter is off until `.harness/improve.json` sets
-`adapters.firstmate.enabled`. See
+`adapters.firstmate.enabled`. Wheelhouse shows what the adapter reads through
+the Wheelhouse plugin in `wheelhouse/`; see
+[wheelhouse/README.md](../wheelhouse/README.md). See
 [using-improve-with-firstmate.md](using-improve-with-firstmate.md) and
 [references/firstmate.md](../references/firstmate.md).
 
@@ -178,6 +182,16 @@ The UI has its own tests:
 ```bash
 cd ui
 node --test tests/
+```
+
+The Wheelhouse plugin's elements have their own tests, and a check that the
+committed bundles match the sources:
+
+```bash
+cd wheelhouse
+npm install
+npm test
+npm run check
 ```
 
 ## README screenshots

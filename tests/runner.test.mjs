@@ -61,6 +61,15 @@ async function waitFor(check, ms = 3000) {
   assert.match(parsed.error, /IMPROVE_AGENT_USE_API_KEY/);
 }
 
+// "Not logged in" names the removed key, for people who sign in only with one.
+{
+  const parsed = parseAgentOutput(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: "Not logged in · Please run /login" }));
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /could not sign in/);
+  assert.match(parsed.error, /ANTHROPIC_API_KEY/);
+  assert.match(parsed.error, /IMPROVE_AGENT_USE_API_KEY=1/);
+}
+
 // --- agents use the claude.ai login, not an API key in the environment -----
 // A stale ANTHROPIC_API_KEY set for every app made every run fail with
 // "Invalid API key" even though the person was logged in.

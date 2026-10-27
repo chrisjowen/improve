@@ -349,7 +349,7 @@ function isNotLoggedIn(text) {
  * @param {string} reason
  */
 function notLoggedIn(reason) {
-  return `The agent could not sign in: ${reason}. Check that Claude Code is logged in (run \`claude\`, then /login). If it is, check the environment the UI was started from: it needs USER and HOME, and a launcher that strips the environment hides the login from the agent.`;
+  return `The agent could not sign in: ${reason}. Check that Claude Code is logged in (run \`claude\`, then /login). If it is, check the environment the UI was started from: it needs USER and HOME, and a launcher that strips the environment hides the login from the agent. Agents run without ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN; if you sign in only with one of those, set IMPROVE_AGENT_USE_API_KEY=1 in that environment.`;
 }
 
 /**

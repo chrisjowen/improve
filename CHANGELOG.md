@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Add improve's Wheelhouse plugin to this repository. `wheelhouse plugin install chrisjowen/improve` installs it, with no build step. It shows the same Improvements page, Harness tab, header pill and proposal section as the Improve plugin built into Wheelhouse, drawn as custom elements. The manifest is `.wheelhouse-plugin/plugin.json`. The code is in `wheelhouse/`.
+- The Wheelhouse plugin finds improve's Firstmate adapter in its own copy of improve when the setting, Claude Code's installed copy and the home's clone have none.
+- The Wheelhouse plugin's pages show whether improve's review UI runs and the command that starts it. They cannot start it with one click yet, because Wheelhouse gives an installed plugin's elements no way to.
+
 ## 0.3.1
 
 - Agent runs (Apply, skill drafting, dreaming) use your Claude login instead of an ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN in the environment, so a stale key set for every app no longer fails them with "Invalid API key". Set IMPROVE_AGENT_USE_API_KEY=1 to keep the key.

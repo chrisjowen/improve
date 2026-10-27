@@ -36,6 +36,7 @@ dev server in the foreground.
 | `CLAUDE_PLUGIN_DATA` | Where the hooks keep observations. Found on disk under `~/.claude/plugins/data/` when unset. |
 | `CLAUDE_PLUGIN_ROOT` | Plugin location, used to compare eval-rig versions. |
 | `IMPROVE_AGENT_COMMAND` | Command for the drafting, background-review and apply agent. Defaults to `claude`. |
+| `IMPROVE_AGENT_USE_API_KEY` | Set to `1` to pass `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` to agent runs. By default they are removed, so agents use your Claude login. |
 | `IMPROVE_PYTHON` | Python interpreter for the eval rig. Defaults to `python3`. |
 | `ORIGIN` | Public URL when served through a proxy or on another host. Its host is accepted, and writes must come from it. |
 | `IMPROVE_ALLOWED_HOSTS` | Extra comma-separated host names the API answers to. |
@@ -91,7 +92,8 @@ from your user, project and local settings do not apply. Nor does anything
 else in them: an `env`, `apiKeyHelper` or provider setup (such as Bedrock,
 Vertex or `ANTHROPIC_BASE_URL`) that lives only in `~/.claude/settings.json`
 does not reach an apply run. Set those as environment variables in the shell
-that starts the UI instead. The request must carry
+that starts the UI instead; a key or token also needs
+`IMPROVE_AGENT_USE_API_KEY=1`. The request must carry
 the proposal's digest, the confirmed files and commands, and a token minted
 when the server started, so an edited proposal or a stale tab is refused.
 Afterwards the server compares the files itself, by content, including files

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Agent runs (Apply, skill drafting, dreaming) use your Claude login instead of an ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN in the environment, so a stale key set for every app no longer fails them with "Invalid API key". Set IMPROVE_AGENT_USE_API_KEY=1 to keep the key.
+- Give agent runs USER and LOGNAME when the UI's launcher left them out, so Claude Code finds its login on macOS.
+
 ## 0.3.0
 
 - Apply an approved proposal from the review UI. Apply runs `/improve apply` in the background after you confirm the exact files and the commands its evaluation declares in `evaluation.commands`, and shows progress, the diff, the evaluation and the log. A failed run puts the files back. In a Firstmate home, shared files are prepared on a branch for a pull request instead.

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { runProcess, lastMeaningfulLine } from "../scripts/run-process.mjs";
-import { runAgent, parseAgentOutput } from "../scripts/spawn-agent.mjs";
+import { runAgent, parseAgentOutput, agentEnv } from "../scripts/spawn-agent.mjs";
 import { isImproveChild, projectId, resolvePluginDataDir } from "../scripts/lib.mjs";
 import { runDream } from "../scripts/dream.mjs";
 
@@ -51,6 +51,54 @@ async function waitFor(check, ms = 3000) {
   assert.match(result.error, /could not sign in/);
   assert.match(result.error, /Invalid API key/);
   assert.match(result.error, /ANTHROPIC_API_KEY/);
+}
+
+// "Invalid API key" without a 401 status still gets the sign-in explanation.
+{
+  const parsed = parseAgentOutput(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: "Invalid API key · Fix external API key" }));
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /could not sign in/);
+  assert.match(parsed.error, /IMPROVE_AGENT_USE_API_KEY/);
+}
+
+// "Not logged in" names the removed key, for people who sign in only with one.
+{
+  const parsed = parseAgentOutput(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: "Not logged in · Please run /login" }));
+  assert.equal(parsed.ok, false);
+  assert.match(parsed.error, /could not sign in/);
+  assert.match(parsed.error, /ANTHROPIC_API_KEY/);
+  assert.match(parsed.error, /IMPROVE_AGENT_USE_API_KEY=1/);
+}
+
+// --- agents use the claude.ai login, not an API key in the environment -----
+// A stale ANTHROPIC_API_KEY set for every app made every run fail with
+// "Invalid API key" even though the person was logged in.
+{
+  const userInfo = () => ({ username: "someone" });
+  const dropped = agentEnv({ USER: "u", LOGNAME: "u", ANTHROPIC_API_KEY: "k", ANTHROPIC_AUTH_TOKEN: "t", OTHER: "o" }, userInfo);
+  assert.equal("ANTHROPIC_API_KEY" in dropped, false);
+  assert.equal("ANTHROPIC_AUTH_TOKEN" in dropped, false);
+  assert.equal(dropped.OTHER, "o");
+  const kept = agentEnv({ USER: "u", LOGNAME: "u", ANTHROPIC_API_KEY: "k", ANTHROPIC_AUTH_TOKEN: "t", IMPROVE_AGENT_USE_API_KEY: "1" }, userInfo);
+  assert.equal(kept.ANTHROPIC_API_KEY, "k");
+  assert.equal(kept.ANTHROPIC_AUTH_TOKEN, "t");
+  const filled = agentEnv({ ANTHROPIC_API_KEY: "k" }, userInfo);
+  assert.equal(filled.USER, "someone");
+  assert.equal("ANTHROPIC_API_KEY" in filled, false);
+}
+
+// The spawned agent really runs without the key.
+{
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "stale";
+  const seen = path.join(temp, "agent-env-seen");
+  const envelope = JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "{}" });
+  const agent = script("agent-env", `printf '%s' "\${ANTHROPIC_API_KEY:-none}" > '${seen}'\necho '${envelope}'`);
+  const result = await runAgent({ command: agent, prompt: "x", cwd: temp });
+  if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = saved;
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fs.readFileSync(seen, "utf8"), "none");
 }
 
 // is_error with exit 0 is a failure, and says why.

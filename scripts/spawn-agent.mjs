@@ -179,11 +179,19 @@ export async function runAgent({
   return { ...parsed, progress };
 }
 
+/** Credential variables the CLI prefers over the claude.ai login. */
+const API_KEY_VARS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
+
 /**
  * The environment an agent CLI runs with: this process's, plus the account
  * name when the launcher left it out. A launcher that passes only PATH, HOME
  * and LANG drops USER, and on macOS Claude Code then cannot find its Keychain
  * login and reports "Not logged in". Values that are set are never replaced.
+ *
+ * ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are removed, because the CLI
+ * prefers them over the claude.ai login and a stale key set for every app
+ * fails every run with "Invalid API key". IMPROVE_AGENT_USE_API_KEY=1 keeps
+ * them.
  *
  * @param {NodeJS.ProcessEnv} [env]
  * @param {() => { username: string }} [userInfo]
@@ -191,6 +199,9 @@ export async function runAgent({
  */
 export function agentEnv(env = process.env, userInfo = os.userInfo) {
   const result = { ...env };
+  if (result.IMPROVE_AGENT_USE_API_KEY !== "1") {
+    for (const name of API_KEY_VARS) delete result[name];
+  }
   if (result.USER && result.LOGNAME) return result;
   let username = "";
   try {
@@ -317,8 +328,8 @@ function agentFailure(envelope) {
   const reason = typeof envelope.result === "string" && envelope.result.trim()
     ? envelope.result.trim().slice(0, 300)
     : null;
-  if (envelope.api_error_status === 401) {
-    return `The agent could not sign in: ${reason ?? "authentication failed"}. If ANTHROPIC_API_KEY is set in the environment that started the UI, it takes precedence over your Claude login.`;
+  if (envelope.api_error_status === 401 || (reason && /invalid api key/i.test(reason))) {
+    return `The agent could not sign in: ${reason ?? "authentication failed"}. Agents use your Claude login unless IMPROVE_AGENT_USE_API_KEY=1 is set; with it set, ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN from the environment that started the UI takes precedence over the login, so check that key or unset IMPROVE_AGENT_USE_API_KEY.`;
   }
   if (reason && isNotLoggedIn(reason)) return notLoggedIn(reason);
   if (envelope.subtype === "error_max_turns") return "The agent ran out of turns before it answered.";

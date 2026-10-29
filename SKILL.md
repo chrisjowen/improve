@@ -130,7 +130,7 @@ Every proposal must include:
 - exact files and systems affected;
 - proposed diff or sufficiently precise design;
 - permissions, dependencies, storage, and operational impact;
-- evaluation plan and baseline comparison;
+- evaluation plan and baseline comparison, with every command its checks run in `evaluation.commands`;
 - expected benefit, cost, and risks;
 - rollout and rollback;
 - owner and review date;
@@ -144,7 +144,7 @@ Write it by [references/writing.md](references/writing.md). A reviewer who canno
 node "${CLAUDE_PLUGIN_ROOT}/scripts/proposal-check-cli.mjs" .harness/proposals/<id>.yaml
 ```
 
-Fix every scope failure and every writing finding it reports, then run it again.
+Fix every scope failure, finding and writing finding it reports, then run it again.
 
 Prefer interventions in this order when their expected value is comparable:
 

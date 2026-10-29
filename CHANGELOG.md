@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- When an apply run stops because the evaluation needs commands the proposal does not declare, the proposal offers to add exactly those commands to `evaluation.commands`. Adding them sends the proposal back for your approval; the run still never widens its own permissions. The run now names every command the evaluation needs, not only the first. Wheelhouse's Improvements page has the same button, and the Firstmate tab's card says "Needs commands".
+- The proposal check reports `evaluation-commands-missing` for an evaluation that has pass conditions and runs evals the proposal adds, or names a `.harness/` script, but lists no commands, so `/improve propose` declares them before anyone approves.
+- An apply run may edit confirmed files under `.harness/`, such as the evals a proposal adds; the prompt no longer tells it to leave all of `.harness/` alone.
+- The Proposals page shows the commands an evaluation runs to whoever approves it.
+
 ## 0.5.0
 
 - The Wheelhouse plugin's Improvements page is now improve's review UI: Overview, Proposals, Background findings, Evaluations, Objectives and Runs, as tabs, with every action the UI has (approve, reject, draft and write a skill, apply, run a background review and import or dismiss its findings, run an evaluation, cancel a run). They are the UI's own pages, built into the plugin. The page's Firstmate tab keeps what it showed before.

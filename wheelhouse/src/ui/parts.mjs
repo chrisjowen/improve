@@ -147,6 +147,9 @@ export function proposalCard(p, o) {
   } else if (p.routing && p.waiting) {
     chips.push(h("span", { class: "chip dashed", title: p.routing }, "Not filed yet"));
   }
+  if (p.applyStopped) {
+    chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.applyStopped }, "Needs commands"));
+  }
 
   const toggle = h(
     "button",
@@ -187,6 +190,7 @@ function details(p, id) {
       { class: "xs relaxed muted" },
       [p.surfaces.length ? `Changes ${p.surfaces.join(", ")}.` : null, p.deliveryLabel, p.routing].filter(Boolean).join(" ")
     ),
+    p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : null,
     p.why
       ? h(
           "p",

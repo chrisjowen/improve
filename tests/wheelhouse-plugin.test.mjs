@@ -96,13 +96,25 @@ title: A draft
 status: draft
 scope:
   files: [bin/fm-brief.sh]
+`,
+  "IMP-4.yaml": `id: IMP-4
+title: Score each session against the objectives
+status: approved
+scope:
+  files: [.harness/evals/run.sh]
+evaluation:
+  pass_conditions: [The challenge run fails every must-fail case.]
+last_apply:
+  status: failed
+  undeclared_commands: [bash .harness/evals/run.sh challenge]
 `
 };
 
 const CHECKS = {
   "IMP-1.yaml": { visibility: "captain-private", surfaces: ["captain-preferences"], delivery: "local-apply", findings: [] },
   "IMP-2.yaml": { visibility: "shared-tracked", surfaces: ["contract"], delivery: "upstream-pr", findings: [] },
-  "IMP-3.yaml": { visibility: "shared-tracked", surfaces: ["brief-scaffold"], delivery: "upstream-pr", findings: [] }
+  "IMP-3.yaml": { visibility: "shared-tracked", surfaces: ["brief-scaffold"], delivery: "upstream-pr", findings: [] },
+  "IMP-4.yaml": { visibility: "captain-private", surfaces: ["improve-record"], delivery: "local-apply", findings: [] }
 };
 
 function write(file, text) {
@@ -316,7 +328,7 @@ try {
   assert.deepEqual(v.evidence.patterns[0].answers, ["use defaults"]);
   assert.deepEqual(v.size, { contractFile: "AGENTS.md", contractTokens: 5200, budgetShare: 0.69, skills: 11, largestSkill: "firstmate-review" });
 
-  const [p2, p1, p3] = v.proposals;
+  const [p2, p1, p3, p4] = v.proposals;
   assert.deepEqual(
     {
       file: p1.file,
@@ -376,6 +388,17 @@ try {
   assert.deepEqual(
     { kind: p3.kind, group: p3.group, statusShort: p3.statusShort, file: p3.file, waiting: p3.waiting, statusLabel: p3.statusLabel, routing: p3.routing },
     { kind: "script", group: "drafting", statusShort: "Draft", file: "IMP-3.yaml", waiting: false, statusLabel: "Being drafted", routing: null }
+  );
+  assert.equal(p3.applyStopped, null);
+  // An apply run that stopped for a command the proposal does not declare says so, until the command is added.
+  assert.deepEqual(
+    { file: p4.file, group: p4.group, pendingCommands: p4.pendingCommands, applyStopped: p4.applyStopped },
+    {
+      file: "IMP-4.yaml",
+      group: "approved",
+      pendingCommands: ["bash .harness/evals/run.sh challenge"],
+      applyStopped: "Apply stopped: the evaluation needs a command the proposal does not declare (bash .harness/evals/run.sh challenge). Add it on the Proposals tab; the proposal then waits for your approval again."
+    }
   );
   assert.deepEqual({ running: v.ui.running, deepLinks: v.ui.deepLinks, start: v.ui.start }, { running: true, deepLinks: true, start: null });
   // The running UI's own token, read back from it, for the Improvements page to drive it with.

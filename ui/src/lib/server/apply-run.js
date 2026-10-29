@@ -9,7 +9,8 @@ import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { deliveryFor } from "../../../../adapters/firstmate/surfaces.mjs";
 import { contain, pluginRoot, projectId, projectRoot, readTextSafe } from "./paths.js";
 import { jobsDir, startJob } from "./jobs.js";
-import { readProposal, readProposalText, recordDecision, updateStatus } from "./proposals.js";
+import { readProposal, readProposalText, recordDecision, updateStatus, writeProposal } from "./proposals.js";
+import { isCommand, pendingCommands } from "../../../../scripts/proposal-check.mjs";
 import { assertRealPathInside, digestOf, writeAtomic } from "./write.js";
 
 /**
@@ -28,7 +29,11 @@ import { assertRealPathInside, digestOf, writeAtomic } from "./write.js";
  *   plus improve's own proposal check;
  * - afterwards the server compares the files itself. A run that fails, fails
  *   its evaluation, or changes anything outside the confirmed files puts the
- *   confirmed files back and reports what else changed.
+ *   confirmed files back and reports what else changed;
+ * - a run that stops for a command the evaluation needs records the commands
+ *   it named. The person can add exactly those to evaluation.commands, which
+ *   sends the proposal back for approval (declareCommands); the run itself
+ *   never widens what it may run.
  *
  * In a Firstmate home, shared-tracked files are never edited in place. The
  * run works in a separate git worktree on a new branch, and a passing change
@@ -265,10 +270,10 @@ export function applyPrompt(plan, proposalText, approvedAt) {
     "Rules for this run:",
     "- Recheck the proposal and the repository first. If an assumption no longer holds, change nothing and answer with applied false and the reason.",
     "- Change only the confirmed files. A change to any other file fails the run.",
-    "- Do not edit anything under .harness/: a change to this proposal, improve.json or an evaluation file fails the run. The UI records the decision and the outcome from your answer.",
+    "- Do not edit anything under .harness/ except the confirmed files: a change to this proposal, improve.json or another evaluation file fails the run. The UI records the decision and the outcome from your answer.",
     "- These are the only commands you may run, exactly as written:",
     ...plan.commands.map((c) => `  - ${c}`),
-    "  If the evaluation needs any other command, stop: do not run it or a substitute, and answer with applied false and that command as undeclared_command.",
+    "  If the evaluation needs any other command, stop: do not run it or a substitute. Work out every command the evaluation's checks need that is not listed, and answer with applied false and those commands, exactly as they would run, as undeclared_commands.",
     ...where,
     "- After the change, run the proposal's evaluation and report what you measured, not what you expect.",
     "",
@@ -280,7 +285,7 @@ export function applyPrompt(plan, proposalText, approvedAt) {
     "Finish with ONLY a JSON object with these keys:",
     '  "applied": true if you changed the files, false if the recheck stopped you',
     '  "reason": why you stopped, when applied is false',
-    '  "undeclared_command": the exact command the evaluation needs that is not listed above, if that is why you stopped',
+    '  "undeclared_commands": every command the evaluation needs that is not listed above, exactly as it would run, if that is why you stopped',
     '  "evaluation": { "passed": true or false, "summary": one sentence, "checks": [ { "name": "...", "passed": true or false, "detail": "..." } ] }'
   ].join("\n");
 }
@@ -700,12 +705,15 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     const unchecked = dirtyBefore && dirtyAfter ? null : "This project is not a git repository, so changes outside the confirmed files could not be checked.";
     const changed = changes.filter((c) => c.change !== "unchanged");
     const evaluation = readEvaluation(agent.payload);
+    const undeclared = undeclaredCommands(agent.payload, plan.commands);
 
     /** @type {string | null} */
     let failure = null;
     if (!agent.ok) failure = agent.error ?? "The agent failed.";
-    else if (typeof agent.payload?.undeclared_command === "string") {
-      failure = `The evaluation needs a command the proposal does not declare: ${agent.payload.undeclared_command.slice(0, 500)}. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.`;
+    else if (undeclared.named.length) {
+      failure = undeclared.named.length === 1
+        ? `The evaluation needs a command the proposal does not declare: ${undeclared.named[0]}. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.`
+        : `The evaluation needs commands the proposal does not declare: ${undeclared.named.join("; ")}. The run does not widen its own permissions; add them to evaluation.commands and approve the proposal again.`;
     } else if (agent.payload?.applied !== true) {
       failure = `The recheck stopped the run: ${typeof agent.payload?.reason === "string" ? agent.payload.reason.slice(0, 500) : "no reason given"}`;
     } else if (stray.length) failure = `The run changed files outside the ones you confirmed: ${stray.join(", ")}.`;
@@ -732,7 +740,8 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       }
       if (worktree) await discardBranch(root, worktree, String(plan.branch), logFile);
       writeChanges(changesFile, { ...summary, files: changes, restored: plan.mode === "local-apply" && changed.length > 0 && restoreFailed.length === 0 });
-      recordAttempt(plan, { status: "failed", error: failure, evaluation });
+      const offer = agent.ok ? undeclared.offer : [];
+      recordAttempt(plan, { status: "failed", error: failure, evaluation, ...(offer.length ? { undeclared_commands: offer } : {}) });
       const parts = [];
       if (plan.mode === "local-apply" && changed.length) {
         parts.push(restoreFailed.length
@@ -744,6 +753,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
         parts.push("No confirmed file was changed.");
       }
       if (stray.length) parts.push(`Inspect these, which the run changed and which were not put back: ${stray.join(", ")}.`);
+      if (offer.length) parts.push("You can add the commands from the proposal; it then waits for your approval again.");
       return {
         ok: false,
         cancelled: agent.cancelled,
@@ -751,6 +761,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
         error: failure,
         hint: parts.join(" "),
         ...summary,
+        ...(offer.length ? { undeclared_commands: offer } : {}),
         restored: plan.mode === "local-apply" && changed.length > 0 && restoreFailed.length === 0
       };
     }
@@ -822,8 +833,71 @@ async function discardBranch(root, worktree, branch, logFile) {
 }
 
 /**
+ * The commands the agent said the evaluation needs and the run does not
+ * allow. `named` is what it said, cut short for the message; `offer` is what
+ * the person can add: single printable lines, not already allowed.
+ * `undeclared_command` is the older single form.
+ * @param {any} payload
+ * @param {string[]} allowed
+ */
+function undeclaredCommands(payload, allowed) {
+  const given = [payload?.undeclared_commands, payload?.undeclared_command].flat()
+    .filter((c) => typeof c === "string" && c.trim() !== "")
+    .map((c) => c.trim());
+  const unique = [...new Set(given)].slice(0, 20);
+  return {
+    named: unique.map((c) => c.slice(0, 500)),
+    offer: unique.filter((c) => isCommand(c) && !allowed.includes(c))
+  };
+}
+
+/**
+ * Add the commands an apply run stopped for to `evaluation.commands`, and
+ * send the proposal back for approval.
+ *
+ * Only the commands the last failed run named can be added, all of them,
+ * and only to the proposal as the person last saw it. The proposal is no
+ * longer approved afterwards: a run may use the new commands only after the
+ * person approves the proposal again and confirms them at Apply.
+ *
+ * @param {string} file
+ * @param {{ digest?: unknown, commands?: unknown }} confirm
+ */
+export function declareCommands(file, { digest, commands } = {}) {
+  const proposal = readProposal(file);
+  if (!proposal) return { ok: false, status: 404, error: `no such proposal: ${file}` };
+  const text = readProposalText(file) ?? "";
+  if (typeof digest !== "string" || !Array.isArray(commands)) {
+    return { ok: false, status: 400, error: "The request must carry the proposal digest and the commands to add." };
+  }
+  if (digest !== digestOf(text)) {
+    return { ok: false, status: 409, error: "The proposal changed after you read it. Review it again." };
+  }
+  const document = YAML.parse(text) ?? {};
+  const pending = pendingCommands(document);
+  if (pending.length === 0) {
+    return { ok: false, status: 409, error: "No apply run of this proposal is waiting on a command it does not declare." };
+  }
+  if (!sameSet(commands, pending)) {
+    return { ok: false, status: 409, error: "These are not the commands the apply run named. Review it again." };
+  }
+  const evaluation = document.evaluation && typeof document.evaluation === "object" && !Array.isArray(document.evaluation) ? document.evaluation : {};
+  const declared = Array.isArray(evaluation.commands) ? evaluation.commands : [];
+  document.evaluation = { ...evaluation, commands: [...declared, ...pending] };
+  document.status = "proposed";
+  delete document.approval;
+  document.last_apply = { ...document.last_apply, commands_added: { at: new Date().toISOString(), by: "ui", commands: pending } };
+  writeProposal(file, document);
+  return {
+    ok: true,
+    commands: pending,
+    next: `Added to evaluation.commands. The proposal waits for your approval again; once approved, Apply lists ${pending.length === 1 ? "it" : "them"} for you to confirm.`
+  };
+}
+
+/**
  * @param {ApplyPlan} plan
- * @param {{ status: string, error: string, evaluation: any }} attempt
+ * @param {{ status: string, error: string, evaluation: any, undeclared_commands?: string[] }} attempt
  */
 function recordAttempt(plan, attempt) {
   try {

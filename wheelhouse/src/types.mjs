@@ -45,6 +45,8 @@
  * @property {string | null} createdAt
  * @property {ProposalDecision | null} decision
  * @property {string | null} routing How routing would treat it next, when that says something the status does not.
+ * @property {string[]} pendingCommands Commands its last apply run stopped for, which it does not declare yet.
+ * @property {string | null} applyStopped That stop in plain words, when there are such commands.
  * @property {string} reviewHref The proposal on the Improvements page's Proposals tab, where it is decided.
  * @property {string | null} openUrl The proposal in improve's own UI, when that UI is running.
  *

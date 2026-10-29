@@ -8,6 +8,8 @@ import {
   classifyScope,
   isHarnessPath,
   lintProse,
+  pendingCommands,
+  readBlockList,
   readScopeFiles
 } from "../scripts/proposal-check.mjs";
 
@@ -89,13 +91,70 @@ const write = (name, files) => {
   fs.writeFileSync(file, `title: t\nscope:\n  files:\n${files.map((f) => `    - ${f}`).join("\n")}\n`);
   return file;
 };
-const cli = (file) => spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "proposal-check-cli.mjs"), file], {
-  encoding: "utf8"
-});
+const cli = (file, text) => {
+  if (text !== undefined) fs.writeFileSync(file, text);
+  return spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "proposal-check-cli.mjs"), file], {
+    encoding: "utf8"
+  });
+};
 const bad = cli(write("bad.yaml", ["apps/api/lib/a.ex"]));
 assert.equal(bad.status, 1);
 assert.equal(JSON.parse(bad.stdout).scope, "codebase");
 const good = cli(write("good.yaml", [".claude/settings.json"]));
 assert.equal(good.status, 0, good.stderr);
 assert.equal(JSON.parse(good.stdout).scope, "harness");
+assert.deepEqual(JSON.parse(good.stdout).findings, []);
+
+// An evaluation that runs the evals a proposal adds must list its commands,
+// since an apply from the review UI runs only those. The shape that prompted
+// this: objectives and a runner under .harness/, pass conditions, no commands.
+const evals = [
+  "title: Score each session against the objectives",
+  "scope:",
+  "  files:",
+  "    - .harness/objectives.yaml",
+  "    - .harness/evals/evaluators/conduct.mjs",
+  "    - .harness/evals/run.sh",
+  "evaluation:",
+  "  baseline: No objectives and no scores today.",
+  "  pass_conditions:",
+  "    - The challenge run shows every must-fail case failing.",
+  "  commands: []   # exact shell commands",
+  "risks: []"
+].join("\n");
+const missing = cli(path.join(dir, "evals.yaml"), evals);
+assert.equal(missing.status, 0, "a finding for the author, not a refusal");
+assert.deepEqual(JSON.parse(missing.stdout).findings.map((f) => f.rule), ["evaluation-commands-missing"]);
+assert.match(JSON.parse(missing.stdout).findings[0].detail, /evaluation\.commands is empty, but its checks run evals \(\.harness\/evals\/run\.sh\)\./);
+const listed = evals.replace("  commands: []   # exact shell commands", "  commands:\n    - bash .harness/evals/run.sh challenge");
+assert.deepEqual(JSON.parse(cli(path.join(dir, "listed.yaml"), listed).stdout).findings, []);
+assert.deepEqual(readBlockList(listed, "evaluation", "commands"), ["bash .harness/evals/run.sh challenge"]);
+assert.deepEqual(readBlockList(evals, "evaluation", "commands"), [], "an inline list with a comment");
+
+// The parsed check agrees with the CLI.
+const parsed = {
+  scope: { files: [".harness/evals/run.sh"] },
+  evaluation: { pass_conditions: ["it fails the must-fail cases"] }
+};
+assert.deepEqual(checkProposal(parsed).findings.map((f) => f.rule), ["evaluation-commands-missing"]);
+assert.deepEqual(checkProposal({ ...parsed, evaluation: { ...parsed.evaluation, commands: ["bash .harness/evals/run.sh"] } }).findings, []);
+// An evaluation that names a .harness/ script needs it too, whatever the files.
+assert.deepEqual(checkProposal({
+  scope: { files: ["CLAUDE.md"] },
+  evaluation: { candidate: "scored by .harness/evals/check.mjs", pass_conditions: ["0 findings"] }
+}).findings.map((f) => f.rule), ["evaluation-commands-missing"]);
+// Nothing to run: no finding.
+assert.deepEqual(checkProposal({ scope: { files: ["CLAUDE.md"] }, evaluation: { pass_conditions: ["fewer corrections over ten sessions"] } }).findings, []);
+assert.deepEqual(checkProposal({ scope: { files: [".harness/evals/run.sh"] }, evaluation: { baseline: "none" } }).findings, [], "no checks, nothing to run");
+
+// What the review UI offers to add after a run stopped for commands.
+const stopped = {
+  status: "approved",
+  evaluation: { commands: ["bash .harness/evals/run.sh a"] },
+  last_apply: { status: "failed", undeclared_commands: ["bash .harness/evals/run.sh a", "bash .harness/evals/run.sh b", "two\nlines", 7] }
+};
+assert.deepEqual(pendingCommands(stopped), ["bash .harness/evals/run.sh b"], "declared, multi-line and non-text commands are not offered");
+assert.deepEqual(pendingCommands({ ...stopped, status: "proposed" }), [], "only while it is approved");
+assert.deepEqual(pendingCommands({ ...stopped, last_apply: { ...stopped.last_apply, status: "applied" } }), []);
+assert.deepEqual(pendingCommands({ status: "approved" }), []);
 fs.rmSync(dir, { recursive: true, force: true });

@@ -17,6 +17,7 @@ import {
   visibilityShort
 } from "./words.mjs";
 import { openUrl, proposalHref } from "./urls.mjs";
+import { pendingCommands } from "../../scripts/proposal-check.mjs";
 
 /**
  * Turns what improve's Firstmate adapter printed, and improve's own proposal
@@ -168,6 +169,7 @@ export function readProposal(file, text) {
       .map((e) => ({ source: str(e.source) ?? "evidence", observation: str(e.observation) ?? "" }))
       .filter((e) => e.observation),
     confidence: str(y.confidence),
+    pendingCommands: pendingCommands(y),
     createdAt: str(y.created_at) ?? (y.created_at instanceof Date ? y.created_at.toISOString() : null)
   };
 }
@@ -247,6 +249,9 @@ export function proposalItem(p, o) {
     ),
     decision: o.routed ? decisionOf(o.routed, o.tasks, !!o.routed && filing) : null,
     routing,
+    applyStopped: p.pendingCommands.length
+      ? `Apply stopped: the evaluation needs ${p.pendingCommands.length === 1 ? "a command" : "commands"} the proposal does not declare (${p.pendingCommands.join("; ")}). Add ${p.pendingCommands.length === 1 ? "it" : "them"} on the Proposals tab; the proposal then waits for your approval again.`
+      : null,
     reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };

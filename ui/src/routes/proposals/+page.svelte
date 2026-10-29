@@ -129,6 +129,33 @@
     }
   }
 
+  /**
+   * Add the commands the last apply run stopped for, exactly as it named
+   * them, which sends the proposal back for approval.
+   */
+  async function declareCommands() {
+    busy = "declare";
+    notice = null;
+    const file = selected.file;
+    try {
+      const value = await api(`/api/proposals/${encodeURIComponent(file)}/declare-commands`, {
+        method: "POST",
+        body: { digest: plan.digest, commands: selected.pending_commands }
+      });
+      notice = { tone: "ok", text: value.next };
+      await refreshSummary();
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
+      notice = { tone: "bad", text: error.message, hint: error.hint };
+      if (error.status === 409 || error.status === 403) {
+        await refreshSummary();
+        loadPlan(file);
+      }
+    } finally {
+      busy = null;
+    }
+  }
+
   /** @param {string} file */
   async function loadDiff(file) {
     try {
@@ -343,7 +370,7 @@
               {/if}
             </div>
 
-            {#if selected.evaluation && (selected.evaluation.baseline || selected.evaluation.candidate || selected.evaluation.pass_conditions?.length)}
+            {#if selected.evaluation && (selected.evaluation.baseline || selected.evaluation.candidate || selected.evaluation.pass_conditions?.length || selected.evaluation.commands?.length)}
               <div>
                 <div class="section-label">How we will know it worked</div>
                 <dl class="kv">
@@ -351,6 +378,10 @@
                   {#if selected.evaluation.candidate}<dt>Measured by</dt><dd>{selected.evaluation.candidate}</dd>{/if}
                   {#if selected.evaluation.pass_conditions?.length}<dt>Passes if</dt><dd>{selected.evaluation.pass_conditions.join("; ")}</dd>{/if}
                   {#if selected.evaluation.regression_conditions?.length}<dt>Fails if</dt><dd>{selected.evaluation.regression_conditions.join("; ")}</dd>{/if}
+                  {#if selected.evaluation.commands?.length}
+                    <dt>Runs</dt>
+                    <dd><ul class="confirm-commands small mono">{#each selected.evaluation.commands as command}<li><code>{command}</code></li>{/each}</ul></dd>
+                  {/if}
                 </dl>
               </div>
             {/if}
@@ -539,6 +570,23 @@
                   </div>
                 </div>
               {:else}
+                {#if selected.pending_commands?.length}
+                  {@const one = selected.pending_commands.length === 1}
+                  <div class="stack declare" role="group" aria-labelledby="declare-title">
+                    <p id="declare-title"><strong>The last run stopped: the evaluation needs {one ? "a command" : "commands"} this proposal does not declare.</strong></p>
+                    <ul class="confirm-commands small mono">
+                      {#each selected.pending_commands as command}<li><code>{command}</code></li>{/each}
+                    </ul>
+                    <div class="decision-actions" style="margin-top:0">
+                      <p class="small muted">Adding {one ? "it" : "them"} to <code>evaluation.commands</code> sends the proposal back to you for approval. A run can use {one ? "it" : "them"} only after you approve it again and confirm at Apply.</p>
+                      <div class="row">
+                        <button class="primary" onclick={declareCommands} disabled={busy !== null}>
+                          <Icon name="check" size={14} />{busy === "declare" ? "Adding…" : one ? "Add the command and send back for approval" : "Add the commands and send back for approval"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
                 <div class="decision-actions" style="margin-top:0">
                   <p class="small">
                     {#if selected.upstream_change}
@@ -548,7 +596,7 @@
                     {/if}
                   </p>
                   <div class="row">
-                    <button class="primary" onclick={() => { confirming = true; }} disabled={busy !== null}>
+                    <button class:primary={!selected.pending_commands?.length} onclick={() => { confirming = true; }} disabled={busy !== null}>
                       <Icon name="play" size={14} />{plan.action}…
                     </button>
                   </div>
@@ -572,6 +620,7 @@
   .decision-actions p { flex: 1 1 260px; }
   .decision-actions .row { flex: none; margin-left: auto; }
   .evidence { border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .declare { gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
   .confirm-files { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .confirm-commands { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .evidence th, .evidence td { padding: 8px 12px; }

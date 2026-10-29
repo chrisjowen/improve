@@ -65,7 +65,7 @@ another repository, or is too old to say its token, is shown, not driven.
 | --- | --- |
 | Overview: what waits, background findings to triage, recent runs, harness health (review due and why, the most repeated correction, counts since the last review, evidence for evaluations), objectives with their trend | Overview tab, improve's own page |
 | Proposals: Waiting, Approved, Decided and All with counts; the detail (status, scope, confidence, provenance, the check's findings, what changes, why, files and whose they are, evidence, how it will be judged, reasons to reject, risks, rollback, the writing check, decisions) | Proposals tab, improve's own page |
-| Approve; reject with a reason; draft a skill, draft again, approve and write the reviewed diff, overwrite a hand-written file; Apply or prepare the upstream branch after confirming the files, commands and outputs; the apply run's evaluation, diff and log | The same buttons on the Proposals tab |
+| Approve; reject with a reason; draft a skill, draft again, approve and write the reviewed diff, overwrite a hand-written file; Apply or prepare the upstream branch after confirming the files, commands and outputs; the apply run's evaluation, diff and log; add the commands a stopped run named and send the proposal back for approval | The same buttons on the Proposals tab, and a **Needs commands** chip on the Firstmate tab's card |
 | Background findings: run a review, review a finding as a proposal, dismiss a report, read its log | Background findings tab |
 | Evaluations: run a suite (session or another transcript, a commit range, with content), the score chart, the history, a report by step | Evaluations tab |
 | Objectives, and the skills applied from the UI with their use | Objectives tab |

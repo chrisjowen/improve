@@ -88,7 +88,10 @@ with `--permission-mode acceptEdits`: the same recheck, change and evaluation
 as in Claude Code. Its `--allowedTools` holds exactly the commands the
 proposal's `evaluation.commands` declares, plus improve's own proposal check;
 the confirm lists them, and an evaluation that needs any other command fails
-the run and names it instead of widening permissions. It runs with
+the run and names it instead of widening permissions. The proposal then offers
+to add exactly the commands the run named to `evaluation.commands`; doing so
+withdraws the approval, so the commands run only after you approve the
+proposal again and confirm them at Apply. It runs with
 `--setting-sources ""` and `--plugin-dir` set to this plugin, so allow rules
 from your user, project and local settings do not apply. Nor does anything
 else in them: an `env`, `apiKeyHelper` or provider setup (such as Bedrock,

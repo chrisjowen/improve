@@ -223,8 +223,8 @@ const serve = (handler) =>
     const s = createServer(handler);
     s.listen(0, "127.0.0.1", () => resolve({ server: s, url: `http://127.0.0.1:${s.address().port}` }));
   });
-// improve's own UI (which says its token, for this home), one from before it did, one for another
-// repository, and another app on a port that answers 2xx without improve's status report.
+// improve's own UI (which says its token, for this home), one from before it did, one still compiling
+// /api/embed, one for another repository, and another app on a port that answers 2xx without improve's status report.
 const improveUi = (embed) => (req, res) => {
   res.setHeader("content-type", "application/json");
   if (req.url === "/api/status") res.end('{"schema_version":1,"harness_initialized":true}');
@@ -237,6 +237,10 @@ const improveUi = (embed) => (req, res) => {
 };
 const ui = await serve(improveUi(() => ({ token: "running-token", project: home })));
 const oldUi = await serve(improveUi(null));
+const slowUi = await serve((req, res) => {
+  if (req.url === "/api/embed") setTimeout(() => res.end("{}"), 1500);
+  else improveUi(null)(req, res);
+});
 const elsewhereUi = await serve(improveUi(() => ({ token: "elsewhere-token", project: path.join(dir, "another-repo") })));
 const other = await serve((req, res) => {
   res.statusCode = req.url === "/api/health" || req.url === "/api/status" ? 200 : 404;
@@ -427,6 +431,8 @@ try {
   {
     const old = (await provider("harness")(context({ uiUrl: oldUi.url }))).value.ui;
     assert.deepEqual({ running: old.running, token: old.token, connects: old.connects, servesHome: old.servesHome }, { running: true, token: null, connects: false, servesHome: null });
+    const slow = (await provider("harness")(context({ uiUrl: slowUi.url }))).value.ui;
+    assert.deepEqual({ running: slow.running, token: slow.token, connects: slow.connects, servesHome: slow.servesHome }, { running: true, token: launchToken, connects: true, servesHome: null });
     const away = (await provider("harness")(context({ uiUrl: elsewhereUi.url }))).value.ui;
     assert.deepEqual({ running: away.running, servesHome: away.servesHome, project: away.project }, { running: true, servesHome: false, project: path.join(dir, "another-repo") });
   }
@@ -444,6 +450,8 @@ try {
     assert.equal(s.available, true);
     assert.equal(s.value.schema, "wheelhouse-improve-proposal.v1");
     assert.equal(s.value.improvementsHref, "/plugins/improve/improvements#/proposals?view=all&p=IMP-1.yaml");
+    assert.deepEqual(Object.keys(s.value).sort(), ["improvementsHref", "proposal", "schema"]);
+    assert.doesNotMatch(JSON.stringify(s.value), /running-token/);
     assert.deepEqual(
       { id: s.value.proposal.id, visibility: s.value.proposal.visibility, state: s.value.proposal.decision.state },
       { id: "IMP-1", visibility: "captain-private", state: "Waiting for your call" }
@@ -536,7 +544,7 @@ try {
   ]);
   assert.ok(fs.existsSync(path.join(pluginRoot, "adapters", "firstmate", "cli.mjs")));
 } finally {
-  for (const s of [ui, oldUi, elsewhereUi, other]) s.server.close();
+  for (const s of [ui, oldUi, slowUi, elsewhereUi, other]) s.server.close();
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

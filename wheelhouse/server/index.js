@@ -7959,7 +7959,7 @@ function dueIsReadOnly(detect, reviewState) {
   return isRecord2(detect) && detect.detected === true && detect.enabled === true && p?.enabled === true && (typeof s.last_reviewed_at === "string" || typeof s.enabled_at === "string");
 }
 async function probeUi(url, signal) {
-  const none = { running: false, deepLinks: false, token: null, project: null };
+  const none = { running: false, deepLinks: false, embeds: false, token: null, project: null };
   const get = (p) => fetch(`${url}${p}`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(800)]),
     redirect: "manual"
@@ -7973,16 +7973,18 @@ async function probeUi(url, signal) {
   }
   const [health, embed] = await Promise.all([
     get("/api/health").then((r) => r.ok, () => false),
+    // A request that fails or times out says nothing either way: null.
     get("/api/embed").then(
-      async (r) => r.ok ? (
-        /** @type {unknown} */
-        await r.json()
-      ) : null,
+      (r) => r.ok ? r.json().then(
+        /** @param {unknown} b */
+        (b) => b,
+        () => false
+      ) : false,
       () => null
     )
   ]);
   const e = isRecord2(embed) && typeof embed.token === "string" && typeof embed.project === "string" ? embed : null;
-  return { running: true, deepLinks: health, token: e?.token ?? null, project: e?.project ?? null };
+  return { running: true, deepLinks: health, embeds: embed === null || e !== null, token: e?.token ?? null, project: e?.project ?? null };
 }
 function uiUrl(settings) {
   const v = settings.uiUrl;
@@ -8010,10 +8012,10 @@ async function ui(ctx, cli, home) {
     running: probe.running,
     deepLinks,
     start: probe.running || !root || !home ? null : startCommand(root, home, url),
-    token: probe.running ? probe.token : LAUNCH_TOKEN,
+    token: !probe.running || probe.embeds ? probe.token ?? LAUNCH_TOKEN : null,
     project: probe.project,
     servesHome: probe.running && probe.project && home ? path.resolve(probe.project) === path.resolve(home) : null,
-    connects: !probe.running || probe.token !== null
+    connects: !probe.running || probe.embeds
   };
 }
 async function uiService(ctx) {
@@ -8175,8 +8177,7 @@ async function proposal(ctx) {
   const value = {
     schema: "wheelhouse-improve-proposal.v1",
     proposal: item,
-    improvementsHref: proposalHref(routed.file),
-    ui: uiState
+    improvementsHref: proposalHref(routed.file)
   };
   return { available: true, value, source: "improve\u2019s proposal file", observedAt: (/* @__PURE__ */ new Date()).toISOString() };
 }

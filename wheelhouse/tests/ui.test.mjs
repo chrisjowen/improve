@@ -344,8 +344,7 @@ const go = async (hash) => {
   const el = mount("improve-proposal", {
     schema: "wheelhouse-improve-proposal.v1",
     proposal: proposal({ openUrl: null }),
-    improvementsHref: "/plugins/improve/improvements#/proposals?view=all&p=IMP-1.yaml",
-    ui: { ...ui, running: false }
+    improvementsHref: "/plugins/improve/improvements#/proposals?view=all&p=IMP-1.yaml"
   });
   const t = text(el);
   assert.ok(t.includes("Workers stop asking the same question."), "the card is open");

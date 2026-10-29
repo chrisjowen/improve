@@ -741,7 +741,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       if (worktree) await discardBranch(root, worktree, String(plan.branch), logFile);
       writeChanges(changesFile, { ...summary, files: changes, restored: plan.mode === "local-apply" && changed.length > 0 && restoreFailed.length === 0 });
       const offer = agent.ok ? undeclared.offer : [];
-      recordAttempt(plan, { status: "failed", error: failure, evaluation, ...(offer.length ? { undeclared_commands: offer } : {}) });
+      recordAttempt(plan, { status: "failed", error: failure, evaluation, ...(agent.ok && undeclared.named.length ? { undeclared_commands: offer } : {}) });
       const parts = [];
       if (plan.mode === "local-apply" && changed.length) {
         parts.push(restoreFailed.length
@@ -836,12 +836,11 @@ async function discardBranch(root, worktree, branch, logFile) {
  * The commands the agent said the evaluation needs and the run does not
  * allow. `named` is what it said, cut short for the message; `offer` is what
  * the person can add: single printable lines, not already allowed.
- * `undeclared_command` is the older single form.
  * @param {any} payload
  * @param {string[]} allowed
  */
 function undeclaredCommands(payload, allowed) {
-  const given = [payload?.undeclared_commands, payload?.undeclared_command].flat()
+  const given = (Array.isArray(payload?.undeclared_commands) ? payload.undeclared_commands : [])
     .filter((c) => typeof c === "string" && c.trim() !== "")
     .map((c) => c.trim());
   const unique = [...new Set(given)].slice(0, 20);

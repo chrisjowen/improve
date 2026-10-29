@@ -4,7 +4,7 @@
 // stream-json events and result envelope the CLI would.
 //
 // IMPROVE_STANDIN picks the outcome: pass (default), fail-eval, stray, refuse,
-// undeclared, needs (stops naming each IMPROVE_STANDIN_NEEDS command, one per
+// needs (stops naming each IMPROVE_STANDIN_NEEDS command, one per
 // line, the prompt does not allow, and passes once all are), edit-eval (also writes IMPROVE_STANDIN_TOUCH, which any mode
 // that edits writes when it is set; by default
 // .harness/evals/suite.yaml), or slow. A proposal can pick its own with "[stand-in: <mode>]" in its text,
@@ -66,8 +66,6 @@ if (missing.length) {
   answer = { applied: false, reason: "the evaluation runs scripts this run does not allow", undeclared_commands: missing };
 } else if (mode === "refuse") {
   answer = { applied: false, reason: "the file already contains this rule" };
-} else if (mode === "undeclared") {
-  answer = { applied: false, reason: "the evaluation needs python", undeclared_command: "python3 .harness/evals/run.py" };
 } else {
   for (const file of files) {
     tool("Edit", { file_path: file });

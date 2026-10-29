@@ -415,16 +415,18 @@ for (const visible of [true, false]) {
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
-// --- an evaluation that needs an undeclared command fails, naming it ----------
+// --- a run recorded before undeclared_commands named the command only in its
+// error: the person can still add it, without another run -------------------
 {
-  process.env.IMPROVE_STANDIN = "undeclared";
-  seed(repo, "p.yaml");
-  const { job } = await apply("p.yaml");
-  delete process.env.IMPROVE_STANDIN;
-  assert.equal(job.status, "failed");
-  assert.match(job.error, /needs a command the proposal does not declare: python3 \.harness\/evals\/run\.py\. The run does not widen its own permissions/);
-  assert.equal(readProposal("p.yaml").status, "approved");
-  assert.deepEqual(readProposal("p.yaml").pending_commands, ["python3 .harness/evals/run.py"], "the older single form is offered too");
+  const error = "The evaluation needs a command the proposal does not declare: bash .harness/evals/run.sh. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.";
+  seed(repo, "legacy.yaml", { evaluation: { commands: [] } });
+  const file = path.join(repo, ".harness", "proposals", "legacy.yaml");
+  fs.writeFileSync(file, YAML.stringify({ ...YAML.parse(fs.readFileSync(file, "utf8")), last_apply: { at: "2026-10-27T10:00:00.000Z", by: "ui", mode: "local-apply", status: "failed", error } }));
+  assert.deepEqual(readProposal("legacy.yaml").pending_commands, ["bash .harness/evals/run.sh"]);
+  const declared = declareCommands("legacy.yaml", { digest: (await applyPlan("legacy.yaml")).digest, commands: ["bash .harness/evals/run.sh"] });
+  assert.equal(declared.ok, true, declared.error);
+  assert.deepEqual(readProposal("legacy.yaml").evaluation.commands, ["bash .harness/evals/run.sh"]);
+  assert.equal(readProposal("legacy.yaml").status, "proposed");
 }
 
 // --- an evaluation that runs scripts the proposal adds: the run stops naming
@@ -498,6 +500,7 @@ for (const visible of [true, false]) {
   assert.match(job.error, /needs commands the proposal does not declare: bash \.harness\/evals\/run\.sh\tsecond; bash x{495}\. /, "named, cut short");
   assert.equal(job.result.undeclared_commands, undefined);
   assert.deepEqual(readProposal("p.yaml").pending_commands, [], "but not offered");
+  assert.deepEqual(readProposal("p.yaml").last_apply.undeclared_commands, [], "nor read back from the error");
   assert.doesNotMatch(job.hint, /add the commands/);
 }
 

@@ -7662,9 +7662,15 @@ var PROSE_RULES = [
 ];
 function pendingCommands(proposal2) {
   const last = proposal2?.last_apply;
-  if (proposal2?.status !== "approved" || last?.status !== "failed" || !Array.isArray(last.undeclared_commands)) return [];
+  if (proposal2?.status !== "approved" || last?.status !== "failed") return [];
+  const named = Array.isArray(last.undeclared_commands) ? last.undeclared_commands : commandsInError(last.error);
   const declared = Array.isArray(proposal2.evaluation?.commands) ? proposal2.evaluation.commands.map((c) => String(c).trim()) : [];
-  return [...new Set(last.undeclared_commands.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+  return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+}
+function commandsInError(error) {
+  const match = /^The evaluation needs (a command|commands) the proposal does not declare: (.+)\. The run does not widen its own permissions;/s.exec(typeof error === "string" ? error : "");
+  if (!match) return [];
+  return match[1] === "a command" ? [match[2]] : match[2].split("; ");
 }
 var MAX_COMMAND = 500;
 function isCommand(value) {

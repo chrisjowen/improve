@@ -223,15 +223,25 @@ export function evaluationFindings({ files, commands, passConditions, evaluation
 /**
  * The commands an apply run stopped for that the proposal still does not
  * declare: the ones its last failed attempt named. These are what the review
- * UI offers to add to `evaluation.commands`.
+ * UI offers to add to `evaluation.commands`. An attempt recorded before
+ * `undeclared_commands` existed named them only in its error.
  * @param {any} proposal
  * @returns {string[]}
  */
 export function pendingCommands(proposal) {
   const last = proposal?.last_apply;
-  if (proposal?.status !== "approved" || last?.status !== "failed" || !Array.isArray(last.undeclared_commands)) return [];
+  if (proposal?.status !== "approved" || last?.status !== "failed") return [];
+  const named = Array.isArray(last.undeclared_commands) ? last.undeclared_commands : commandsInError(last.error);
   const declared = Array.isArray(proposal.evaluation?.commands) ? proposal.evaluation.commands.map((c) => String(c).trim()) : [];
-  return [...new Set(last.undeclared_commands.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+  return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+}
+
+/** The commands an apply run's error says the proposal does not declare. */
+function commandsInError(error) {
+  const match = /^The evaluation needs (a command|commands) the proposal does not declare: (.+)\. The run does not widen its own permissions;/s
+    .exec(typeof error === "string" ? error : "");
+  if (!match) return [];
+  return match[1] === "a command" ? [match[2]] : match[2].split("; ");
 }
 
 // One line of printable text, of a length a person can read in a confirm.

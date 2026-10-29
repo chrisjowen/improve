@@ -157,4 +157,15 @@ assert.deepEqual(pendingCommands(stopped), ["bash .harness/evals/run.sh b"], "de
 assert.deepEqual(pendingCommands({ ...stopped, status: "proposed" }), [], "only while it is approved");
 assert.deepEqual(pendingCommands({ ...stopped, last_apply: { ...stopped.last_apply, status: "applied" } }), []);
 assert.deepEqual(pendingCommands({ status: "approved" }), []);
+const legacy = (error) => pendingCommands({ status: "approved", evaluation: {}, last_apply: { status: "failed", error } });
+assert.deepEqual(
+  legacy("The evaluation needs a command the proposal does not declare: bash .harness/evals/run.sh. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again."),
+  ["bash .harness/evals/run.sh"],
+  "an attempt recorded before undeclared_commands is read from its error"
+);
+assert.deepEqual(
+  legacy("The evaluation needs commands the proposal does not declare: bash .harness/evals/run.sh a; bash .harness/evals/run.sh b. The run does not widen its own permissions; add them to evaluation.commands and approve the proposal again."),
+  ["bash .harness/evals/run.sh a", "bash .harness/evals/run.sh b"]
+);
+assert.deepEqual(legacy("The evaluation failed: 2 of 3 checks passed."), []);
 fs.rmSync(dir, { recursive: true, force: true });

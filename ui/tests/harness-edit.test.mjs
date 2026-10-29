@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 
 // Editing objectives and evals from the review UI. An objective's own fields
@@ -282,14 +283,23 @@ let filed;
 
 // --- the runner reads YAML 1.1, so words it would not read as text are quoted -------
 {
-  const words = ["git", "config", "core.autocrlf", "off", "yes", "1:30"];
-  const fresh = { id: "yaml-words", objective: "tests-stay-green", commands: [words], steps: [{ id: "autocrlf", evaluator: "core.command", command: words, settings: "should_match: no\n" }], aggregation: { threshold: 1, require_all_required: true } };
+  const words = ["git", "config", "core.autocrlf", "off", "yes", "1:30", "=", "<<"];
+  const fresh = { id: "yaml-words", objective: "tests-stay-green", commands: [words], steps: [{ id: "autocrlf", evaluator: "core.command", command: words, settings: "should_match: no\nop: \"=\"\nmerge: \"<<\"\n" }], aggregation: { threshold: 1, require_all_required: true } };
   const shown = edit.fileSuiteEdit({ file: null, suite: fresh });
   assert.equal(shown.ok, true, shown.error);
   const asRunnerReads = YAML.parse(shown.files[0].proposed, { version: "1.1" });
   assert.deepEqual(asRunnerReads.commands, [words]);
   assert.deepEqual(asRunnerReads.steps[0].metadata.argv, words);
   assert.equal(asRunnerReads.steps[0].metadata.should_match, false, "settings mean what the runner reads");
+  // The runner's own loader, when this machine has it.
+  const pyyaml = spawnSync("python3", ["-c", "import json, sys, yaml; print(json.dumps(yaml.safe_load(sys.stdin)))"], { input: shown.files[0].proposed, encoding: "utf8" });
+  if (pyyaml.status === 0) {
+    const loaded = JSON.parse(pyyaml.stdout);
+    assert.deepEqual(loaded.commands, [words]);
+    assert.deepEqual(loaded.steps[0].metadata, { argv: words, should_match: false, op: "=", merge: "<<" });
+  } else if (!/No module named|ENOENT/.test(`${pyyaml.stderr}${pyyaml.error?.message ?? ""}`)) {
+    assert.fail(`PyYAML could not load the suite: ${pyyaml.stderr}`);
+  }
 
   const written = path.join(suites, "yaml-words.yaml");
   fs.writeFileSync(written, shown.files[0].proposed);
@@ -298,7 +308,7 @@ let filed;
   const changed = { ...loaded.suite, aggregation: { threshold: 0.5, require_all_required: true } };
   const reshown = edit.fileSuiteEdit({ file: "yaml-words.yaml", suite: changed });
   assert.equal(reshown.ok, true, reshown.error);
-  assert.deepEqual(YAML.parse(reshown.files[0].proposed, { version: "1.1" }).steps[0].metadata, { argv: words, should_match: false });
+  assert.deepEqual(YAML.parse(reshown.files[0].proposed, { version: "1.1" }).steps[0].metadata, { argv: words, should_match: false, op: "=", merge: "<<" });
 
   fs.writeFileSync(written, "version: 1\nid: yaml-words\nobjective: tests-stay-green\nregistries: [../registry.yaml]\ncommands:\n  - [git, config, core.autocrlf, off]\nsteps:\n  - id: autocrlf\n    evaluator: core.command\n    metadata:\n      argv: [git, config, core.autocrlf, off]\naggregation:\n  threshold: 1\n");
   assert.equal(edit.readSuite("yaml-words.yaml").runs.problems.length, 1, "an unquoted off is not text to the runner, so the command is not declared");

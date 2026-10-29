@@ -37,6 +37,23 @@ const RUNNER_YAML = /** @type {const} */ ({ version: "1.1" });
 const BUILT_IN_COMMAND_FIELDS = new Map([["core.command", "argv"], ["llm.judge-command", "adapter_argv"]]);
 const RIG_VERSION = ".harness/evals/VERSION";
 
+/**
+ * A harness file's text as the runner loads it. PyYAML reads a bare `=` or
+ * `<<` as a tag it cannot construct, not as text, so those are quoted, and a
+ * `<<` value is tagged as text, since this library writes it bare otherwise.
+ * A `<<` key is a merge key and stays as it is.
+ * @param {YAML.Document} document @param {YAML.ToStringOptions} options
+ */
+function runnerText(document, options) {
+  YAML.visit(document, {
+    Scalar(key, node) {
+      if (node.value === "=") node.type = "QUOTE_DOUBLE";
+      if (node.value === "<<" && key !== "key") Object.assign(node, { type: "QUOTE_DOUBLE", tag: "tag:yaml.org,2002:str" });
+    }
+  });
+  return document.toString(options);
+}
+
 /** @typedef {{ path: string, before_digest: string | null, current: string | null, proposed: string | null, status: "new" | "modified" | "deleted" }} FileChange */
 
 /** @param {number} status @param {string} error @param {Record<string, unknown>} [extra] */
@@ -185,7 +202,7 @@ function objectiveChange({ id, create = false, fields }) {
       map.set(key, value);
     }
   }
-  const proposed = document.toString({ lineWidth: 0 });
+  const proposed = runnerText(document, { lineWidth: 0 });
   if (current !== null && proposed === current) throw new Error("Nothing changed.");
   return [fileChange(OBJECTIVES, proposed)];
 }
@@ -522,7 +539,7 @@ function suiteText(current, edit) {
   setChanged(document, aggregationNode, "threshold", threshold);
   setChanged(document, aggregationNode, "require_all_required", aggregation?.require_all_required !== false, true);
 
-  const text = document.toString({ lineWidth: 0, flowCollectionPadding: false });
+  const text = runnerText(document, { lineWidth: 0, flowCollectionPadding: false });
   const parsed = YAML.parse(text, RUNNER_YAML);
   const known = new Set(readEvaluators(parsed.registries).map((e) => e.name));
   const unknown = cleanSteps.filter((step) => !known.has(step.evaluator)).map((step) => step.evaluator);
@@ -592,7 +609,7 @@ function objectiveDeletion({ id }) {
     const item = findObjective(list, id);
     if (item) {
       list.items.splice(list.items.indexOf(item), 1);
-      files.push(fileChange(OBJECTIVES, document.toString({ lineWidth: 0 })));
+      files.push(fileChange(OBJECTIVES, runnerText(document, { lineWidth: 0 })));
     }
   }
   for (const { file, document } of readSuites()) {

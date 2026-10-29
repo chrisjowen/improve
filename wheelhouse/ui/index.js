@@ -14944,19 +14944,20 @@ var root_414 = from_html(`<p class="small faint">Loading\u2026</p>`);
 var root_514 = from_html(`<div class="editor-body"><!></div>`);
 var root_613 = from_html(`A change to this eval is waiting: <a> </a>. Filing another makes a second proposal.`, 1);
 var root_78 = from_html(`<option> </option>`);
-var root_88 = from_html(`<p class="field-error"> </p>`);
-var root_98 = from_html(`<li class="box-row"><div class="line"><span class="faint" style="flex:none"><!></span> <input class="mono" placeholder="npm test"/> <button class="ghost small"><!></button></div> <!></li>`);
-var root_108 = from_html(`<ul class="list box"></ul> <p class="help" style="margin-top:0">Run as words, never through a shell. Quote a word that holds spaces.</p>`, 1);
-var root_1112 = from_html(`<p class="small muted row" style="gap:6px"><!>None. This eval only reads the transcript and files.</p>`);
-var root_1210 = from_html(`<!> `, 1);
-var root_138 = from_html(`<div><label>Command</label> <select class="mono"><!><!></select> <p class="help">Only the commands declared above can be picked.</p></div>`);
-var root_148 = from_html(`<li class="box-row stack" style="gap:10px"><div class="line"><input class="mono"/> <button class="ghost small"><!></button></div> <div class="fields step-fields svelte-7nvcsu"><div><label>Check</label> <select><!><!></select></div> <div><label>Passes at</label><input type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>Required</span></label></div> <p class="small faint row" style="gap:8px"><!> </p> <!> <div><label>Settings <span class="faint optional">YAML, read by the check</span></label> <textarea class="mono"></textarea></div></li>`);
-var root_157 = from_html(`<button class="danger small"><!>Delete</button>`);
-var root_167 = from_html(`<div class="editor-body"><!> <div class="fields"><div><label for="suite-id">Id</label> <input id="suite-id" class="mono" aria-describedby="suite-id-help"/> <p id="suite-id-help" class="help">The file is <code> </code>.</p></div> <div><label for="suite-objective">Measures</label> <select id="suite-objective" class="mono"></select></div></div> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Commands it may run</legend> <button class="ghost small"><!>Declare command</button></div> <p class="small faint">Every command the eval runs is listed here first. A step can run only a declared command, and approving the eval approves these.</p> <!></fieldset> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Steps</legend> <button class="ghost small"><!>Add step</button></div> <ul class="list box"></ul> <!></fieldset> <div class="fields"><div><label for="suite-threshold">The eval passes at</label><input id="suite-threshold" type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>And every required step passes</span></label></div> <div class="group"><span class="section-label" style="margin:0">What this eval runs</span> <!></div> <!></div> <div class="editor-foot"><!> <span class="grow"></span> <button class="ghost">Cancel</button> <button class="primary"> </button></div>`, 1);
-var root_177 = from_html(`<button class="danger"><!> </button>`);
-var root_186 = from_html(`<button class="primary"> </button>`);
-var root_196 = from_html(`<div class="editor-body"><p class="small muted"> </p> <div class="group"><span class="section-label" style="margin:0">What runs</span> <!></div> <div><label for="suite-reason">Why <span class="faint optional">optional, kept with the proposal</span></label> <textarea id="suite-reason" rows="2"></textarea></div> <!> <!></div> <div class="editor-foot"><span class="grow"></span> <button class="ghost">Keep editing</button> <!></div>`, 1);
-var root_204 = from_html(`<section class="panel editor" aria-labelledby="suite-editor-title"><div class="panel-head"><div class="stack" style="gap:2px"><!> <h2 id="suite-editor-title"><!></h2></div> <button class="ghost small" aria-label="Close the editor"><!></button></div> <!></section>`);
+var root_88 = from_html(` <code>assets/eval-rig/</code> into <code>.harness/evals/</code>; Overview shows the installed and available versions.`, 1);
+var root_98 = from_html(`<p class="field-error"> </p>`);
+var root_108 = from_html(`<li class="box-row"><div class="line"><span class="faint" style="flex:none"><!></span> <input class="mono" placeholder="npm test"/> <button class="ghost small"><!></button></div> <!></li>`);
+var root_1112 = from_html(`<ul class="list box"></ul> <p class="help" style="margin-top:0">Run as words, never through a shell. Quote a word that holds spaces.</p>`, 1);
+var root_1210 = from_html(`<p class="small muted row" style="gap:6px"><!>None. This eval only reads the transcript and files.</p>`);
+var root_138 = from_html(`<!> `, 1);
+var root_148 = from_html(`<div><label>Command</label> <select class="mono"><!><!></select> <p class="help">Only the commands declared above can be picked.</p></div>`);
+var root_157 = from_html(`<li class="box-row stack" style="gap:10px"><div class="line"><input class="mono"/> <button class="ghost small"><!></button></div> <div class="fields step-fields svelte-7nvcsu"><div><label>Check</label> <select><!><!></select></div> <div><label>Passes at</label><input type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>Required</span></label></div> <p class="small faint row" style="gap:8px"><!> </p> <!> <div><label>Settings <span class="faint optional">YAML, read by the check</span></label> <textarea class="mono"></textarea></div></li>`);
+var root_167 = from_html(`<button class="danger small"><!>Delete</button>`);
+var root_177 = from_html(`<div class="editor-body"><!> <div class="fields"><div><label for="suite-id">Id</label> <input id="suite-id" class="mono" aria-describedby="suite-id-help"/> <p id="suite-id-help" class="help">The file is <code> </code>.</p></div> <div><label for="suite-objective">Measures</label> <select id="suite-objective" class="mono"></select></div></div> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Commands it may run</legend> <button class="ghost small"><!>Declare command</button></div> <p class="small faint">Every command the eval runs is listed here first. A step can run only a declared command, and approving the eval approves these.</p> <!> <!></fieldset> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Steps</legend> <button class="ghost small"><!>Add step</button></div> <ul class="list box"></ul> <!></fieldset> <div class="fields"><div><label for="suite-threshold">The eval passes at</label><input id="suite-threshold" type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>And every required step passes</span></label></div> <div class="group"><span class="section-label" style="margin:0">What this eval runs</span> <!></div> <!></div> <div class="editor-foot"><!> <span class="grow"></span> <button class="ghost">Cancel</button> <button class="primary"> </button></div>`, 1);
+var root_186 = from_html(`<button class="danger"><!> </button>`);
+var root_196 = from_html(`<button class="primary"> </button>`);
+var root_204 = from_html(`<div class="editor-body"><p class="small muted"> </p> <div class="group"><span class="section-label" style="margin:0">What runs</span> <!></div> <div><label for="suite-reason">Why <span class="faint optional">optional, kept with the proposal</span></label> <textarea id="suite-reason" rows="2"></textarea></div> <!> <!></div> <div class="editor-foot"><span class="grow"></span> <button class="ghost">Keep editing</button> <!></div>`, 1);
+var root_216 = from_html(`<section class="panel editor" aria-labelledby="suite-editor-title"><div class="panel-head"><div class="stack" style="gap:2px"><!> <h2 id="suite-editor-title"><!></h2></div> <button class="ghost small" aria-label="Close the editor"><!></button></div> <!></section>`);
 var $$css8 = {
   hash: "svelte-7nvcsu",
   code: ".required.svelte-7nvcsu {align-self:end;padding-bottom:9px;}.fields.step-fields.svelte-7nvcsu {grid-template-columns:minmax(0, 2fr) minmax(0, 1fr) max-content;}\n  @media (max-width: 700px) {.fields.step-fields.svelte-7nvcsu {grid-template-columns:1fr;} }"
@@ -14990,6 +14991,10 @@ function SuiteEditor($$anchor, $$props) {
     /** @type {any[]} */
     []
   ));
+  let rig = state(
+    /** @type {{ installed: string | null, enforces_commands: boolean } | null} */
+    null
+  );
   let form = state(
     /** @type {any} */
     null
@@ -15025,6 +15030,7 @@ function SuiteEditor($$anchor, $$props) {
     set(error, null);
     (target ? api(`/api/suites/${encodeURIComponent(target)}`) : api("/api/evaluators")).then((value) => {
       set(evaluators, value.evaluators ?? [], true);
+      set(rig, value.rig ?? null, true);
       const suite = target ? value.suite : {
         id: `${$$props.objective}-checks`,
         objective: $$props.objective,
@@ -15117,8 +15123,10 @@ function SuiteEditor($$anchor, $$props) {
     if (get(byName).get(name)?.command_field && !step.command) step.command = get(declared)[0] ?? "";
   }
   function removeCommand(index3) {
-    const gone = get(declared)[index3];
+    const row = get(parsed)[index3];
+    const gone = !row.error && row.argv.length ? joinArgv(row.argv) : null;
     get(form).commands.splice(index3, 1);
+    if (gone === null || get(declared).includes(gone)) return;
     for (const step of get(form).steps) if (step.command === gone) step.command = "";
   }
   async function review() {
@@ -15221,7 +15229,7 @@ function SuiteEditor($$anchor, $$props) {
     if (get(stage) === "edit" && get(dirty) && !confirm("Discard your changes to this eval?")) return;
     next2();
   }
-  var section = root_204();
+  var section = root_216();
   var div = child(section);
   var div_1 = child(div);
   var node = child(div_1);
@@ -15317,8 +15325,8 @@ function SuiteEditor($$anchor, $$props) {
       reset(div_2);
       append2($$anchor2, div_2);
     };
-    var consequent_16 = ($$anchor2) => {
-      var fragment_4 = root_167();
+    var consequent_17 = ($$anchor2) => {
+      var fragment_4 = root_177();
       var div_3 = first_child(fragment_4);
       var node_7 = child(div_3);
       {
@@ -15384,35 +15392,56 @@ function SuiteEditor($$anchor, $$props) {
       reset(div_7);
       var node_9 = sibling(div_7, 4);
       {
-        var consequent_8 = ($$anchor3) => {
-          var fragment_7 = root_108();
-          var ul = first_child(fragment_7);
+        var consequent_7 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "warn",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var fragment_8 = root_88();
+              var text_9 = first_child(fragment_8);
+              next(4);
+              template_effect(() => set_text(text_9, `This repository's eval rig ${get(rig).installed ? `is ${get(rig).installed}, which is` : "names no version, so it is"} older than 1.2.0 and does not enforce this list yet: it runs whatever command a step names.
+            Upgrade it by copying the plugin's `));
+              append2($$anchor4, fragment_8);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_9, ($$render) => {
+          if (get(rig) && !get(rig).enforces_commands) $$render(consequent_7);
+        });
+      }
+      var node_10 = sibling(node_9, 2);
+      {
+        var consequent_9 = ($$anchor3) => {
+          var fragment_9 = root_1112();
+          var ul = first_child(fragment_9);
           each(ul, 21, () => get(form).commands, index, ($$anchor4, _, i) => {
-            var li = root_98();
+            var li = root_108();
             var div_8 = child(li);
             var span_2 = child(div_8);
-            var node_10 = child(span_2);
-            Icon(node_10, { name: "terminal", size: 14 });
+            var node_11 = child(span_2);
+            Icon(node_11, { name: "terminal", size: 14 });
             reset(span_2);
             var input_1 = sibling(span_2, 2);
             remove_input_defaults(input_1);
             set_attribute2(input_1, "aria-label", `Command ${i + 1}`);
             var button_4 = sibling(input_1, 2);
             set_attribute2(button_4, "aria-label", `Remove command ${i + 1}`);
-            var node_11 = child(button_4);
-            Icon(node_11, { name: "x", size: 14 });
+            var node_12 = child(button_4);
+            Icon(node_12, { name: "x", size: 14 });
             reset(button_4);
             reset(div_8);
-            var node_12 = sibling(div_8, 2);
+            var node_13 = sibling(div_8, 2);
             {
-              var consequent_7 = ($$anchor5) => {
-                var p_3 = root_88();
-                var text_9 = only_child(p_3, true);
-                template_effect(() => set_text(text_9, get(parsed)[i].error));
+              var consequent_8 = ($$anchor5) => {
+                var p_3 = root_98();
+                var text_10 = only_child(p_3, true);
+                template_effect(() => set_text(text_10, get(parsed)[i].error));
                 append2($$anchor5, p_3);
               };
-              if_block(node_12, ($$render) => {
-                if (get(parsed)[i]?.error) $$render(consequent_7);
+              if_block(node_13, ($$render) => {
+                if (get(parsed)[i]?.error) $$render(consequent_8);
               });
             }
             reset(li);
@@ -15423,18 +15452,18 @@ function SuiteEditor($$anchor, $$props) {
           });
           reset(ul);
           next(2);
-          append2($$anchor3, fragment_7);
+          append2($$anchor3, fragment_9);
         };
         var alternate_2 = ($$anchor3) => {
-          var p_4 = root_1112();
-          var node_13 = child(p_4);
-          Icon(node_13, { name: "eye", size: 13 });
+          var p_4 = root_1210();
+          var node_14 = child(p_4);
+          Icon(node_14, { name: "eye", size: 13 });
           next();
           reset(p_4);
           append2($$anchor3, p_4);
         };
-        if_block(node_9, ($$render) => {
-          if (get(form).commands.length) $$render(consequent_8);
+        if_block(node_10, ($$render) => {
+          if (get(form).commands.length) $$render(consequent_9);
           else $$render(alternate_2, -1);
         });
       }
@@ -15442,8 +15471,8 @@ function SuiteEditor($$anchor, $$props) {
       var fieldset_1 = sibling(fieldset, 2);
       var div_9 = child(fieldset_1);
       var button_5 = sibling(child(div_9), 2);
-      var node_14 = child(button_5);
-      Icon(node_14, { name: "plus", size: 14 });
+      var node_15 = child(button_5);
+      Icon(node_15, { name: "plus", size: 14 });
       next();
       reset(button_5);
       reset(div_9);
@@ -15451,14 +15480,14 @@ function SuiteEditor($$anchor, $$props) {
       each(ul_1, 21, () => get(form).steps, index, ($$anchor3, step, i) => {
         const info = user_derived(() => get(byName).get(get(step).evaluator));
         const trust = user_derived(() => TRUST[get(info)?.trust ?? ""]);
-        var li_1 = root_148();
+        var li_1 = root_157();
         var div_10 = child(li_1);
         var input_2 = child(div_10);
         remove_input_defaults(input_2);
         set_attribute2(input_2, "aria-label", `Step ${i + 1} id`);
         var button_6 = sibling(input_2, 2);
-        var node_15 = child(button_6);
-        Icon(node_15, { name: "trash", size: 13 });
+        var node_16 = child(button_6);
+        Icon(node_16, { name: "trash", size: 13 });
         reset(button_6);
         reset(div_10);
         var div_11 = sibling(div_10, 2);
@@ -15467,31 +15496,31 @@ function SuiteEditor($$anchor, $$props) {
         set_attribute2(label, "for", `step-evaluator-${i}`);
         var select_1 = sibling(label, 2);
         set_attribute2(select_1, "id", `step-evaluator-${i}`);
-        var node_16 = child(select_1);
+        var node_17 = child(select_1);
         {
-          var consequent_9 = ($$anchor4) => {
+          var consequent_10 = ($$anchor4) => {
             var option_1 = root_78();
-            var text_10 = only_child(option_1, true);
+            var text_11 = only_child(option_1, true);
             var option_1_value = {};
             template_effect(() => {
-              set_text(text_10, get(step).evaluator);
+              set_text(text_11, get(step).evaluator);
               if (option_1_value !== (option_1_value = get(step).evaluator)) {
                 option_1.value = (option_1.__value = option_1_value) ?? "";
               }
             });
             append2($$anchor4, option_1);
           };
-          if_block(node_16, ($$render) => {
-            if (!get(info)) $$render(consequent_9);
+          if_block(node_17, ($$render) => {
+            if (!get(info)) $$render(consequent_10);
           });
         }
-        var node_17 = sibling(node_16);
-        each(node_17, 17, () => get(evaluators), index, ($$anchor4, e) => {
+        var node_18 = sibling(node_17);
+        each(node_18, 17, () => get(evaluators), index, ($$anchor4, e) => {
           var option_2 = root_78();
-          var text_11 = only_child(option_2, true);
+          var text_12 = only_child(option_2, true);
           var option_2_value = {};
           template_effect(() => {
-            set_text(text_11, get(e).name);
+            set_text(text_12, get(e).name);
             if (option_2_value !== (option_2_value = get(e).name)) {
               option_2.value = (option_2.__value = option_2_value) ?? "";
             }
@@ -15516,52 +15545,52 @@ function SuiteEditor($$anchor, $$props) {
         reset(label_2);
         reset(div_11);
         var p_5 = sibling(div_11, 2);
-        var node_18 = child(p_5);
+        var node_19 = child(p_5);
         {
-          var consequent_10 = ($$anchor4) => {
+          var consequent_11 = ($$anchor4) => {
             Pill($$anchor4, {
               get tone() {
                 return get(trust).tone;
               },
               plain: true,
               children: ($$anchor5, $$slotProps) => {
-                var fragment_9 = root_1210();
-                var node_19 = first_child(fragment_9);
-                Icon(node_19, {
+                var fragment_11 = root_138();
+                var node_20 = first_child(fragment_11);
+                Icon(node_20, {
                   get name() {
                     return get(trust).icon;
                   },
                   size: 12
                 });
-                var text_12 = sibling(node_19, 1, true);
-                template_effect(() => set_text(text_12, get(trust).text));
-                append2($$anchor5, fragment_9);
+                var text_13 = sibling(node_20, 1, true);
+                template_effect(() => set_text(text_13, get(trust).text));
+                append2($$anchor5, fragment_11);
               },
               $$slots: { default: true }
             });
           };
-          if_block(node_18, ($$render) => {
-            if (get(trust)) $$render(consequent_10);
+          if_block(node_19, ($$render) => {
+            if (get(trust)) $$render(consequent_11);
           });
         }
-        var text_13 = sibling(node_18);
+        var text_14 = sibling(node_19);
         reset(p_5);
-        var node_20 = sibling(p_5, 2);
+        var node_21 = sibling(p_5, 2);
         {
-          var consequent_12 = ($$anchor4) => {
-            var div_14 = root_138();
+          var consequent_13 = ($$anchor4) => {
+            var div_14 = root_148();
             var label_3 = child(div_14);
             set_attribute2(label_3, "for", `step-command-${i}`);
             var select_2 = sibling(label_3, 2);
             set_attribute2(select_2, "id", `step-command-${i}`);
-            var node_21 = child(select_2);
+            var node_22 = child(select_2);
             {
-              var consequent_11 = ($$anchor5) => {
+              var consequent_12 = ($$anchor5) => {
                 var option_3 = root_78();
-                var text_14 = only_child(option_3, true);
+                var text_15 = only_child(option_3, true);
                 var option_3_value = {};
                 template_effect(() => {
-                  set_text(text_14, get(step).command || "Declare a command first");
+                  set_text(text_15, get(step).command || "Declare a command first");
                   if (option_3_value !== (option_3_value = get(step).command)) {
                     option_3.value = (option_3.__value = option_3_value) ?? "";
                   }
@@ -15569,17 +15598,17 @@ function SuiteEditor($$anchor, $$props) {
                 append2($$anchor5, option_3);
               };
               var d = user_derived(() => !get(declared).includes(get(step).command));
-              if_block(node_21, ($$render) => {
-                if (get(d)) $$render(consequent_11);
+              if_block(node_22, ($$render) => {
+                if (get(d)) $$render(consequent_12);
               });
             }
-            var node_22 = sibling(node_21);
-            each(node_22, 17, () => get(declared), index, ($$anchor5, command) => {
+            var node_23 = sibling(node_22);
+            each(node_23, 17, () => get(declared), index, ($$anchor5, command) => {
               var option_4 = root_78();
-              var text_15 = only_child(option_4, true);
+              var text_16 = only_child(option_4, true);
               var option_4_value = {};
               template_effect(() => {
-                set_text(text_15, get(command));
+                set_text(text_16, get(command));
                 if (option_4_value !== (option_4_value = get(command))) {
                   option_4.value = (option_4.__value = option_4_value) ?? "";
                 }
@@ -15596,11 +15625,11 @@ function SuiteEditor($$anchor, $$props) {
             bind_select_value(select_2, () => get(step).command, ($$value) => get(step).command = $$value);
             append2($$anchor4, div_14);
           };
-          if_block(node_20, ($$render) => {
-            if (get(info)?.command_field) $$render(consequent_12);
+          if_block(node_21, ($$render) => {
+            if (get(info)?.command_field) $$render(consequent_13);
           });
         }
-        var div_15 = sibling(node_20, 2);
+        var div_15 = sibling(node_21, 2);
         var label_4 = child(div_15);
         set_attribute2(label_4, "for", `step-settings-${i}`);
         var textarea = sibling(label_4, 2);
@@ -15615,7 +15644,7 @@ function SuiteEditor($$anchor, $$props) {
             if (select_1_value !== (select_1_value = get(step).evaluator)) {
               select_1.value = (select_1.__value = select_1_value) ?? "", select_option(select_1, select_1_value);
             }
-            set_text(text_13, ` ${get(info)?.description ?? "Not in this eval's registries." ?? ""}`);
+            set_text(text_14, ` ${get(info)?.description ?? "Not in this eval's registries." ?? ""}`);
             set_attribute2(textarea, "rows", $0);
           },
           [
@@ -15631,22 +15660,22 @@ function SuiteEditor($$anchor, $$props) {
         append2($$anchor3, li_1);
       });
       reset(ul_1);
-      var node_23 = sibling(ul_1, 2);
+      var node_24 = sibling(ul_1, 2);
       {
-        var consequent_13 = ($$anchor3) => {
+        var consequent_14 = ($$anchor3) => {
           Notice($$anchor3, {
             tone: "warn",
             children: ($$anchor4, $$slotProps) => {
               next();
-              var text_16 = text();
-              template_effect(($0) => set_text(text_16, `${$0 ?? ""} ${get(undeclared).length === 1 ? "runs" : "run"} no declared command. Declare one above, then pick it.`), [() => get(undeclared).map((s) => s.id).join(", ")]);
-              append2($$anchor4, text_16);
+              var text_17 = text();
+              template_effect(($0) => set_text(text_17, `${$0 ?? ""} ${get(undeclared).length === 1 ? "runs" : "run"} no declared command. Declare one above, then pick it.`), [() => get(undeclared).map((s) => s.id).join(", ")]);
+              append2($$anchor4, text_17);
             },
             $$slots: { default: true }
           });
         };
-        if_block(node_23, ($$render) => {
-          if (get(undeclared).length) $$render(consequent_13);
+        if_block(node_24, ($$render) => {
+          if (get(undeclared).length) $$render(consequent_14);
         });
       }
       reset(fieldset_1);
@@ -15662,10 +15691,10 @@ function SuiteEditor($$anchor, $$props) {
       reset(label_5);
       reset(div_16);
       var div_18 = sibling(div_16, 2);
-      var node_24 = sibling(child(div_18), 2);
+      var node_25 = sibling(child(div_18), 2);
       {
         let $0 = user_derived(() => get(declared).map((c) => splitArgv(c).argv));
-        RunsList(node_24, {
+        RunsList(node_25, {
           get before() {
             return get(loaded).suite.commands;
           },
@@ -15675,52 +15704,52 @@ function SuiteEditor($$anchor, $$props) {
         });
       }
       reset(div_18);
-      var node_25 = sibling(div_18, 2);
+      var node_26 = sibling(div_18, 2);
       {
-        var consequent_14 = ($$anchor3) => {
+        var consequent_15 = ($$anchor3) => {
           Notice($$anchor3, {
             tone: "bad",
             children: ($$anchor4, $$slotProps) => {
               next();
-              var text_17 = text();
-              template_effect(() => set_text(text_17, get(error)));
-              append2($$anchor4, text_17);
+              var text_18 = text();
+              template_effect(() => set_text(text_18, get(error)));
+              append2($$anchor4, text_18);
             },
             $$slots: { default: true }
           });
         };
-        if_block(node_25, ($$render) => {
-          if (get(error)) $$render(consequent_14);
+        if_block(node_26, ($$render) => {
+          if (get(error)) $$render(consequent_15);
         });
       }
       reset(div_3);
       var div_19 = sibling(div_3, 2);
-      var node_26 = child(div_19);
+      var node_27 = child(div_19);
       {
-        var consequent_15 = ($$anchor3) => {
-          var button_7 = root_157();
-          var node_27 = child(button_7);
-          Icon(node_27, { name: "trash", size: 13 });
+        var consequent_16 = ($$anchor3) => {
+          var button_7 = root_167();
+          var node_28 = child(button_7);
+          Icon(node_28, { name: "trash", size: 13 });
           next();
           reset(button_7);
           template_effect(() => button_7.disabled = get(busy));
           delegated("click", button_7, askDelete);
           append2($$anchor3, button_7);
         };
-        if_block(node_26, ($$render) => {
-          if ($$props.file) $$render(consequent_15);
+        if_block(node_27, ($$render) => {
+          if ($$props.file) $$render(consequent_16);
         });
       }
-      var button_8 = sibling(node_26, 4);
+      var button_8 = sibling(node_27, 4);
       var button_9 = sibling(button_8, 2);
-      var text_18 = only_child(button_9, true);
+      var text_19 = only_child(button_9, true);
       reset(div_19);
       template_effect(
         ($0) => {
           input.readOnly = $0;
           set_text(text_7, `suites/${$$props.file ?? `${get(form).id}.yaml` ?? ""}`);
           button_9.disabled = get(busy) || !get(dirty) || get(commandProblem) || get(undeclared).length > 0;
-          set_text(text_18, get(busy) ? "Checking\u2026" : "Review change");
+          set_text(text_19, get(busy) ? "Checking\u2026" : "Review change");
         },
         [() => Boolean($$props.file)]
       );
@@ -15735,13 +15764,13 @@ function SuiteEditor($$anchor, $$props) {
       append2($$anchor2, fragment_4);
     };
     var alternate_4 = ($$anchor2) => {
-      var fragment_14 = root_196();
-      var div_20 = first_child(fragment_14);
+      var fragment_16 = root_204();
+      var div_20 = first_child(fragment_16);
       var p_6 = child(div_20);
-      var text_19 = only_child(p_6);
+      var text_20 = only_child(p_6);
       var div_21 = sibling(p_6, 2);
-      var node_28 = sibling(child(div_21), 2);
-      RunsList(node_28, {
+      var node_29 = sibling(child(div_21), 2);
+      RunsList(node_29, {
         get before() {
           return get(shown).runs.before;
         },
@@ -15754,8 +15783,8 @@ function SuiteEditor($$anchor, $$props) {
       var textarea_1 = sibling(child(div_22), 2);
       remove_textarea_child(textarea_1);
       reset(div_22);
-      var node_29 = sibling(div_22, 2);
-      each(node_29, 17, () => get(shown).files, index, ($$anchor3, change) => {
+      var node_30 = sibling(div_22, 2);
+      each(node_30, 17, () => get(shown).files, index, ($$anchor3, change) => {
         {
           let $0 = user_derived(() => get(change).current ?? "");
           let $1 = user_derived(() => get(change).proposed ?? "");
@@ -15772,68 +15801,68 @@ function SuiteEditor($$anchor, $$props) {
           });
         }
       });
-      var node_30 = sibling(node_29, 2);
+      var node_31 = sibling(node_30, 2);
       {
-        var consequent_17 = ($$anchor3) => {
+        var consequent_18 = ($$anchor3) => {
           Notice($$anchor3, {
             tone: "bad",
             children: ($$anchor4, $$slotProps) => {
               next();
-              var text_20 = text();
-              template_effect(() => set_text(text_20, get(error)));
-              append2($$anchor4, text_20);
+              var text_21 = text();
+              template_effect(() => set_text(text_21, get(error)));
+              append2($$anchor4, text_21);
             },
             $$slots: { default: true }
           });
         };
-        if_block(node_30, ($$render) => {
-          if (get(error)) $$render(consequent_17);
+        if_block(node_31, ($$render) => {
+          if (get(error)) $$render(consequent_18);
         });
       }
       reset(div_20);
       var div_23 = sibling(div_20, 2);
       var button_10 = sibling(child(div_23), 2);
-      var node_31 = sibling(button_10, 2);
+      var node_32 = sibling(button_10, 2);
       {
-        var consequent_18 = ($$anchor3) => {
-          var button_11 = root_177();
-          var node_32 = child(button_11);
-          Icon(node_32, { name: "trash", size: 13 });
-          var text_21 = sibling(node_32, 1, true);
+        var consequent_19 = ($$anchor3) => {
+          var button_11 = root_186();
+          var node_33 = child(button_11);
+          Icon(node_33, { name: "trash", size: 13 });
+          var text_22 = sibling(node_33, 1, true);
           reset(button_11);
           template_effect(() => {
             button_11.disabled = get(busy);
-            set_text(text_21, get(busy) ? "Filing\u2026" : "File deletion");
+            set_text(text_22, get(busy) ? "Filing\u2026" : "File deletion");
           });
           delegated("click", button_11, fileDeletion);
           append2($$anchor3, button_11);
         };
         var alternate_3 = ($$anchor3) => {
-          var button_12 = root_186();
-          var text_22 = only_child(button_12, true);
+          var button_12 = root_196();
+          var text_23 = only_child(button_12, true);
           template_effect(() => {
             button_12.disabled = get(busy);
-            set_text(text_22, get(busy) ? "Filing\u2026" : "File proposal");
+            set_text(text_23, get(busy) ? "Filing\u2026" : "File proposal");
           });
           delegated("click", button_12, fileEdit);
           append2($$anchor3, button_12);
         };
-        if_block(node_31, ($$render) => {
-          if (get(stage) === "delete") $$render(consequent_18);
+        if_block(node_32, ($$render) => {
+          if (get(stage) === "delete") $$render(consequent_19);
           else $$render(alternate_3, -1);
         });
       }
       reset(div_23);
-      template_effect(() => set_text(text_19, `This files a proposal. ${get(stage) === "delete" ? "Nothing is deleted" : "The eval does not change"} until you approve it on Proposals, and approving writes exactly what is shown here.`));
+      template_effect(() => set_text(text_20, `This files a proposal. ${get(stage) === "delete" ? "Nothing is deleted" : "The eval does not change"} until you approve it on Proposals, and approving writes exactly what is shown here.`));
       bind_value(textarea_1, () => get(reason), ($$value) => set(reason, $$value));
       delegated("click", button_10, () => {
         set(stage, "edit");
       });
-      append2($$anchor2, fragment_14);
+      append2($$anchor2, fragment_16);
     };
     if_block(node_5, ($$render) => {
       if (!get(form)) $$render(consequent_5);
-      else if (get(stage) === "edit") $$render(consequent_16, 1);
+      else if (get(stage) === "edit") $$render(consequent_17, 1);
       else $$render(alternate_4, -1);
     });
   }
@@ -15847,7 +15876,7 @@ delegate(["click", "change"]);
 // ../ui/src/routes/objectives/+page.svelte
 var root19 = from_html(` <a>Open it</a>`, 1);
 var root_131 = from_html(`<p> <!></p>`);
-var root_216 = from_html(`<p class="empty small">Loading\u2026</p>`);
+var root_217 = from_html(`<p class="empty small">Loading\u2026</p>`);
 var root_315 = from_html(`<div class="empty"><strong>No objectives declared.</strong> An objective names something this harness should be good at. Add one with <strong>New objective</strong>, or in <code>.harness/objectives.yaml</code>.</div>`);
 var root_415 = from_html(`<a><!></a>`);
 var root_515 = from_html(`<p class="muted prose"> </p>`);
@@ -16001,7 +16030,7 @@ function _page5($$anchor, $$props) {
   var node_4 = child(section);
   {
     var consequent_3 = ($$anchor2) => {
-      var p_2 = root_216();
+      var p_2 = root_217();
       append2($$anchor2, p_2);
     };
     var consequent_4 = ($$anchor2) => {
@@ -16439,7 +16468,7 @@ delegate(["click"]);
 // ../ui/src/routes/runs/+page.svelte
 var root20 = from_html(`<dt>Finished</dt><dd> </dd>`, 1);
 var root_140 = from_html(`<dt>Suite</dt><dd class="mono"> </dd>`, 1);
-var root_217 = from_html(`<dt>Revisions</dt><dd class="mono"> </dd>`, 1);
+var root_218 = from_html(`<dt>Revisions</dt><dd class="mono"> </dd>`, 1);
 var root_316 = from_html(`<dt>Transcript</dt><dd class="mono"> </dd>`, 1);
 var root_416 = from_html(`<dt>Proposal</dt><dd><a> </a></dd>`, 1);
 var root_516 = from_html(`<dt>Result</dt><dd><a> </a></dd>`, 1);
@@ -16522,7 +16551,7 @@ function _page6($$anchor, $$props) {
       var node_5 = sibling(node_4, 2);
       {
         var consequent_2 = ($$anchor3) => {
-          var fragment_3 = root_217();
+          var fragment_3 = root_218();
           var dd_3 = sibling(first_child(fragment_3));
           var text_4 = only_child(dd_3);
           template_effect(() => set_text(text_4, `${get(selected).detail.base ?? "working tree" ?? ""}..${get(selected).detail.head ?? "HEAD" ?? ""}`));
@@ -16784,7 +16813,7 @@ function Live($$anchor, $$props) {
 
 // src/ui/app/App.svelte
 var root_141 = from_html(`<span class="count"> </span>`);
-var root_218 = from_html(`<a><!> <!></a>`);
+var root_219 = from_html(`<a><!> <!></a>`);
 var root_317 = from_html(`<!> <improve-firstmate-view></improve-firstmate-view>`, 3);
 var root_417 = from_html(`<span class="faint">improve\u2019s review UI for <span class="mono"> </span></span>`);
 var root_517 = from_html(`<span style="color:var(--warn)"> </span>`);
@@ -16881,7 +16910,7 @@ function App($$anchor, $$props) {
   var div = root_911();
   var nav = child(div);
   each(nav, 21, () => get(TABS), index, ($$anchor2, tab) => {
-    var a = root_218();
+    var a = root_219();
     var node = child(a);
     Icon(node, {
       get name() {

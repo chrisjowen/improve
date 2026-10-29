@@ -28,6 +28,14 @@ const NEW_OBJECTIVES = "version: 1\nobjectives: []\n";
 // Registry trust levels whose evaluators start a process the suite names.
 const RUNS_COMMANDS = new Set(["executes-command", "external-model"]);
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The runner reads these files with PyYAML, which follows YAML 1.1: there
+// `off` is false and `1:30` is 90. Reading and writing them the same way means
+// the runner gets the values the UI checked.
+const RUNNER_YAML = /** @type {const} */ ({ version: "1.1" });
+// Registries copied before rig 1.2.0 name no command_field, but the built-in
+// evaluators' fields are known.
+const BUILT_IN_COMMAND_FIELDS = new Map([["core.command", "argv"], ["llm.judge-command", "adapter_argv"]]);
+const RIG_VERSION = ".harness/evals/VERSION";
 
 /** @typedef {{ path: string, before_digest: string | null, current: string | null, proposed: string | null, status: "new" | "modified" | "deleted" }} FileChange */
 
@@ -127,7 +135,7 @@ function cleanObjectiveFields(fields) {
 
 /** @param {string} text */
 function objectivesDocument(text) {
-  const document = YAML.parseDocument(text);
+  const document = YAML.parseDocument(text, RUNNER_YAML);
   if (document.errors.length) throw new Error(`${OBJECTIVES} could not be read: ${document.errors[0].message}`);
   if (!YAML.isMap(document.contents)) throw new Error(`${OBJECTIVES} is not a YAML mapping`);
   let list = document.get("objectives", true);
@@ -231,7 +239,7 @@ function readSuites() {
     if (text === undefined) continue;
     let document = null;
     try {
-      document = YAML.parse(text) ?? {};
+      document = YAML.parse(text, RUNNER_YAML) ?? {};
     } catch {
       // listed by listSuites as unreadable; nothing to edit here
     }
@@ -266,13 +274,13 @@ export function readEvaluators(registries = ["../registry.yaml"]) {
     }
     if (text === undefined) continue;
     try {
-      for (const entry of YAML.parse(text)?.evaluators ?? []) {
+      for (const entry of YAML.parse(text, RUNNER_YAML)?.evaluators ?? []) {
         if (typeof entry?.name !== "string") continue;
         evaluators.set(entry.name, {
           name: entry.name,
           description: typeof entry.description === "string" ? entry.description : null,
           trust: typeof entry.trust === "string" ? entry.trust : null,
-          command_field: typeof entry.command_field === "string" ? entry.command_field : null
+          command_field: typeof entry.command_field === "string" ? entry.command_field : BUILT_IN_COMMAND_FIELDS.get(entry.name) ?? null
         });
       }
     } catch {
@@ -308,6 +316,16 @@ export function suiteCommands(suite) {
   return { declared, problems };
 }
 
+/**
+ * The repository's copy of the eval rig, and whether its runner refuses a
+ * command a suite does not declare. Rigs before 1.2.0 run whatever a step names.
+ */
+export function evalRig() {
+  const installed = readRelative(RIG_VERSION)?.trim() || null;
+  const [major = 0, minor = 0] = installed?.split(".").map(Number) ?? [];
+  return { installed, enforces_commands: major > 1 || (major === 1 && minor >= 2) };
+}
+
 /** One suite, shaped for the editor. */
 export function readSuite(/** @type {unknown} */ file) {
   const relative = suitePath(file);
@@ -315,7 +333,7 @@ export function readSuite(/** @type {unknown} */ file) {
   if (text === null) return refuse(404, `no such suite: ${file}`);
   let document;
   try {
-    document = YAML.parse(text) ?? {};
+    document = YAML.parse(text, RUNNER_YAML) ?? {};
   } catch (error) {
     return refuse(422, `${relative} could not be read: ${/** @type {Error} */ (error).message}`);
   }
@@ -343,7 +361,7 @@ export function readSuite(/** @type {unknown} */ file) {
           threshold: typeof step?.threshold === "number" ? step.threshold : 1,
           required: step?.required !== false,
           command,
-          settings: Object.keys(metadata).length ? YAML.stringify(metadata, { lineWidth: 0 }) : ""
+          settings: Object.keys(metadata).length ? YAML.stringify(metadata, { ...RUNNER_YAML, lineWidth: 0 }) : ""
         };
       }),
       aggregation: {
@@ -352,14 +370,15 @@ export function readSuite(/** @type {unknown} */ file) {
       }
     },
     evaluators,
-    runs: suiteCommands(document)
+    runs: suiteCommands(document),
+    rig: evalRig()
   };
 }
 
 /** @param {string} text */
 function parsedRegistries(text) {
   try {
-    return YAML.parse(text)?.registries;
+    return YAML.parse(text, RUNNER_YAML)?.registries;
   } catch {
     return undefined;
   }
@@ -375,7 +394,7 @@ function stepMetadata(step, field) {
   let metadata = step.metadata ?? {};
   if (typeof step.settings === "string" && step.settings.trim()) {
     try {
-      metadata = YAML.parse(step.settings);
+      metadata = YAML.parse(step.settings, RUNNER_YAML);
     } catch (error) {
       throw new Error(`Step ${step.id}'s settings are not valid YAML: ${/** @type {Error} */ (error).message}`);
     }
@@ -449,8 +468,8 @@ function suiteText(current, edit) {
   const declared = commands.filter((argv, i) => commands.findIndex((other) => same(other, argv)) === i);
 
   const document = current === null
-    ? new YAML.Document({ version: 1, id, objective, registries: ["../registry.yaml"] })
-    : YAML.parseDocument(current);
+    ? new YAML.Document({ version: 1, id, objective, registries: ["../registry.yaml"] }, RUNNER_YAML)
+    : YAML.parseDocument(current, RUNNER_YAML);
   if (document.errors.length) throw new Error(`The suite could not be read: ${document.errors[0].message}`);
   if (!YAML.isMap(document.contents)) throw new Error("The suite is not a YAML mapping");
 
@@ -504,7 +523,7 @@ function suiteText(current, edit) {
   setChanged(document, aggregationNode, "require_all_required", aggregation?.require_all_required !== false, true);
 
   const text = document.toString({ lineWidth: 0, flowCollectionPadding: false });
-  const parsed = YAML.parse(text);
+  const parsed = YAML.parse(text, RUNNER_YAML);
   const known = new Set(readEvaluators(parsed.registries).map((e) => e.name));
   const unknown = cleanSteps.filter((step) => !known.has(step.evaluator)).map((step) => step.evaluator);
   if (unknown.length) throw new Error(`No check called ${[...new Set(unknown)].join(", ")} in this eval's registries.`);
@@ -540,7 +559,7 @@ function suiteChange({ file, suite }) {
 function commandsOf(text) {
   if (text === null) return [];
   try {
-    return suiteCommands(YAML.parse(text)).declared;
+    return suiteCommands(YAML.parse(text, RUNNER_YAML)).declared;
   } catch {
     return [];
   }
@@ -676,7 +695,7 @@ export function fileSuiteDeletion(input) {
     const current = readRelative(relative);
     if (current === null) throw new Error(`no such suite: ${input.file}`);
     try {
-      const parsed = YAML.parse(current);
+      const parsed = YAML.parse(current, RUNNER_YAML);
       objective = typeof parsed?.objective === "string" ? parsed.objective : parsed?.objective?.id ?? null;
     } catch {
       // an unreadable suite can still be deleted
@@ -755,7 +774,7 @@ export function editDiff(file) {
   const tampered = edit.digest !== digest;
   const problems = files.filter((f) => f.path.startsWith(`${SUITES}/`) && f.proposed !== null).flatMap((f) => {
     try {
-      return suiteCommands(YAML.parse(/** @type {string} */ (f.proposed))).problems.map((p) => `${p.step} ${p.reason}`);
+      return suiteCommands(YAML.parse(/** @type {string} */ (f.proposed), RUNNER_YAML)).problems.map((p) => `${p.step} ${p.reason}`);
     } catch (error) {
       return [`${f.path} is not valid YAML: ${/** @type {Error} */ (error).message}`];
     }

@@ -280,5 +280,63 @@ let filed;
   assert.match(edit.fileObjectiveDeletion({ id: "nobody" }).error, /Nothing to delete/);
 }
 
+// --- the runner reads YAML 1.1, so words it would not read as text are quoted -------
+{
+  const words = ["git", "config", "core.autocrlf", "off", "yes", "1:30"];
+  const fresh = { id: "yaml-words", objective: "tests-stay-green", commands: [words], steps: [{ id: "autocrlf", evaluator: "core.command", command: words, settings: "should_match: no\n" }], aggregation: { threshold: 1, require_all_required: true } };
+  const shown = edit.fileSuiteEdit({ file: null, suite: fresh });
+  assert.equal(shown.ok, true, shown.error);
+  const asRunnerReads = YAML.parse(shown.files[0].proposed, { version: "1.1" });
+  assert.deepEqual(asRunnerReads.commands, [words]);
+  assert.deepEqual(asRunnerReads.steps[0].metadata.argv, words);
+  assert.equal(asRunnerReads.steps[0].metadata.should_match, false, "settings mean what the runner reads");
+
+  const written = path.join(suites, "yaml-words.yaml");
+  fs.writeFileSync(written, shown.files[0].proposed);
+  const loaded = edit.readSuite("yaml-words.yaml");
+  assert.deepEqual(loaded.suite.steps[0].command, words);
+  const changed = { ...loaded.suite, aggregation: { threshold: 0.5, require_all_required: true } };
+  const reshown = edit.fileSuiteEdit({ file: "yaml-words.yaml", suite: changed });
+  assert.equal(reshown.ok, true, reshown.error);
+  assert.deepEqual(YAML.parse(reshown.files[0].proposed, { version: "1.1" }).steps[0].metadata, { argv: words, should_match: false });
+
+  fs.writeFileSync(written, "version: 1\nid: yaml-words\nobjective: tests-stay-green\nregistries: [../registry.yaml]\ncommands:\n  - [git, config, core.autocrlf, off]\nsteps:\n  - id: autocrlf\n    evaluator: core.command\n    metadata:\n      argv: [git, config, core.autocrlf, off]\naggregation:\n  threshold: 1\n");
+  assert.equal(edit.readSuite("yaml-words.yaml").runs.problems.length, 1, "an unquoted off is not text to the runner, so the command is not declared");
+  fs.rmSync(written);
+}
+
+// --- a harness on a rig older than 1.2.0 ------------------------------------------------
+{
+  // Its copied registry names no command_field, and its runner does not enforce `commands`.
+  const registry = YAML.parse(read(path.join(harness, "evals", "registry.yaml")));
+  for (const entry of registry.evaluators) delete entry.command_field;
+  fs.writeFileSync(path.join(harness, "evals", "old-registry.yaml"), YAML.stringify(registry));
+  const oldSuite = path.join(suites, "old-rig.yaml");
+  fs.writeFileSync(oldSuite, "version: 1\nid: old-rig\nobjective: tests-stay-green\nregistries: [../old-registry.yaml]\ncommands:\n  - [npm, test]\nsteps:\n  - id: tests\n    evaluator: core.command\n    metadata:\n      argv: [npm, test]\n  - id: judge\n    evaluator: llm.judge-command\n    metadata:\n      adapter_argv: [npm, test]\n      rubric: r\naggregation:\n  threshold: 1\n");
+
+  const rigVersion = path.join(harness, "evals", "VERSION");
+  fs.writeFileSync(rigVersion, "1.1.0\n");
+  const loaded = edit.readSuite("old-rig.yaml");
+  assert.equal(loaded.ok, true, loaded.error);
+  assert.deepEqual(loaded.runs.problems, [], "the built-in evaluators' command fields are known");
+  assert.deepEqual(loaded.suite.steps.map((s) => s.command), [["npm", "test"], ["npm", "test"]]);
+  assert.equal(loaded.suite.steps[1].settings, "rubric: r\n");
+  assert.deepEqual(loaded.rig, { installed: "1.1.0", enforces_commands: false });
+
+  const shown = edit.fileSuiteEdit({ file: "old-rig.yaml", suite: { ...loaded.suite, commands: [["npm", "test"], ["npm", "run", "lint"]], steps: [...loaded.suite.steps, { id: "lint", evaluator: "core.command", command: ["npm", "run", "lint"] }] } });
+  assert.equal(shown.ok, true, shown.error);
+  assert.match(shown.files[0].proposed, /argv: \[npm, run, lint\]/);
+  const sneaky = edit.fileSuiteEdit({ file: "old-rig.yaml", suite: { ...loaded.suite, steps: [{ id: "x", evaluator: "core.command", command: ["curl", "example.com"] }] } });
+  assert.match(sneaky.error, /Declare every command.*curl example\.com/, "the editor still refuses an undeclared command");
+
+  fs.writeFileSync(rigVersion, "1.2.0\n");
+  assert.equal(edit.evalRig().enforces_commands, true);
+  fs.writeFileSync(rigVersion, "2.0.0\n");
+  assert.equal(edit.evalRig().enforces_commands, true);
+  fs.rmSync(rigVersion);
+  assert.deepEqual(edit.evalRig(), { installed: null, enforces_commands: false });
+  fs.rmSync(oldSuite);
+}
+
 assert.ok(listProposals().every((p) => !p.malformed));
 console.log("harness-edit: ok");

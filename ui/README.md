@@ -94,8 +94,10 @@ runs, marking the ones it adds. It waits on Proposals, and only **Approve and
 write** puts those bytes on disk. That write refuses a proposal whose contents
 changed after it was filed, a file that changed since, and a step running a
 command the eval does not declare. Each eval lists its commands under
-`commands`, and a step can only pick one of those. The eval rig refuses any
-other command, wherever the suite came from. Every save and write names the
+`commands`, and a step can only pick one of those. An eval rig at 1.2.0 or
+later refuses any other command, wherever the suite came from. An older copy in
+`.harness/evals/` does not, and the eval editor says so until it is upgraded
+from the plugin's `assets/eval-rig/`. Every save and write names the
 digest of the change you reviewed, so a stale tab is refused.
 
 **Apply runs `/improve apply` and checks what it did.** An approved proposal

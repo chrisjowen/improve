@@ -43,6 +43,7 @@
 
   let loaded = $state(/** @type {any} */ (null));
   let evaluators = $state(/** @type {any[]} */ ([]));
+  let rig = $state(/** @type {{ installed: string | null, enforces_commands: boolean } | null} */ (null));
   let form = $state(/** @type {any} */ (null));
   let initial = "";
   let stage = $state(/** @type {"edit" | "review" | "delete"} */ ("edit"));
@@ -69,6 +70,7 @@
     error = null;
     (target ? api(`/api/suites/${encodeURIComponent(target)}`) : api("/api/evaluators")).then((value) => {
       evaluators = value.evaluators ?? [];
+      rig = value.rig ?? null;
       const suite = target ? value.suite : {
         id: `${objective}-checks`,
         objective,
@@ -125,8 +127,10 @@
 
   /** @param {number} index */
   function removeCommand(index) {
-    const gone = declared[index];
+    const row = parsed[index];
+    const gone = !row.error && row.argv.length ? joinArgv(row.argv) : null;
     form.commands.splice(index, 1);
+    if (gone === null || declared.includes(gone)) return;
     for (const step of form.steps) if (step.command === gone) step.command = "";
   }
 
@@ -237,6 +241,12 @@
           <button class="ghost small" onclick={() => form.commands.push("")}><Icon name="plus" size={14} />Declare command</button>
         </div>
         <p class="small faint">Every command the eval runs is listed here first. A step can run only a declared command, and approving the eval approves these.</p>
+        {#if rig && !rig.enforces_commands}
+          <Notice tone="warn">
+            This repository's eval rig {rig.installed ? `is ${rig.installed}, which is` : "names no version, so it is"} older than 1.2.0 and does not enforce this list yet: it runs whatever command a step names.
+            Upgrade it by copying the plugin's <code>assets/eval-rig/</code> into <code>.harness/evals/</code>; Overview shows the installed and available versions.
+          </Notice>
+        {/if}
         {#if form.commands.length}
           <ul class="list box">
             {#each form.commands as _, i}

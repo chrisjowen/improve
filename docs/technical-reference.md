@@ -132,7 +132,7 @@ the repository.
 ## Review UI
 
 A local UI in `ui/` shows proposals, background findings, evaluations,
-objectives and runs. Start it from the plugin root:
+objectives and runs, and edits objectives and their evals. Start it from the plugin root:
 
 ```bash
 node scripts/ui.mjs start /path/to/repo

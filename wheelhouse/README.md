@@ -69,6 +69,7 @@ another repository, or is too old to say its token, is shown, not driven.
 | Background findings: run a review, review a finding as a proposal, dismiss a report, read its log | Background findings tab |
 | Evaluations: run a suite (session or another transcript, a commit range, with content), the score chart, the history, a report by step | Evaluations tab |
 | Objectives, and the skills applied from the UI with their use | Objectives tab |
+| Add, edit and delete objectives and their evals: an objective's fields saved after its diff, an eval change or a deletion filed as a proposal that shows what it runs | Objectives tab, and Approve and write on the Proposals tab |
 | Runs: every job, its log, Cancel | Runs tab, and Cancel on every running job's card |
 | The sidebar's counts (waiting, findings, running) | The tabs' counts |
 | The repository's path, eval-rig drift, a server error | A line under the tabs, with a link to open the same view in the UI's own tab |

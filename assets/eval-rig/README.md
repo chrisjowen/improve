@@ -35,6 +35,8 @@ code with repository read access.
 
 The starter battery includes file existence, grep/regex, argv-form command, and
 an adapter-neutral LLM judge. The command evaluator may create normal test/build
-artifacts. The LLM judge is inert until a suite explicitly supplies a reviewed
+artifacts. A suite lists every command it runs under `commands`, each an argv
+array, and a command step or judge adapter that is not listed there fails
+without running. The LLM judge is inert until a suite explicitly supplies a reviewed
 `adapter_argv`; the adapter receives JSON on stdin and must return one
 `EvaluationResult` JSON object on stdout.

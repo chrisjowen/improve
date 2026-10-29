@@ -2,6 +2,7 @@
 
 A local review surface for the harness: the proposals `/improve` has produced,
 the objectives those proposals target, and the evaluations that score them.
+Objectives and their evals can be added, edited and deleted here too.
 
 ## Install and run
 
@@ -57,9 +58,10 @@ the name of the one in the way.
 
 | Path | Access |
 | --- | --- |
-| `.harness/proposals/*.yaml` | read, and status updated on apply or reject; `evaluation.commands` extended when you add the commands a stopped run named |
+| `.harness/proposals/*.yaml` | read, written when you file an edit from Objectives, status updated on apply or reject, and `evaluation.commands` extended when you add the commands a stopped run named |
 | `.harness/decisions/*.yaml` | appended when you apply or reject |
-| `.harness/evals/suites/*.yaml` | read |
+| `.harness/objectives.yaml` | read, and an objective's own fields written when you save an edit you reviewed |
+| `.harness/evals/suites/*.yaml` | read, and written only by Approve and write on an edit filed from Objectives |
 | `.harness/evals/results/index.jsonl` | appended, one line per run |
 | `.harness/evals/results/<run>.json` | written, the full report |
 | `.claude/skills/<name>/SKILL.md` | written only when you approve a draft |
@@ -80,6 +82,21 @@ so nothing is scored in the background and no suite runs on a schedule.
 and the draft is returned as data. Only an explicit Apply writes to
 `.claude/skills/`, which keeps the plugin's rule that a background job may draft
 but never mutate the harness.
+
+**Editing an objective or eval never widens what runs unreviewed.** On the
+Objectives page, an objective's own fields (what it means, its success
+criteria, how it is graded, its target, owner and review date) are written to
+`.harness/objectives.yaml` when you save the diff you reviewed. None of them
+changes what runs. A new eval, an edit to one, and any deletion are filed as a
+proposal instead. A deleted objective takes the evals that measure it with it.
+The proposal holds the exact file contents and shows the commands the eval
+runs, marking the ones it adds. It waits on Proposals, and only **Approve and
+write** puts those bytes on disk. That write refuses a proposal whose contents
+changed after it was filed, a file that changed since, and a step running a
+command the eval does not declare. Each eval lists its commands under
+`commands`, and a step can only pick one of those. The eval rig refuses any
+other command, wherever the suite came from. Every save and write names the
+digest of the change you reviewed, so a stale tab is refused.
 
 **Apply runs `/improve apply` and checks what it did.** An approved proposal
 has an Apply button. It shows exactly which files the run will change and

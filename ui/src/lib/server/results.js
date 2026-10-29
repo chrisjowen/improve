@@ -75,6 +75,8 @@ export function listSuites() {
         objective_id: typeof objective === "string" ? objective : objective?.id ?? null,
         objective: typeof objective === "string" ? null : objective ?? null,
         steps: Array.isArray(document.steps) ? document.steps.length : 0,
+        // What running it may execute, each an argv list.
+        commands: Array.isArray(document.commands) ? document.commands.filter((c) => Array.isArray(c)) : [],
         threshold: document.aggregation?.threshold ?? null,
         has_challenge: Boolean(document.challenge?.must_fail?.length)
       });

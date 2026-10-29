@@ -83,6 +83,8 @@
     <p class="empty small">Both versions are empty.</p>
   {:else}
     <table>
+      <!-- Fixed layout takes column widths from the first row, which may be a fold spanning all three. -->
+      <colgroup><col class="ln-col" /><col class="ln-col" /><col /></colgroup>
       <tbody>
         {#each rows as row}
           {#if row.fold}
@@ -114,6 +116,7 @@
   .minus { color: var(--bad); font-weight: 600; }
   table { font: 12.5px/1.6 var(--mono); table-layout: fixed; }
   td { padding: 0 10px; border: 0; vertical-align: top; }
+  .ln-col { width: 46px; }
   .ln { width: 46px; text-align: right; color: var(--text-3); user-select: none; padding: 0 8px; }
   .code { white-space: pre-wrap; overflow-wrap: anywhere; }
   .sign { display: inline-block; width: 14px; color: var(--text-3); user-select: none; }

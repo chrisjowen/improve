@@ -7,6 +7,7 @@
   import Notice from "$lib/components/Notice.svelte";
   import JobCard from "$lib/components/JobCard.svelte";
   import ApplyResult from "$lib/components/ApplyResult.svelte";
+  import RunsList from "$lib/components/RunsList.svelte";
   import { api } from "$lib/client/api.js";
   import { summary, refreshSummary } from "$lib/client/summary.svelte.js";
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
@@ -36,6 +37,7 @@
   let confirmOverwrite = $state(false);
   let plan = $state(/** @type {any} */ (null));
   let confirming = $state(false);
+  let edit = $state(/** @type {any} */ (null));
 
   /** @param {Record<string, string | null>} params */
   function go(params) {
@@ -74,9 +76,30 @@
     if (key) loadDiff(key.split("|")[0]);
   });
 
+  // An edit filed from Objectives: its files against the disk as it is now.
+  const editKey = $derived(selected?.harness_edit ? `${selected.file}|${selected.status}` : null);
+
+  $effect(() => {
+    const key = editKey;
+    edit = null;
+    if (key) loadEdit(key.split("|")[0]);
+  });
+
+  /** @param {string} file */
+  async function loadEdit(file) {
+    try {
+      edit = await api(`/api/proposals/${encodeURIComponent(file)}/edit`);
+    } catch (error) {
+      edit = { error: /** @type {Error} */ (error).message };
+    }
+  }
+  // Once written or rejected, an edit's files are history: what it runs is what matters.
+  const editOpen = $derived(Boolean(selected?.harness_edit) && ["draft", "proposed", "approved"].includes(selected?.status));
+  const editBlocked = $derived(!edit || edit.error || edit.stale?.length || edit.tampered || edit.problems?.length);
+
   // Re-read the plan whenever the proposal's record moves, so the confirm
   // always lists what a run would change now.
-  const planKey = $derived(selected?.status === "approved"
+  const planKey = $derived(selected?.status === "approved" && !selected?.harness_edit
     ? `${selected.file}|${selected.last_apply?.at ?? ""}|${selected.upstream_change?.commit ?? ""}`
     : null);
 
@@ -210,6 +233,12 @@
           body: { rationale: reason, digest: diff?.digest, idempotency_key: `${file}:${diff?.digest}`, allow_unmarked_overwrite: overwrite }
         });
         notice = { tone: "ok", text: `Approved and wrote ${value.written}.${value.archived ? ` The previous version is in ${value.archived}.` : ""}` };
+      } else if (kind === "write") {
+        const value = await api(`/api/proposals/${encodeURIComponent(file)}/edit`, {
+          method: "POST",
+          body: { rationale: reason, digest: edit?.digest, idempotency_key: `edit:${file}:${edit?.digest}` }
+        });
+        notice = { tone: "ok", text: `Approved and wrote ${value.written.join(", ")}.` };
       } else {
         const value = await api(`/api/proposals/${encodeURIComponent(file)}/${kind}`, {
           method: "POST",
@@ -225,6 +254,7 @@
     } catch (cause) {
       const error = /** @type {any} */ (cause);
       if (error.detail?.requires === "allow_unmarked_overwrite") confirmOverwrite = true;
+      if (kind === "write") loadEdit(file);
       notice = { tone: "bad", text: error.message, hint: error.hint };
     } finally {
       busy = null;
@@ -233,7 +263,8 @@
 
   const scope = $derived(scopeLabel(selected?.check));
   const status = $derived(STATUS[selected?.status] ?? { label: selected?.status, tone: "" });
-  const decidable = $derived(selected && waiting(selected) && !selected.malformed);
+  // A filed edit is written by its own button, so approved is still decidable for it.
+  const decidable = $derived(selected && !selected.malformed && (waiting(selected) || (selected.harness_edit && selected.status === "approved")));
 </script>
 
 <svelte:head><title>Proposals · improve</title></svelte:head>
@@ -302,6 +333,7 @@
             {#if selected.check}<Pill tone={scope.tone} title={scope.meaning}>{scope.label}</Pill>{/if}
             {#if selected.confidence}<Pill plain>Confidence: {selected.confidence}</Pill>{/if}
             {#if selected.provenance?.kind === "background-dream"}<Pill tone="warn">From a background review, unverified</Pill>{/if}
+            {#if selected.provenance?.kind === "objectives-editor"}<Pill plain>Filed from Objectives</Pill>{/if}
           </div>
           <h2 style="font-size:18px">{selected.title}</h2>
           <p class="small faint">
@@ -349,6 +381,27 @@
               {#if selected.scope?.permissions_changed}<p class="small" style="color:var(--warn);margin-top:6px">Changes permissions.</p>{/if}
             </div>
 
+            {#if selected.harness_edit}
+              <div>
+                <div class="section-label">What runs</div>
+                {#if !edit}
+                  <p class="small faint">Loading…</p>
+                {:else if edit.error}
+                  <Notice tone="bad">{edit.error}</Notice>
+                {:else}
+                  <RunsList before={editOpen ? edit.runs.before : edit.runs.after} after={edit.runs.after} />
+                {/if}
+              </div>
+              {#if editOpen && edit && !edit.error}
+                {#if edit.stale.length}<Notice tone="warn">{edit.stale.join(", ")} changed since this edit was filed, so it cannot be written. Reject it and make the edit again on Objectives.</Notice>{/if}
+                {#if edit.tampered}<Notice tone="bad">The proposal's file contents no longer match the change it recorded when it was filed, so it cannot be written.</Notice>{/if}
+                {#if edit.problems.length}<Notice tone="bad">It runs a command it does not declare: {edit.problems.join("; ")}.</Notice>{/if}
+                <div class="stack" style="gap:10px">
+                  <div class="section-label" style="margin:0">Exactly what is written</div>
+                  {#each edit.files as change}<Diff current={change.current ?? ""} proposed={change.proposed ?? ""} path={change.path} />{/each}
+                </div>
+              {/if}
+            {:else}
             <div>
               <div class="section-label">Evidence</div>
               {#if selected.evidence.length}
@@ -369,6 +422,7 @@
                 <p class="small" style="color:var(--warn)">No evidence is given. A proposal without evidence is a guess.</p>
               {/if}
             </div>
+            {/if}
 
             {#if selected.evaluation && (selected.evaluation.baseline || selected.evaluation.candidate || selected.evaluation.pass_conditions?.length || selected.evaluation.commands?.length)}
               <div>
@@ -422,7 +476,7 @@
             {/if}
 
             <!-- A skill can be drafted from a proposal and applied from its reviewed diff. -->
-            {#if selected.skill_draft || (decidable && selected.check?.scope !== "codebase")}
+            {#if !selected.harness_edit && (selected.skill_draft || (decidable && selected.check?.scope !== "codebase"))}
               <div>
                 <div class="spread" style="margin-bottom:8px">
                   <div class="section-label" style="margin:0">Skill draft</div>
@@ -508,7 +562,9 @@
               {#if reasonError}<p id="reason-error" class="field-error">{reasonError}</p>{/if}
               <div class="decision-actions">
                 <p id="reason-help" class="small faint">
-                  {#if selected.skill_draft && diff && !diff.error}
+                  {#if selected.harness_edit}
+                    Approving writes {edit?.files?.length === 1 ? "this file" : "these files"} exactly as shown.
+                  {:else if selected.skill_draft && diff && !diff.error}
                     Approving writes <code>{diff.target}</code> exactly as shown.
                   {:else}
                     Approving records your decision only. Nothing changes until you apply it, here or with <code>/improve apply {selected.id}</code>.
@@ -521,7 +577,11 @@
                   {#if confirmOverwrite}
                     <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob)}>Overwrite the hand-written file</button>
                   {/if}
-                  {#if selected.skill_draft && diff && !diff.error}
+                  {#if selected.harness_edit}
+                    <button class="primary" onclick={() => decide("write")} disabled={busy !== null || Boolean(editBlocked)}>
+                      <Icon name="check" size={14} />{busy === "write" ? "Writing…" : "Approve and write"}
+                    </button>
+                  {:else if selected.skill_draft && diff && !diff.error}
                     <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || diff.blocked}>
                       <Icon name="check" size={14} />{busy === "apply" ? "Writing…" : "Approve and write skill"}
                     </button>

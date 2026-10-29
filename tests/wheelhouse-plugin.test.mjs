@@ -242,6 +242,10 @@ const slowUi = await serve((req, res) => {
   else improveUi(null)(req, res);
 });
 const elsewhereUi = await serve(improveUi(() => ({ token: "elsewhere-token", project: path.join(dir, "another-repo") })));
+// The same home reached through a symlink, as /var is /private/var on macOS.
+const homeLink = path.join(dir, "home-link");
+fs.symlinkSync(home, homeLink);
+const linkedUi = await serve(improveUi(() => ({ token: "linked-token", project: homeLink })));
 const other = await serve((req, res) => {
   res.statusCode = req.url === "/api/health" || req.url === "/api/status" ? 200 : 404;
   res.end('{"ok":true}');
@@ -435,6 +439,8 @@ try {
     assert.deepEqual({ running: slow.running, token: slow.token, connects: slow.connects, servesHome: slow.servesHome }, { running: true, token: launchToken, connects: true, servesHome: null });
     const away = (await provider("harness")(context({ uiUrl: elsewhereUi.url }))).value.ui;
     assert.deepEqual({ running: away.running, servesHome: away.servesHome, project: away.project }, { running: true, servesHome: false, project: path.join(dir, "another-repo") });
+    const linked = (await provider("harness")(context({ uiUrl: linkedUi.url }))).value.ui;
+    assert.deepEqual({ running: linked.running, servesHome: linked.servesHome, project: linked.project }, { running: true, servesHome: true, project: homeLink });
   }
 
   // It does not take another app on improve's port for improve's UI.
@@ -544,7 +550,7 @@ try {
   ]);
   assert.ok(fs.existsSync(path.join(pluginRoot, "adapters", "firstmate", "cli.mjs")));
 } finally {
-  for (const s of [ui, oldUi, slowUi, elsewhereUi, other]) s.server.close();
+  for (const s of [ui, oldUi, slowUi, elsewhereUi, linkedUi, other]) s.server.close();
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

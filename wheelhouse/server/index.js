@@ -7369,7 +7369,7 @@ var require_dist = __commonJS({
 
 // src/server.mjs
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8002,6 +8002,16 @@ function startCommand(root, home, url) {
   const port = new URL(url).port || "5173";
   return `cd ${shq(path.join(root, "ui"))} && npm install && IMPROVE_PROJECT_DIR=${shq(home)} npx vite dev --host 127.0.0.1 --port ${port}`;
 }
+function samePath(a, b) {
+  const real = (p) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return path.resolve(p);
+    }
+  };
+  return real(a) === real(b);
+}
 async function ui(ctx, cli, home) {
   const url = uiUrl(ctx.settings);
   const probe = await probeUi(url, ctx.signal);
@@ -8014,7 +8024,7 @@ async function ui(ctx, cli, home) {
     start: probe.running || !root || !home ? null : startCommand(root, home, url),
     token: !probe.running || probe.embeds ? probe.token ?? LAUNCH_TOKEN : null,
     project: probe.project,
-    servesHome: probe.running && probe.project && home ? path.resolve(probe.project) === path.resolve(home) : null,
+    servesHome: probe.running && probe.project && home ? samePath(probe.project, home) : null,
     connects: !probe.running || probe.embeds
   };
 }

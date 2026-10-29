@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/chrisjowen/wheelhouse/main/packages/plugin-sdk/plugin.schema.json",
   "name": "improve",
   "displayName": "Improve",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "improve's proposals, review schedule and evidence for a Firstmate home, read through improve's Firstmate adapter.",
   "author": { "name": "Chris Owen", "url": "https://github.com/chrisjowen" },
   "repository": "https://github.com/chrisjowen/improve",

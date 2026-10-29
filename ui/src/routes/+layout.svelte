@@ -1,5 +1,6 @@
 <script>
   import "../app.css";
+  import "$lib/styles.css";
   import { page } from "$app/state";
   import { afterNavigate } from "$app/navigation";
   import Icon from "$lib/components/Icon.svelte";

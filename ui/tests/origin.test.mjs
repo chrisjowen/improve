@@ -1,6 +1,7 @@
 // The server answers only known hosts, and refuses writes from any other origin.
 import assert from "node:assert/strict";
-import { handle } from "../src/hooks.server.js";
+import { embedderOrigin, handle } from "../src/hooks.server.js";
+import { LAUNCH_TOKEN, embed } from "../src/lib/server/launch.js";
 
 const ORIGIN = "http://127.0.0.1:5173";
 
@@ -27,7 +28,8 @@ for (const [label, headers] of [
   const { response, resolved } = await send("POST", "/api/dreams", headers);
   assert.equal(response.status, 403, label);
   assert.equal(resolved, false, `${label} never reaches the route`);
-  assert.equal(response.headers.get("access-control-allow-origin"), null);
+  // A loopback page may read why it was refused (see below); another site may not.
+  if (!headers.origin?.startsWith("http://127.0.0.1")) assert.equal(response.headers.get("access-control-allow-origin"), null);
 }
 
 const sameOrigin = await send("POST", "/api/proposals/p.yaml/reject", { origin: ORIGIN });
@@ -46,7 +48,7 @@ assert.equal(read.resolved, true, "a plain GET is allowed");
 assert.equal(read.response.headers.get("access-control-allow-origin"), null);
 
 const preflight = await send("OPTIONS", "/api/dreams", { origin: "http://evil.example" });
-assert.equal(preflight.response.status, 403, "no CORS preflight is answered");
+assert.equal(preflight.response.status, 403, "no other site's CORS preflight is answered");
 
 // --- host allowlist: DNS rebinding -----------------------------------------
 // A page on evil.example whose name now resolves to 127.0.0.1 is same-origin
@@ -118,5 +120,75 @@ assert.equal((await send("GET", "/api/status", {}, "http://10.0.0.5:5173")).reso
 process.env.HOST = "0.0.0.0";
 assert.equal((await send("GET", "/api/status", {}, "http://0.0.0.0:5173")).response.status, 403, "a wildcard HOST adds nothing");
 delete process.env.HOST;
+
+// --- another origin on this computer, with the token: Wheelhouse's panels ----
+const WHEELHOUSE = "http://127.0.0.1:4700";
+{
+  const ask = await send("OPTIONS", "/api/proposals/p.yaml/approve", {
+    origin: WHEELHOUSE,
+    "access-control-request-method": "POST",
+    "access-control-request-headers": "content-type, x-improve-token"
+  });
+  assert.equal(ask.response.status, 204, "a loopback page's preflight is answered");
+  assert.equal(ask.resolved, false, "a preflight never reaches a route");
+  assert.equal(ask.response.headers.get("access-control-allow-origin"), WHEELHOUSE);
+  assert.match(ask.response.headers.get("access-control-allow-headers"), /x-improve-token/);
+
+  const withToken = await send("POST", "/api/proposals/p.yaml/approve", { origin: WHEELHOUSE, "x-improve-token": LAUNCH_TOKEN });
+  assert.equal(withToken.resolved, true, "a loopback page with the token may write");
+  assert.equal(withToken.response.headers.get("access-control-allow-origin"), WHEELHOUSE);
+  assert.match(withToken.response.headers.get("vary"), /Origin/);
+
+  const read = await send("GET", "/api/status", { origin: "http://localhost:4700", "x-improve-token": LAUNCH_TOKEN });
+  assert.equal(read.response.headers.get("access-control-allow-origin"), "http://localhost:4700", "and read");
+
+  for (const [label, headers] of [
+    ["no token", { origin: WHEELHOUSE }],
+    ["a wrong token", { origin: WHEELHOUSE, "x-improve-token": "x".repeat(LAUNCH_TOKEN.length) }]
+  ]) {
+    const refused = await send("POST", "/api/dreams", headers);
+    assert.equal(refused.response.status, 403, label);
+    assert.equal(refused.resolved, false, label);
+    assert.match((await refused.response.json()).error, /token/, `${label}: the page can read why`);
+  }
+  const unread = await send("GET", "/api/status", { origin: WHEELHOUSE });
+  assert.equal(unread.resolved, true, "a GET without the token is served as before");
+  assert.equal(unread.response.headers.get("access-control-allow-origin"), null, "but the page cannot read it");
+
+  // The token is what another site lacks; its origin is refused even with it.
+  const elsewhere = await send("POST", "/api/dreams", { origin: "http://evil.example", "x-improve-token": LAUNCH_TOKEN });
+  assert.equal(elsewhere.response.status, 403);
+  assert.equal(elsewhere.response.headers.get("access-control-allow-origin"), null);
+  assert.equal((await send("GET", "/api/status", { origin: "http://evil.example", "x-improve-token": LAUNCH_TOKEN })).response.headers.get("access-control-allow-origin"), null);
+  // A rebinding page carrying the token is still another host.
+  assert.equal((await send("POST", "/api/dreams", { origin: REBOUND, "x-improve-token": LAUNCH_TOKEN }, REBOUND)).response.status, 403);
+
+  assert.equal(embedderOrigin("http://[::1]:4700"), true);
+  assert.equal(embedderOrigin("null"), false, "a sandboxed page");
+  assert.equal(embedderOrigin("file:///x"), false);
+  assert.equal(embedderOrigin("https://wh.example.dev"), false);
+  assert.equal(embedderOrigin("https://wh.example.dev", { IMPROVE_ALLOWED_ORIGINS: "https://wh.example.dev/, http://x.test" }), true);
+  assert.equal(embedderOrigin("https://other.example.dev", { IMPROVE_ALLOWED_ORIGINS: "https://wh.example.dev" }), false);
+}
+
+// --- /api/embed: the token, for a program on this computer only ---------------
+{
+  const call = (headers) => embed(new Request(`${ORIGIN}/api/embed`, { headers }));
+  const program = await call({});
+  assert.equal(program.status, 200);
+  const body = await program.json();
+  assert.equal(body.token, LAUNCH_TOKEN);
+  assert.equal(typeof body.project, "string");
+  for (const [label, headers] of [
+    ["a cross-origin page", { origin: WHEELHOUSE }],
+    ["a page's fetch", { "sec-fetch-site": "same-origin" }],
+    ["another site's no-cors request", { "sec-fetch-site": "cross-site" }]
+  ]) {
+    const refused = await call(headers);
+    assert.equal(refused.status, 403, label);
+    assert.equal((await refused.json()).token, undefined, label);
+  }
+  assert.equal((await call({ "sec-fetch-site": "none" })).status, 200, "the person typing the address");
+}
 
 console.log("origin tests passed");

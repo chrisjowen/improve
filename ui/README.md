@@ -40,6 +40,8 @@ dev server in the foreground.
 | `IMPROVE_PYTHON` | Python interpreter for the eval rig. Defaults to `python3`. |
 | `ORIGIN` | Public URL when served through a proxy or on another host. Its host is accepted, and writes must come from it. |
 | `IMPROVE_ALLOWED_HOSTS` | Extra comma-separated host names the API answers to. |
+| `IMPROVE_ALLOWED_ORIGINS` | Extra comma-separated origins, beyond loopback ones, whose pages may drive the API with the launch token. See [No authentication](#no-authentication). |
+| `IMPROVE_LAUNCH_TOKEN` | The launch token to use instead of minting one (32 to 128 letters, digits, `-` or `_`). Wheelhouse sets it when it launches the UI. |
 
 ## Runs
 
@@ -130,8 +132,10 @@ a particular harness change.
 There is none, by choice, for a single user on their own machine. Instead:
 
 - The server is local only by default: it binds `127.0.0.1`.
-- The API is same-origin only. It sends no CORS headers, so another site's page
-  cannot read its answers.
+- The API is same-origin only, with one exception below. It sends no CORS
+  headers otherwise, so another site's page cannot read its answers. Vite's
+  own CORS, which would let any page on `localhost` read them under `vite dev`,
+  is turned off in `vite.config.js`.
 - Only known host names are answered. Every page and API request, reads
   included, gets 403 unless its `Host` is `127.0.0.1`, `localhost` or `[::1]`, the
   specific host in `HOST`, the host of `ORIGIN`, or one listed in
@@ -145,6 +149,17 @@ There is none, by choice, for a single user on their own machine. Instead:
   dismissing findings, and cancelling jobs.
 - Starting an apply run, the one request that gives an agent edit tools, also
   needs the token the server mints at launch and puts in the page it serves.
+- The exception: a page on another origin may drive the server when every
+  request carries that token (`x-improve-token`) and the page is on this
+  computer (a loopback origin, any port) or its origin is listed in
+  `IMPROVE_ALLOWED_ORIGINS`. Those requests, and their CORS preflights, get
+  CORS headers; anything else from another origin is treated as above. This is
+  how improve's Wheelhouse plugin draws these pages inside Wheelhouse. Its
+  server reads the token from `GET /api/embed`, which answers a program on this
+  computer and refuses any browser request, so it tells a program no more than
+  loading a page does. Whatever starts the server may hand it the token in
+  `IMPROVE_LAUNCH_TOKEN` instead of it minting one; Wheelhouse does, so its
+  page can drive the UI it just launched.
 
 Serving through a proxy, or on a non-loopback host, is an explicit opt-in. Pass
 `--host` and set `ORIGIN` to the public URL the browser uses (for example

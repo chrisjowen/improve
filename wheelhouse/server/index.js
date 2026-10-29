@@ -7368,6 +7368,7 @@ var require_dist = __commonJS({
 });
 
 // src/server.mjs
+import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -7381,6 +7382,9 @@ function openUrl(ui2, file) {
   return ui2.running ? proposalUrl(ui2, file) : null;
 }
 var IMPROVEMENTS = "/plugins/improve/improvements";
+function proposalHref(file) {
+  return `${IMPROVEMENTS}#/proposals?view=all&p=${encodeURIComponent(file)}`;
+}
 
 // src/view.mjs
 var import_yaml = __toESM(require_dist(), 1);
@@ -7706,6 +7710,7 @@ function proposalItem(p, o) {
     ),
     decision: o.routed ? decisionOf(o.routed, o.tasks, !!o.routed && filing) : null,
     routing,
+    reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };
 }
@@ -7870,6 +7875,7 @@ var MAX_OUT = 8 * 1024 * 1024;
 var RUN_MS = 8e3;
 var DEFAULT_UI = "http://127.0.0.1:5173";
 var LOOPBACK = /* @__PURE__ */ new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+var LAUNCH_TOKEN = randomBytes(24).toString("hex");
 var isRecord2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function adapterEnabled(text) {
   if (!text) return false;
@@ -7953,6 +7959,7 @@ function dueIsReadOnly(detect, reviewState) {
   return isRecord2(detect) && detect.detected === true && detect.enabled === true && p?.enabled === true && (typeof s.last_reviewed_at === "string" || typeof s.enabled_at === "string");
 }
 async function probeUi(url, signal) {
+  const none = { running: false, deepLinks: false, token: null, project: null };
   const get = (p) => fetch(`${url}${p}`, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(800)]),
     redirect: "manual"
@@ -7960,17 +7967,22 @@ async function probeUi(url, signal) {
   try {
     const r = await get("/api/status");
     const body = r.ok ? await r.json() : null;
-    if (typeof body !== "object" || body === null || !("harness_initialized" in body)) {
-      return { running: false, deepLinks: false };
-    }
+    if (typeof body !== "object" || body === null || !("harness_initialized" in body)) return none;
   } catch {
-    return { running: false, deepLinks: false };
+    return none;
   }
-  try {
-    return { running: true, deepLinks: (await get("/api/health")).ok };
-  } catch {
-    return { running: true, deepLinks: false };
-  }
+  const [health, embed] = await Promise.all([
+    get("/api/health").then((r) => r.ok, () => false),
+    get("/api/embed").then(
+      async (r) => r.ok ? (
+        /** @type {unknown} */
+        await r.json()
+      ) : null,
+      () => null
+    )
+  ]);
+  const e = isRecord2(embed) && typeof embed.token === "string" && typeof embed.project === "string" ? embed : null;
+  return { running: true, deepLinks: health, token: e?.token ?? null, project: e?.project ?? null };
 }
 function uiUrl(settings) {
   const v = settings.uiUrl;
@@ -7997,7 +8009,11 @@ async function ui(ctx, cli, home) {
     url,
     running: probe.running,
     deepLinks,
-    start: probe.running || !root || !home ? null : startCommand(root, home, url)
+    start: probe.running || !root || !home ? null : startCommand(root, home, url),
+    token: probe.running ? probe.token : LAUNCH_TOKEN,
+    project: probe.project,
+    servesHome: probe.running && probe.project && home ? path.resolve(probe.project) === path.resolve(home) : null,
+    connects: !probe.running || probe.token !== null
   };
 }
 async function uiService(ctx) {
@@ -8039,7 +8055,7 @@ async function uiService(ctx) {
       identity: { url: `${url}/api/status`, path: ["harness_initialized"] },
       argv: [process.execPath, vite, "dev", "--host", "127.0.0.1", "--port", u.port || "5173", "--strictPort"],
       cwd: dir,
-      env: { IMPROVE_PROJECT_DIR: home },
+      env: { IMPROVE_PROJECT_DIR: home, IMPROVE_LAUNCH_TOKEN: LAUNCH_TOKEN },
       binds: "loopback",
       readyTimeoutMs: 6e4,
       setup: existsSync(vite) ? [] : [
@@ -8159,7 +8175,7 @@ async function proposal(ctx) {
   const value = {
     schema: "wheelhouse-improve-proposal.v1",
     proposal: item,
-    improvementsHref: `${IMPROVEMENTS}#${encodeURIComponent(routed.file)}`,
+    improvementsHref: proposalHref(routed.file),
     ui: uiState
   };
   return { available: true, value, source: "improve\u2019s proposal file", observedAt: (/* @__PURE__ */ new Date()).toISOString() };
@@ -8217,6 +8233,7 @@ export {
   server_default as default,
   dueIsReadOnly,
   pluginRoot,
+  probeUi,
   startCommand,
   uiUrl
 };

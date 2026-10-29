@@ -16,7 +16,7 @@ import {
   visibilityOfDelivery,
   visibilityShort
 } from "./words.mjs";
-import { openUrl } from "./urls.mjs";
+import { openUrl, proposalHref } from "./urls.mjs";
 
 /**
  * Turns what improve's Firstmate adapter printed, and improve's own proposal
@@ -247,6 +247,7 @@ export function proposalItem(p, o) {
     ),
     decision: o.routed ? decisionOf(o.routed, o.tasks, !!o.routed && filing) : null,
     routing,
+    reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };
 }

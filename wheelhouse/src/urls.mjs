@@ -20,3 +20,11 @@ export function openUrl(ui, file) {
 
 /** The Improvements page in Wheelhouse. */
 export const IMPROVEMENTS = "/plugins/improve/improvements";
+
+/**
+ * A proposal on the Improvements page's Proposals view, where it can be decided.
+ * @param {string} file
+ */
+export function proposalHref(file) {
+  return `${IMPROVEMENTS}#/proposals?view=all&p=${encodeURIComponent(file)}`;
+}

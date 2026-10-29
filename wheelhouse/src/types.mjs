@@ -45,6 +45,7 @@
  * @property {string | null} createdAt
  * @property {ProposalDecision | null} decision
  * @property {string | null} routing How routing would treat it next, when that says something the status does not.
+ * @property {string} reviewHref The proposal on the Improvements page's Proposals tab, where it is decided.
  * @property {string | null} openUrl The proposal in improve's own UI, when that UI is running.
  *
  * @typedef {object} Pattern
@@ -60,6 +61,11 @@
  * @property {boolean} running
  * @property {boolean} deepLinks Whether it opens a proposal by its file (`/proposals?p=<file>`).
  * @property {string | null} start How to start it, bound to 127.0.0.1, when it is not running and Wheelhouse knows where it is.
+ * @property {string | null} token The token the Improvements page sends it: the running UI's own, read from
+ *   its `/api/embed`, else the one Wheelhouse hands it when it launches it; null when it runs but says none.
+ * @property {string | null} project The repository a running UI serves.
+ * @property {boolean | null} servesHome Whether a running UI serves this home; null when it is not running.
+ * @property {boolean} connects Whether the Improvements page can drive it: false for a running UI too old to say its token.
  *
  * @typedef {object} Review
  * @property {boolean | null} due null when periodic review is off or has not started counting.
@@ -90,7 +96,7 @@
  * @typedef {object} ProposalSection A routed proposal, for its Firstmate task's page.
  * @property {"wheelhouse-improve-proposal.v1"} schema
  * @property {ProposalItem} proposal
- * @property {string} improvementsHref The Improvements page, at this proposal.
+ * @property {string} improvementsHref The proposal on the Improvements page's Proposals tab.
  * @property {ImproveUi} ui
  */
 

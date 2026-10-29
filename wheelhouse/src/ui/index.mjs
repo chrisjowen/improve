@@ -1,9 +1,11 @@
-import { IMPROVEMENTS, proposalUrl } from "../urls.mjs";
+import { IMPROVEMENTS } from "../urls.mjs";
 import { chipText, GROUPS, since } from "../words.mjs";
 import { h, icon } from "./dom.mjs";
 import { ArrowRight, GitPullRequest, Hand, Info, Lock, MessageSquareText, Wrench } from "./icons.mjs";
-import { evidenceBar, proposalCard, reviewBadge, serviceLine } from "./parts.mjs";
+import { evidenceBar, proposalCard, reviewBadge } from "./parts.mjs";
 import { STYLE } from "./style.mjs";
+import { APP_STYLE } from "./app/theme.mjs";
+import { mountApp } from "./app/mount.svelte.js";
 
 /**
  * improve's panels in Wheelhouse, as custom elements. Wheelhouse imports this
@@ -12,30 +14,23 @@ import { STYLE } from "./style.mjs";
  * Each element draws in its own shadow root with Wheelhouse's CSS variables,
  * so it follows the page's light and dark themes.
  *
- *   <improve-improvements>  the Improvements page (nav.page)
+ *   <improve-improvements>  the Improvements page (nav.page): improve's review UI, in tabs
  *   <improve-health>        the Harness tab on the home page's rail (home.card)
  *   <improve-indicator>     the header pill (header.indicator)
  *   <improve-proposal>      the Improvement section on a proposal's task (task.section)
  *
+ * and, inside the Improvements page, <improve-firstmate-view>, its Firstmate tab.
+ *
  * @typedef {import("../types.mjs").HarnessView} HarnessView
  * @typedef {import("../types.mjs").ImproveUi} ImproveUi
  * @typedef {import("../types.mjs").ProposalSection} ProposalSection
- * @typedef {import("./parts.mjs").ServiceView} ServiceView
  */
-
-const SERVICE = "/api/services?plugin=improve&service=ui";
 
 class ImproveElement extends HTMLElement {
   /** @type {unknown} */
   #data = null;
   /** @type {unknown} */
   #entry = null;
-  /** improve's review UI as Wheelhouse last said, for the elements that show it. @type {ServiceView | null} */
-  service = null;
-  #serviceFor = /** @type {boolean | null} */ (null);
-  copied = false;
-  /** Whether this element shows improve's review UI, and so asks Wheelhouse about it. */
-  wantsService = false;
 
   constructor() {
     super();
@@ -45,7 +40,6 @@ class ImproveElement extends HTMLElement {
   set data(value) {
     this.#data = value;
     this.render();
-    this.refreshService();
   }
 
   get data() {
@@ -62,47 +56,6 @@ class ImproveElement extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.refreshService();
-  }
-
-  /** @returns {ImproveUi | null} */
-  ui() {
-    const d = /** @type {{ ui?: ImproveUi } | null} */ (this.#data);
-    return d?.ui ?? null;
-  }
-
-  /** Ask Wheelhouse whether improve's review UI runs: once, and again when the provider says it started or stopped. */
-  async refreshService() {
-    const ui = this.ui();
-    if (!this.wantsService || !ui || !this.isConnected || this.#serviceFor === ui.running) return;
-    this.#serviceFor = ui.running;
-    try {
-      const res = await fetch(SERVICE);
-      this.service = res.ok ? await res.json() : null;
-    } catch {
-      this.service = null;
-    }
-    this.render();
-  }
-
-  /** @param {string} text */
-  async copy(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      this.copied = true;
-      this.render();
-      setTimeout(() => {
-        this.copied = false;
-        this.render();
-      }, 1500);
-    } catch {
-      // clipboard unavailable: the command stays selectable
-    }
-  }
-
-  /** @param {string | null} [open] */
-  serviceLine(open = null) {
-    return serviceLine({ view: this.service, ui: this.ui(), open, copied: this.copied, onCopy: (t) => this.copy(t) });
   }
 
   render() {
@@ -123,42 +76,17 @@ class ImproveElement extends HTMLElement {
 }
 
 /**
- * The Improvements page, visual first: three tiles (the review, what waits
- * for you, what improve read), then the proposals as cards grouped by where
- * they stand, beside the patterns that repeat and the harness's size. Detail
- * opens on a card's Details, or in improve's own UI from its title.
+ * The Improvements page's Firstmate tab, what Wheelhouse's provider read
+ * about this home, visual first: three tiles (the review, what waits for you,
+ * what improve read), then the proposals as cards grouped by where they
+ * stand, beside the patterns that repeat and the harness's size. Detail opens
+ * on a card's Details; its title opens it on the Proposals tab.
  */
-class ImproveImprovements extends ImproveElement {
-  wantsService = true;
+class ImproveFirstmateView extends ImproveElement {
   /** Cards whose Details are open, by file. */
   open = new Set();
   /** Repeated patterns opened, by their question. */
   patternsOpen = new Set();
-  #scrolled = false;
-  #onHash = () => this.scrollToHash();
-
-  connectedCallback() {
-    super.connectedCallback();
-    addEventListener("hashchange", this.#onHash);
-  }
-
-  disconnectedCallback() {
-    removeEventListener("hashchange", this.#onHash);
-  }
-
-  render() {
-    super.render();
-    if (!this.#scrolled && this.data) {
-      this.#scrolled = true;
-      queueMicrotask(() => this.scrollToHash());
-    }
-  }
-
-  /** A link to one proposal (`#IMP-1.yaml`) scrolls to its card, which sits in this shadow root. */
-  scrollToHash() {
-    const id = decodeURIComponent(location.hash.slice(1));
-    if (id) this.shadowRoot?.getElementById(id)?.scrollIntoView({ block: "start" });
-  }
 
   /** @param {HarnessView} v */
   view(v) {
@@ -248,7 +176,6 @@ class ImproveImprovements extends ImproveElement {
     return [
       h("p", { class: "lede sm muted" }, "Changes improve proposes to Firstmate’s harness from what it has seen go wrong. Nothing changes until you approve."),
       tiles,
-      h("div", { class: "mt3" }, this.serviceLine()),
       v.problems.length
         ? h("ul", { class: "problems" }, v.problems.map((p) => h("li", null, icon(Info, "icon i4"), p)))
         : [],
@@ -337,6 +264,69 @@ class ImproveImprovements extends ImproveElement {
 }
 
 /**
+ * The Improvements page: improve's review UI, its own pages in tabs, with a
+ * Firstmate tab for what Wheelhouse read about this home. The pages are
+ * Svelte, mounted in this element's shadow root (src/ui/app/), and talk to
+ * improve's review UI's server, which Wheelhouse launches as the plugin's
+ * `ui` service; `host` is how they ask Wheelhouse to.
+ */
+class ImproveImprovements extends HTMLElement {
+  /** @type {ReturnType<typeof mountApp> | null} */
+  #app = null;
+  /** @type {unknown} */
+  #data = null;
+  /** @type {unknown} */
+  #host = null;
+  /** @type {unknown} */
+  #entry = null;
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+  }
+
+  set data(value) {
+    this.#data = value;
+    this.#app?.setData(value);
+  }
+
+  get data() {
+    return this.#data;
+  }
+
+  set host(value) {
+    this.#host = value;
+    this.#app?.setHost(value);
+  }
+
+  get host() {
+    return this.#host;
+  }
+
+  set entry(value) {
+    this.#entry = value;
+  }
+
+  get entry() {
+    return this.#entry;
+  }
+
+  connectedCallback() {
+    const root = /** @type {ShadowRoot} */ (this.shadowRoot);
+    if (this.#app) return;
+    const style = document.createElement("style");
+    style.textContent = APP_STYLE;
+    root.replaceChildren(style);
+    this.#app = mountApp(root, { data: this.#data, host: this.#host });
+  }
+
+  disconnectedCallback() {
+    this.#app?.destroy();
+    this.#app = null;
+  }
+}
+
+/**
  * Harness health, on the home page's rail, at a glance: the review as a
  * badge, the number of proposals waiting (private and shared), what improve
  * read as one bar, and the patterns that repeat most as chips. Everything
@@ -360,7 +350,7 @@ class ImproveHealth extends ImproveElement {
       ),
       h(
         "a",
-        { class: "waits", href: IMPROVEMENTS },
+        { class: "waits", href: `${IMPROVEMENTS}#/proposals` },
         h("span", { class: "big" }, v.waiting),
         h(
           "span",
@@ -420,12 +410,11 @@ class ImproveIndicator extends ImproveElement {
 }
 
 /**
- * On the task improve filed a proposal as: the proposal's card, opened, since
- * this is where the captain decides; answering goes through Firstmate as for
- * any other call.
+ * On the task improve filed a proposal as: the proposal's card, opened, and a
+ * link to the proposal on the Improvements page, where it is decided as in
+ * improve's own UI; answering through Firstmate works as for any other call.
  */
 class ImproveProposal extends ImproveElement {
-  wantsService = true;
   open = true;
 
   /** @param {ProposalSection} v */
@@ -441,8 +430,7 @@ class ImproveProposal extends ImproveElement {
           this.render();
         }
       }),
-      v.ui.running ? null : h("div", { class: "mt3" }, this.serviceLine(proposalUrl(v.ui, v.proposal.file))),
-      h("a", { class: "more-link", href: v.improvementsHref }, "Every improvement", icon(ArrowRight, "icon i35"))
+      h("a", { class: "more-link", href: v.improvementsHref }, "Decide it on the Improvements page", icon(ArrowRight, "icon i35"))
     );
   }
 }
@@ -451,7 +439,8 @@ for (const [tag, cls] of /** @type {[string, CustomElementConstructor][]} */ ([
   ["improve-improvements", ImproveImprovements],
   ["improve-health", ImproveHealth],
   ["improve-indicator", ImproveIndicator],
-  ["improve-proposal", ImproveProposal]
+  ["improve-proposal", ImproveProposal],
+  ["improve-firstmate-view", ImproveFirstmateView]
 ])) {
   if (!customElements.get(tag)) customElements.define(tag, cls);
 }

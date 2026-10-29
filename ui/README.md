@@ -153,7 +153,9 @@ There is none, by choice, for a single user on their own machine. Instead:
   request carries that token (`x-improve-token`) and the page is on this
   computer (a loopback origin, any port) or its origin is listed in
   `IMPROVE_ALLOWED_ORIGINS`. Those requests, and their CORS preflights, get
-  CORS headers; anything else from another origin is treated as above. This is
+  CORS headers. From such a page, a request with a wrong token, and a write
+  with none, get 403 with CORS headers, so the page can say why; anything else
+  from another origin is treated as above. This is
   how improve's Wheelhouse plugin draws these pages inside Wheelhouse. Its
   server reads the token from `GET /api/embed`, which answers a program on this
   computer and refuses any browser request, so it tells a program no more than

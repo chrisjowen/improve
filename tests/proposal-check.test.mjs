@@ -164,8 +164,9 @@ assert.deepEqual(
   "an attempt recorded before undeclared_commands is read from its error"
 );
 assert.deepEqual(
-  legacy("The evaluation needs commands the proposal does not declare: bash .harness/evals/run.sh a; bash .harness/evals/run.sh b. The run does not widen its own permissions; add them to evaluation.commands and approve the proposal again."),
-  ["bash .harness/evals/run.sh a", "bash .harness/evals/run.sh b"]
+  legacy(`The evaluation needs a command the proposal does not declare: bash ${"x".repeat(495)}. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.`),
+  [],
+  "one the error may have cut short is not offered"
 );
 assert.deepEqual(legacy("The evaluation failed: 2 of 3 checks passed."), []);
 fs.rmSync(dir, { recursive: true, force: true });

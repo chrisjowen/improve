@@ -7668,9 +7668,8 @@ function pendingCommands(proposal2) {
   return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
 }
 function commandsInError(error) {
-  const match = /^The evaluation needs (a command|commands) the proposal does not declare: (.+)\. The run does not widen its own permissions;/s.exec(typeof error === "string" ? error : "");
-  if (!match) return [];
-  return match[1] === "a command" ? [match[2]] : match[2].split("; ");
+  const match = /^The evaluation needs a command the proposal does not declare: (.+)\. The run does not widen its own permissions;/s.exec(typeof error === "string" ? error : "");
+  return match && match[1].length < MAX_COMMAND ? [match[1]] : [];
 }
 var MAX_COMMAND = 500;
 function isCommand(value) {

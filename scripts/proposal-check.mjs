@@ -236,12 +236,15 @@ export function pendingCommands(proposal) {
   return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
 }
 
-/** The commands an apply run's error says the proposal does not declare. */
+/**
+ * The command an apply run's error says the proposal does not declare. The
+ * error held at most its first MAX_COMMAND characters, so one that long may
+ * have been cut short and is not offered.
+ */
 function commandsInError(error) {
-  const match = /^The evaluation needs (a command|commands) the proposal does not declare: (.+)\. The run does not widen its own permissions;/s
+  const match = /^The evaluation needs a command the proposal does not declare: (.+)\. The run does not widen its own permissions;/s
     .exec(typeof error === "string" ? error : "");
-  if (!match) return [];
-  return match[1] === "a command" ? [match[2]] : match[2].split("; ");
+  return match && match[1].length < MAX_COMMAND ? [match[1]] : [];
 }
 
 // One line of printable text, of a length a person can read in a confirm.

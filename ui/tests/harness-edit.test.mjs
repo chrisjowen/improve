@@ -108,11 +108,19 @@ const read = (file) => fs.readFileSync(file, "utf8");
   assert.match(edit.saveObjective({ id: "Bad Id", create: true, fields: { description: "x" } }).error, /lowercase/);
   assert.match(edit.saveObjective({ id: "tests-stay-green", create: true, fields: { description: "x" } }).error, /already exists/);
   assert.match(edit.saveObjective({ id: "brief-followed", create: true, fields: {} }).error, /Say what the objective means/);
-  const shown = edit.saveObjective({ id: "brief-followed", create: true, fields: { description: "A worker does what its brief asks.", success_criteria: ["Status lines use the brief's states."], regime: "observed" } });
+  const fields = { description: "A worker does what its brief asks.", success_criteria: ["Status lines use the brief's states."], regime: "observed", target: 0.8 };
+  const shown = edit.saveObjective({ id: "brief-followed", create: true, fields });
   assert.equal(shown.ok, true, shown.error);
-  assert.equal(edit.saveObjective({ id: "brief-followed", create: true, fields: { description: "A worker does what its brief asks.", success_criteria: ["Status lines use the brief's states."], regime: "observed" }, digest: shown.digest }).ok, true);
-  const ids = YAML.parse(read(objectivesFile)).objectives.map((o) => o.id);
+  assert.equal(edit.saveObjective({ id: "brief-followed", create: true, fields, digest: shown.digest }).ok, true);
+  const text = read(objectivesFile);
+  const ids = YAML.parse(text).objectives.map((o) => o.id);
   assert.deepEqual(ids, ["tests-stay-green", "brief-followed"]);
+  // A new objective's target is a plain mapping, as the runner reads it with YAML 1.1.
+  const added = (doc) => doc.objectives.find((o) => o.id === "brief-followed");
+  assert.deepEqual(added(YAML.parse(text, { version: "1.1" })).target, { suite_score: 0.8 });
+  const pyyaml = spawnSync("python3", ["-c", "import json, sys, yaml; print(json.dumps(yaml.safe_load(sys.stdin)))"], { input: text, encoding: "utf8" });
+  if (pyyaml.status === 0) assert.deepEqual(added(JSON.parse(pyyaml.stdout)).target, { suite_score: 0.8 });
+  else if (!/No module named|ENOENT/.test(`${pyyaml.stderr}${pyyaml.error?.message ?? ""}`)) assert.fail(`PyYAML could not load objectives: ${pyyaml.stderr}`);
 }
 
 // --- an eval edit is a proposal, and what it adds to what runs is named -----------

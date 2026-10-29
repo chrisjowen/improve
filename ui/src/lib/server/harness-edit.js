@@ -195,7 +195,9 @@ function objectiveChange({ id, create = false, fields }) {
   for (const [key, value] of Object.entries(clean)) {
     if (key === "target") {
       if (value === null) map.delete("target");
-      else map.setIn(["target", "suite_score"], value);
+      // setIn would create a missing target as a YAML 1.1 !!omap, which the runner reads as a list.
+      else if (YAML.isMap(map.get("target", true))) map.setIn(["target", "suite_score"], value);
+      else map.set("target", document.createNode({ suite_score: value }));
     } else if (key === "success_criteria") {
       map.set(key, document.createNode(value));
     } else {

@@ -19,8 +19,6 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .i3 { width: 0.75rem; height: 0.75rem; }
 .i35 { width: 0.875rem; height: 0.875rem; }
 .i4 { width: 1rem; height: 1rem; }
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .muted { color: var(--muted-foreground); }
 .fg { color: var(--foreground); }
@@ -140,7 +138,9 @@ a.chip.soft-sea:hover { background: ${tint("--sea", 10)}; }
 .proposal h3 { margin-top: 0.75rem; font-family: var(--font-display); font-size: 1.15rem; line-height: 1.375; font-weight: 500; }
 .proposal h3 a { border-radius: calc(var(--radius) * 0.6); }
 .proposal h3 a:hover { text-decoration: underline; }
-.proposal h3 .icon { margin-left: 0.25rem; vertical-align: baseline; color: var(--muted-foreground); }
+.proposal h3 .external { margin-left: 0.25rem; }
+.proposal h3 .external:hover { text-decoration: none; }
+.proposal h3 .icon { vertical-align: baseline; color: var(--muted-foreground); }
 .proposal h3 a:hover .icon { color: var(--foreground); }
 .proposal .chips { margin-top: 0.75rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
 .proposal .foot { margin-top: auto; padding-top: 0.75rem; }
@@ -189,25 +189,8 @@ a.chip.soft-sea:hover { background: ${tint("--sea", 10)}; }
 .pill:hover { background: ${tint("--sea", 15)}; }
 @media (min-width: 1280px) { .pill { display: flex; } }
 
-/* improve's review UI, in one line */
-.service { display: flex; flex-direction: column; gap: 0.375rem; font-size: 0.8125rem; line-height: 1.25rem; }
-.service .open {
-  display: inline-flex; width: fit-content; align-items: center; gap: 0.25rem; border: 1px solid ${tint("--sea", 40)};
-  border-radius: 9999px; padding: 0.25rem 0.625rem; font-weight: 500; color: var(--sea);
-}
-.service .open:hover { background: ${tint("--sea", 10)}; }
-.service .hint {
-  display: flex; align-items: flex-start; gap: 0.5rem; border: 1px solid var(--border); border-radius: calc(var(--radius) * 0.8);
-  background: color-mix(in srgb, var(--muted) 60%, transparent); padding: 0.375rem 0.625rem; color: var(--muted-foreground);
-}
-.service .hint code { min-width: 0; flex: 1 1 0%; word-break: break-all; color: var(--foreground); user-select: all; }
-.service .hint button { display: flex; flex-shrink: 0; align-items: center; gap: 0.25rem; }
-.service .hint button:hover { color: var(--foreground); }
-.service .later { display: inline-flex; width: fit-content; align-items: center; gap: 0.25rem; color: var(--sea); }
-.service .later:hover { text-decoration: underline; }
-
 .section { max-width: 48rem; }
 
 a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 `;

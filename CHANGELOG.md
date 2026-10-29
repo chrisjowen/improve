@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- The Wheelhouse plugin's Improvements page is now improve's review UI: Overview, Proposals, Background findings, Evaluations, Objectives and Runs, as tabs, with every action the UI has (approve, reject, draft and write a skill, apply, run a background review and import or dismiss its findings, run an evaluation, cancel a run). They are the UI's own pages, built into the plugin. The page's Firstmate tab keeps what it showed before.
+- **Launch** on the Improvements page starts improve's review UI through Wheelhouse, which now gives plugin elements a way to start their services.
+- A proposal's card opens it on the Proposals tab, and the Improvement section on its task links there to decide it.
+- The review UI lets a page on this computer drive it when the page sends its launch token, and says the token to a program on this computer at `/api/embed`. `IMPROVE_ALLOWED_ORIGINS` names other origins that may; `IMPROVE_LAUNCH_TOKEN` hands it a token.
+- Under `vite dev`, the review UI no longer lets every page on `localhost` read its answers.
+
 ## 0.4.0
 
 - Add improve's Wheelhouse plugin to this repository. `wheelhouse plugin install chrisjowen/improve` installs it, with no build step. It shows the same Improvements page, Harness tab, header pill and proposal section as the Improve plugin built into Wheelhouse, drawn as custom elements. The manifest is `.wheelhouse-plugin/plugin.json`. The code is in `wheelhouse/`.

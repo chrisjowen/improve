@@ -1,7 +1,7 @@
 {
   "name": "improve-wheelhouse",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Builds improve's Wheelhouse plugin: the server entry and the UI bundle Wheelhouse loads.",
   "type": "module",
   "scripts": {
@@ -10,9 +10,12 @@
     "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
+    "d3": "^7.9.0",
     "esbuild": "^0.28.2",
+    "esbuild-svelte": "^0.9.5",
     "happy-dom": "^21.0.4",
     "lucide": "^1.62.0",
+    "svelte": "^5.57.3",
     "yaml": "^2.9.1"
   }
 }

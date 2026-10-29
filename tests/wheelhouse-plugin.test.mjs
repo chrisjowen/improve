@@ -223,16 +223,29 @@ const serve = (handler) =>
     const s = createServer(handler);
     s.listen(0, "127.0.0.1", () => resolve({ server: s, url: `http://127.0.0.1:${s.address().port}` }));
   });
-// improve's own UI, and another app on a port that answers 2xx without improve's status report.
-const ui = await serve((req, res) => {
+// improve's own UI (which says its token, for this home), one from before it did, one still compiling
+// /api/embed, one for another repository, and another app on a port that answers 2xx without improve's status report.
+const improveUi = (embed) => (req, res) => {
   res.setHeader("content-type", "application/json");
   if (req.url === "/api/status") res.end('{"schema_version":1,"harness_initialized":true}');
   else if (req.url === "/api/health") res.end('{"ok":true}');
+  else if (req.url === "/api/embed" && embed) res.end(JSON.stringify(embed()));
   else {
     res.statusCode = 404;
     res.end("{}");
   }
+};
+const ui = await serve(improveUi(() => ({ token: "running-token", project: home })));
+const oldUi = await serve(improveUi(null));
+const slowUi = await serve((req, res) => {
+  if (req.url === "/api/embed") setTimeout(() => res.end("{}"), 1500);
+  else improveUi(null)(req, res);
 });
+const elsewhereUi = await serve(improveUi(() => ({ token: "elsewhere-token", project: path.join(dir, "another-repo") })));
+// The same home reached through a symlink, as /var is /private/var on macOS.
+const homeLink = path.join(dir, "home-link");
+fs.symlinkSync(home, homeLink);
+const linkedUi = await serve(improveUi(() => ({ token: "linked-token", project: homeLink })));
 const other = await serve((req, res) => {
   res.statusCode = req.url === "/api/health" || req.url === "/api/status" ? 200 : 404;
   res.end('{"ok":true}');
@@ -321,6 +334,7 @@ try {
       surfaces: p1.surfaces,
       evidence: p1.evidence,
       routing: p1.routing,
+      reviewHref: p1.reviewHref,
       openUrl: p1.openUrl
     },
     {
@@ -339,6 +353,7 @@ try {
       surfaces: ["your preferences"],
       evidence: [{ source: "firstmate import", observation: "The same review question came up in 3 tasks." }],
       routing: null,
+      reviewHref: "/plugins/improve/improvements#/proposals?view=all&p=IMP-1.yaml",
       openUrl: `${uiUrl}/proposals?p=IMP-1.yaml`
     }
   );
@@ -363,6 +378,11 @@ try {
     { kind: "script", group: "drafting", statusShort: "Draft", file: "IMP-3.yaml", waiting: false, statusLabel: "Being drafted", routing: null }
   );
   assert.deepEqual({ running: v.ui.running, deepLinks: v.ui.deepLinks, start: v.ui.start }, { running: true, deepLinks: true, start: null });
+  // The running UI's own token, read back from it, for the Improvements page to drive it with.
+  assert.deepEqual(
+    { token: v.ui.token, project: v.ui.project, servesHome: v.ui.servesHome, connects: v.ui.connects },
+    { token: "running-token", project: home, servesHome: true, connects: true }
+  );
   // Plain JSON, as Wheelhouse requires of a provider's value.
   assert.deepEqual(JSON.parse(JSON.stringify(v)), v);
 
@@ -399,12 +419,28 @@ try {
   fs.rmSync(path.join(home, ".harness", "improve.json"));
   assert.equal((await provider("harness")(context())).available, false);
 
-  // It says how to start the UI when it is down.
+  // It says how to start the UI when it is down, and hands the page the token Wheelhouse launches it with.
   setHome();
+  let launchToken;
   {
     const down = (await provider("harness")(context({ uiUrl: "http://127.0.0.1:1" }))).value.ui;
     assert.equal(down.start, startCommand(improveDir, home, "http://127.0.0.1:1"));
     assert.match(down.start, /--host 127\.0\.0\.1 --port 1$/);
+    assert.match(down.token, /^[0-9a-f]{48}$/);
+    assert.deepEqual({ project: down.project, servesHome: down.servesHome, connects: down.connects }, { project: null, servesHome: null, connects: true });
+    launchToken = down.token;
+  }
+
+  // A UI too old to say its token runs, but the page cannot drive it; one for another repository is not this home's.
+  {
+    const old = (await provider("harness")(context({ uiUrl: oldUi.url }))).value.ui;
+    assert.deepEqual({ running: old.running, token: old.token, connects: old.connects, servesHome: old.servesHome }, { running: true, token: null, connects: false, servesHome: null });
+    const slow = (await provider("harness")(context({ uiUrl: slowUi.url }))).value.ui;
+    assert.deepEqual({ running: slow.running, token: slow.token, connects: slow.connects, servesHome: slow.servesHome }, { running: true, token: launchToken, connects: true, servesHome: null });
+    const away = (await provider("harness")(context({ uiUrl: elsewhereUi.url }))).value.ui;
+    assert.deepEqual({ running: away.running, servesHome: away.servesHome, project: away.project }, { running: true, servesHome: false, project: path.join(dir, "another-repo") });
+    const linked = (await provider("harness")(context({ uiUrl: linkedUi.url }))).value.ui;
+    assert.deepEqual({ running: linked.running, servesHome: linked.servesHome, project: linked.project }, { running: true, servesHome: true, project: homeLink });
   }
 
   // It does not take another app on improve's port for improve's UI.
@@ -419,7 +455,9 @@ try {
     const s = await provider("proposal")(context({}, tasks[0]));
     assert.equal(s.available, true);
     assert.equal(s.value.schema, "wheelhouse-improve-proposal.v1");
-    assert.equal(s.value.improvementsHref, "/plugins/improve/improvements#IMP-1.yaml");
+    assert.equal(s.value.improvementsHref, "/plugins/improve/improvements#/proposals?view=all&p=IMP-1.yaml");
+    assert.deepEqual(Object.keys(s.value).sort(), ["improvementsHref", "proposal", "schema"]);
+    assert.doesNotMatch(JSON.stringify(s.value), /running-token/);
     assert.deepEqual(
       { id: s.value.proposal.id, visibility: s.value.proposal.visibility, state: s.value.proposal.decision.state },
       { id: "IMP-1", visibility: "captain-private", state: "Waiting for your call" }
@@ -441,7 +479,7 @@ try {
       identity: { url: "http://127.0.0.1:5199/api/status", path: ["harness_initialized"] },
       argv: [process.execPath, path.join(uiDir, "node_modules", "vite", "bin", "vite.js"), "dev", "--host", "127.0.0.1", "--port", "5199", "--strictPort"],
       cwd: uiDir,
-      env: { IMPROVE_PROJECT_DIR: home },
+      env: { IMPROVE_PROJECT_DIR: home, IMPROVE_LAUNCH_TOKEN: launchToken },
       binds: "loopback",
       readyTimeoutMs: 60_000,
       setup: [{ label: "Installing the UI’s dependencies", argv: ["npm", "install", "--no-audit", "--no-fund"], timeoutMs: 300_000 }]
@@ -512,8 +550,7 @@ try {
   ]);
   assert.ok(fs.existsSync(path.join(pluginRoot, "adapters", "firstmate", "cli.mjs")));
 } finally {
-  ui.server.close();
-  other.server.close();
+  for (const s of [ui, oldUi, slowUi, elsewhereUi, linkedUi, other]) s.server.close();
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { IMPROVEMENTS } from "./urls.mjs";
+import { proposalHref } from "./urls.mjs";
 import { buildHarness, parseChecks, parseLedger, parseRouted, proposalItem, readProposal } from "./view.mjs";
 
 /**
@@ -43,6 +44,15 @@ const MAX_OUT = 8 * 1024 * 1024;
 const RUN_MS = 8_000;
 const DEFAULT_UI = "http://127.0.0.1:5173";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+
+/**
+ * The token Wheelhouse hands improve's review UI when it launches it
+ * (IMPROVE_LAUNCH_TOKEN), so the Improvements page can drive the UI it just
+ * launched before this provider next reads the UI's token back from it. One
+ * per Wheelhouse process; a UI started any other way has its own, which the
+ * provider reads from its /api/embed once it runs.
+ */
+const LAUNCH_TOKEN = randomBytes(24).toString("hex");
 
 /** @param {unknown} v @returns {v is Record<string, any>} */
 const isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -185,31 +195,39 @@ export function dueIsReadOnly(detect, reviewState) {
 }
 
 /**
- * Whether improve's own UI answers at `url`, and whether it opens a proposal by file.
+ * Whether improve's own UI answers at `url`, whether it opens a proposal by
+ * file, and, when it can be driven from another origin, its token and the
+ * repository it serves.
  * @param {string} url @param {AbortSignal} signal
+ * @returns {Promise<{ running: boolean; deepLinks: boolean; embeds: boolean; token: string | null; project: string | null }>}
  */
-async function probeUi(url, signal) {
+export async function probeUi(url, signal) {
+  const none = { running: false, deepLinks: false, embeds: false, token: null, project: null };
   /** @param {string} p */
   const get = (p) =>
     fetch(`${url}${p}`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(800)]),
       redirect: "manual"
     });
-  // Both improve UIs serve /api/status, improve's status report; only the redesigned one has /api/health and /proposals?p=<file>.
+  // Both improve UIs serve /api/status, improve's status report; only the redesigned one has /api/health and
+  // /proposals?p=<file>, and only one that lets Wheelhouse's page drive it has /api/embed.
   try {
     const r = await get("/api/status");
     const body = r.ok ? await r.json() : null;
-    if (typeof body !== "object" || body === null || !("harness_initialized" in body)) {
-      return { running: false, deepLinks: false };
-    }
+    if (typeof body !== "object" || body === null || !("harness_initialized" in body)) return none;
   } catch {
-    return { running: false, deepLinks: false };
+    return none;
   }
-  try {
-    return { running: true, deepLinks: (await get("/api/health")).ok };
-  } catch {
-    return { running: true, deepLinks: false };
-  }
+  const [health, embed] = await Promise.all([
+    get("/api/health").then((r) => r.ok, () => false),
+    // A request that fails or times out says nothing either way: null.
+    get("/api/embed").then(
+      (r) => (r.ok ? r.json().then(/** @param {unknown} b */ (b) => b, () => false) : false),
+      () => null
+    )
+  ]);
+  const e = isRecord(embed) && typeof embed.token === "string" && typeof embed.project === "string" ? embed : null;
+  return { running: true, deepLinks: health, embeds: embed === null || e !== null, token: e?.token ?? null, project: e?.project ?? null };
 }
 
 /**
@@ -241,6 +259,18 @@ export function startCommand(root, home, url) {
   return `cd ${shq(path.join(root, "ui"))} && npm install && IMPROVE_PROJECT_DIR=${shq(home)} npx vite dev --host 127.0.0.1 --port ${port}`;
 }
 
+/** Whether two paths name the same directory, following symlinks (/var is /private/var on macOS). */
+function samePath(/** @type {string} */ a, /** @type {string} */ b) {
+  const real = (/** @type {string} */ p) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return path.resolve(p);
+    }
+  };
+  return real(a) === real(b);
+}
+
 /**
  * @param {ProviderContext} ctx @param {string | null} cli @param {string | null} home
  * @returns {Promise<ImproveUi>}
@@ -257,13 +287,18 @@ async function ui(ctx, cli, home) {
     url,
     running: probe.running,
     deepLinks,
-    start: probe.running || !root || !home ? null : startCommand(root, home, url)
+    start: probe.running || !root || !home ? null : startCommand(root, home, url),
+    token: !probe.running || probe.embeds ? (probe.token ?? LAUNCH_TOKEN) : null,
+    project: probe.project,
+    servesHome: probe.running && probe.project && home ? samePath(probe.project, home) : null,
+    connects: !probe.running || probe.embeds
   };
 }
 
 /**
  * improve's review UI as a companion service: its own Vite server, run from
- * improve's checkout bound to 127.0.0.1 on the uiUrl port, for this home.
+ * improve's checkout bound to 127.0.0.1 on the uiUrl port, for this home,
+ * with this Wheelhouse's token for the Improvements page to drive it with.
  * improve's `npm run dev` binds every interface, so Wheelhouse runs Vite itself.
  * The UI's dependencies are installed first when they are missing.
  * @param {ProviderContext} ctx @returns {Promise<ServiceResolution>}
@@ -307,7 +342,7 @@ async function uiService(ctx) {
       identity: { url: `${url}/api/status`, path: ["harness_initialized"] },
       argv: [process.execPath, vite, "dev", "--host", "127.0.0.1", "--port", u.port || "5173", "--strictPort"],
       cwd: dir,
-      env: { IMPROVE_PROJECT_DIR: home },
+      env: { IMPROVE_PROJECT_DIR: home, IMPROVE_LAUNCH_TOKEN: LAUNCH_TOKEN },
       binds: "loopback",
       readyTimeoutMs: 60_000,
       setup: existsSync(vite)
@@ -452,8 +487,7 @@ async function proposal(ctx) {
   const value = {
     schema: "wheelhouse-improve-proposal.v1",
     proposal: item,
-    improvementsHref: `${IMPROVEMENTS}#${encodeURIComponent(routed.file)}`,
-    ui: uiState
+    improvementsHref: proposalHref(routed.file)
   };
   return { available: true, value, source: "improve’s proposal file", observedAt: new Date().toISOString() };
 }

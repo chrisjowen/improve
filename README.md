@@ -145,9 +145,11 @@ It is off until you turn it on. See
 
 ### See it in Wheelhouse
 
-This repository is also a Wheelhouse plugin. It adds an Improvements page, a
-Harness tab on the home page, a header pill when a review is due or proposals
-wait, and the proposal on each decision task it files. Install it with:
+This repository is also a Wheelhouse plugin. It adds an Improvements page,
+which is the review UI with every view and action, in Wheelhouse, with a
+Launch button that starts the UI; a Harness tab on the home page; a header
+pill when a review is due or proposals wait; and the proposal on each decision
+task it files. Install it with:
 
 ```sh
 wheelhouse plugin install chrisjowen/improve

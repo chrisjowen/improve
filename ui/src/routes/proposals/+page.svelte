@@ -32,6 +32,7 @@
   let busy = $state(/** @type {string | null} */ (null));
   let notice = $state(/** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */ (null));
   let reasonError = $state(/** @type {string | null} */ (null));
+  let reasonBox = $state(/** @type {HTMLTextAreaElement | undefined} */ (undefined));
   let confirmOverwrite = $state(false);
   let plan = $state(/** @type {any} */ (null));
   let confirming = $state(false);
@@ -169,7 +170,7 @@
     reasonError = null;
     if (kind === "reject" && reason.trim().length < 3) {
       reasonError = "Say why. The reason is kept so the same idea is not proposed again.";
-      document.getElementById("reason")?.focus();
+      reasonBox?.focus();
       return;
     }
     busy = kind;
@@ -470,7 +471,7 @@
           {#if decidable}
             <footer class="decision">
               <label for="reason">Your reason <span class="faint" style="font-weight:400">(required to reject, kept with the decision)</span></label>
-              <textarea id="reason" rows="2" bind:value={reason} aria-invalid={reasonError ? "true" : undefined}
+              <textarea id="reason" rows="2" bind:this={reasonBox} bind:value={reason} aria-invalid={reasonError ? "true" : undefined}
                         aria-describedby={reasonError ? "reason-error" : "reason-help"}
                         placeholder="What convinced you, or what is wrong with it"></textarea>
               {#if reasonError}<p id="reason-error" class="field-error">{reasonError}</p>{/if}

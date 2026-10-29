@@ -1,4 +1,3 @@
-import { proposalUrl } from "../urls.mjs";
 import { h, icon } from "./dom.mjs";
 import {
   ArrowUpRight,
@@ -6,14 +5,11 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarOff,
-  Check,
   ChevronDown,
-  Copy,
   FileSearch,
   FileText,
   GitPullRequest,
   Hand,
-  LoaderCircle,
   Lock,
   NotebookPen,
   ScrollText,
@@ -25,12 +21,11 @@ import {
 } from "./icons.mjs";
 
 /**
- * The pieces the elements share: the review badge, the evidence bar, a
- * proposal card and improve's review UI in one line. Each returns DOM nodes
+ * The pieces the elements share: the review badge, the evidence bar and a
+ * proposal card. Each returns DOM nodes
  * built from plain JSON.
  *
  * @typedef {import("../types.mjs").HarnessView} HarnessView
- * @typedef {import("../types.mjs").ImproveUi} ImproveUi
  * @typedef {import("../types.mjs").Kind} Kind
  * @typedef {import("../types.mjs").ProposalItem} ProposalItem
  * @typedef {import("../types.mjs").StatusGroup} StatusGroup
@@ -120,8 +115,9 @@ export function evidenceBar(mix, compact = false) {
  * One improve proposal as a card: the kind of change, a short title and one
  * line, then chips for where it stands and whose files it touches, and an
  * evidence count. The rest (what it changes in full, its files, why, the
- * evidence) opens under Details. Its title opens it in improve's own UI while
- * that UI runs. A proposal filed as a decision links to its task.
+ * evidence) opens under Details. Its title opens it on the Improvements
+ * page's Proposals tab, where it is decided, and an arrow beside it in
+ * improve's own UI while that runs. A proposal filed as a decision links to its task.
  * @param {ProposalItem} p
  * @param {{ open: boolean; onToggle: (open: boolean) => void; showDecisionLink?: boolean }} o
  */
@@ -130,9 +126,12 @@ export function proposalCard(p, o) {
   const vis = p.visibility ? VIS_CHIP[p.visibility] : null;
   const detailId = `detail-${p.file}`;
 
-  const title = p.openUrl
-    ? h("a", { href: p.openUrl, target: "_blank", rel: "noreferrer", title: "Open in improve" }, p.title, icon(ArrowUpRight, "icon i35"))
-    : p.title;
+  const title = [
+    h("a", { href: p.reviewHref, title: "Open on the Proposals tab" }, p.title),
+    p.openUrl
+      ? h("a", { class: "external", href: p.openUrl, target: "_blank", rel: "noreferrer", title: "Open in improve’s own UI", "aria-label": "Open in improve’s own UI" }, icon(ArrowUpRight, "icon i35"))
+      : null
+  ];
 
   /** @type {Node[]} */
   const chips = [
@@ -206,51 +205,3 @@ function details(p, id) {
       : null
   );
 }
-
-/**
- * What Wheelhouse knows about improve's review UI, as `GET /api/services` says.
- * @typedef {{ state: string; url: string | null; reason?: string | null; launchable: boolean; hint: string | null; title: string }} ServiceView
- */
-
-/**
- * improve's review UI, in one line: a link while it runs; else that it is not
- * running and why, the command that starts it, ready to copy, and a link to
- * open once it runs.
- * @param {{ view: ServiceView | null; ui: ImproveUi | null; open?: string | null; copied: boolean; onCopy: (text: string) => void }} o
- */
-export function serviceLine(o) {
-  const name = "improve’s review UI";
-  const v = o.view;
-  const href = o.open ?? v?.url ?? o.ui?.url ?? null;
-  const running = v ? v.state === "running" : !!o.ui?.running;
-  if (!v && !o.ui) return h("div", { class: "service" });
-  if (running && href) {
-    return h(
-      "div",
-      { class: "service", "data-service": "improve/ui" },
-      h("a", { class: "open", href, target: "_blank", rel: "noreferrer" }, `Open ${name}`, icon(ArrowUpRight, "icon i35"))
-    );
-  }
-  if (v?.state === "starting") {
-    return h(
-      "div",
-      { class: "service", "data-service": "improve/ui" },
-      h("span", { class: "row muted", role: "status", style: "gap:0.375rem" }, icon(LoaderCircle, "icon i35 spin"), `Starting ${name}; the first start can take a minute.`)
-    );
-  }
-  const hint = v?.hint ?? o.ui?.start ?? null;
-  const copy = h("button", { type: "button" }, o.copied ? [icon(Check, "icon i35"), "Copied"] : [icon(Copy, "icon i35"), "Copy"]);
-  if (hint) copy.addEventListener("click", () => o.onCopy(hint));
-  return h(
-    "div",
-    { class: "service", "data-service": "improve/ui" },
-    h("p", { class: "muted" }, `${name} is not running.${v?.reason ? ` ${v.reason}` : ""}${hint ? " Start it with:" : ""}`),
-    hint ? h("span", { class: "hint" }, h("code", null, hint), copy) : null,
-    href && v?.state !== "occupied"
-      ? h("a", { class: "later", href, target: "_blank", rel: "noreferrer" }, `Open ${name} once it runs`, icon(ArrowUpRight, "icon i35"))
-      : null
-  );
-}
-
-/** Where a proposal opens in improve's UI. */
-export { proposalUrl };

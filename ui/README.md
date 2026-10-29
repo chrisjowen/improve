@@ -57,7 +57,7 @@ the name of the one in the way.
 
 | Path | Access |
 | --- | --- |
-| `.harness/proposals/*.yaml` | read, and status updated on apply or reject |
+| `.harness/proposals/*.yaml` | read, and status updated on apply or reject; `evaluation.commands` extended when you add the commands a stopped run named |
 | `.harness/decisions/*.yaml` | appended when you apply or reject |
 | `.harness/evals/suites/*.yaml` | read |
 | `.harness/evals/results/index.jsonl` | appended, one line per run |

@@ -150,6 +150,9 @@ export function readScopeFiles(text) {
 /**
  * The lines of the top-level block `parent:` in proposal YAML text, without
  * the header, or an empty list when there is no such block.
+ * @param {unknown} text
+ * @param {string} parent
+ * @returns {string[]}
  */
 export function readBlock(text, parent) {
   if (typeof text !== "string") return [];
@@ -163,6 +166,10 @@ export function readBlock(text, parent) {
 /**
  * The list `parent.key` from proposal YAML text, in the forms readScopeFiles
  * reads. A multi-line item yields its first line.
+ * @param {unknown} text
+ * @param {string} parent
+ * @param {string} key
+ * @returns {string[]}
  */
 export function readBlockList(text, parent, key) {
   const files = [];
@@ -190,6 +197,7 @@ const SCRIPT = /\.(sh|bash|py|mjs|cjs|js|ts|rb)$/;
 
 /**
  * `.harness/` scripts named in `text`.
+ * @param {unknown} text
  */
 function harnessScripts(text) {
   return (String(text ?? "").match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? [])
@@ -240,6 +248,8 @@ export function pendingCommands(proposal) {
  * The command an apply run's error says the proposal does not declare. The
  * error held at most its first MAX_COMMAND characters, so one that long may
  * have been cut short and is not offered.
+ * @param {unknown} error
+ * @returns {string[]}
  */
 function commandsInError(error) {
   const match = /^The evaluation needs a command the proposal does not declare: (.+)\. The run does not widen its own permissions;/s
@@ -250,7 +260,11 @@ function commandsInError(error) {
 // One line of printable text, of a length a person can read in a confirm.
 const MAX_COMMAND = 500;
 
-/** Whether `value` can be offered as a command to declare. */
+/**
+ * Whether `value` can be offered as a command to declare.
+ * @param {unknown} value
+ * @returns {value is string}
+ */
 export function isCommand(value) {
   return typeof value === "string" && value.trim() !== "" && value.trim().length <= MAX_COMMAND && !/[\u0000-\u001f\u007f]/.test(value.trim());
 }

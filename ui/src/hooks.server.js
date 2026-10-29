@@ -140,7 +140,7 @@ export async function handle({ event, resolve }) {
   if (origin && origin !== self && embedderOrigin(origin)) {
     if (event.request.method === "OPTIONS") return preflight(event.request, origin);
     if (hasLaunchToken(event.request)) return withCors(await resolve(event, options), origin);
-    if (!SAFE_METHODS.has(event.request.method)) {
+    if (event.request.headers.has(TOKEN_HEADER) || !SAFE_METHODS.has(event.request.method)) {
       return withCors(refuse("This request does not carry this improve UI's token. Reload the page that sent it."), origin);
     }
   }

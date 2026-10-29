@@ -151,6 +151,11 @@ const WHEELHOUSE = "http://127.0.0.1:4700";
     assert.equal(refused.resolved, false, label);
     assert.match((await refused.response.json()).error, /token/, `${label}: the page can read why`);
   }
+  const stale = await send("GET", "/api/status", { origin: WHEELHOUSE, "x-improve-token": "x".repeat(LAUNCH_TOKEN.length) });
+  assert.equal(stale.response.status, 403, "a GET with a wrong token is refused");
+  assert.equal(stale.resolved, false);
+  assert.equal(stale.response.headers.get("access-control-allow-origin"), WHEELHOUSE, "so the page can tell its token is stale");
+  assert.match((await stale.response.json()).error, /token/);
   const unread = await send("GET", "/api/status", { origin: WHEELHOUSE });
   assert.equal(unread.resolved, true, "a GET without the token is served as before");
   assert.equal(unread.response.headers.get("access-control-allow-origin"), null, "but the page cannot read it");

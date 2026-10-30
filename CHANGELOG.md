@@ -6,6 +6,9 @@
 - The proposal check reports `evaluation-commands-missing` for an evaluation that has pass conditions and runs evals the proposal adds, or names a `.harness/` script, but lists no commands, so `/improve propose` declares them before anyone approves.
 - An apply run may edit confirmed files under `.harness/`, such as the evals a proposal adds; the prompt no longer tells it to leave all of `.harness/` alone.
 - The Proposals page shows the commands an evaluation runs to whoever approves it.
+- Add, edit and delete objectives and their evals on the review UI's Objectives page, and on the Objectives tab in Wheelhouse. Saving an objective's own fields writes `.harness/objectives.yaml` after you review the diff. A new eval, an edit to one, and every deletion are filed as a proposal holding the exact file. It shows which commands the eval runs and which it adds, and Approve and write on Proposals writes it.
+- An eval suite lists every command it runs under `commands`, each an argv list. The eval rig (1.2.0) refuses a `core.command` step or LLM judge adapter that is not listed, so a step cannot add a command on its own. A suite that runs commands needs this list added.
+- The diff view keeps its line-number columns narrow when a diff starts with folded lines.
 
 ## 0.5.0
 

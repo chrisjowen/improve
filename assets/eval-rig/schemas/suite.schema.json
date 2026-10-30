@@ -41,6 +41,18 @@
         "type": "string"
       }
     },
+    "commands": {
+      "description": "Every command the suite's steps may run, each an argv array. A step whose evaluator runs a command (core.command's argv, llm.judge-command's adapter_argv) must name one of these exactly, or it fails without running.",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "steps": {
       "type": "array",
       "minItems": 1,

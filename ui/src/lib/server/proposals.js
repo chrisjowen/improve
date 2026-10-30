@@ -78,6 +78,11 @@ function normalize(id, document, source) {
     upstream_change: value.upstream_change ?? null,
     reasons_to_reject: Array.isArray(value.reasons_to_reject) ? value.reasons_to_reject : [],
     provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,
+    // An edit filed from the Objectives page: what it edits, not the bytes,
+    // which /api/proposals/<file>/edit reads and checks.
+    harness_edit: value.harness_edit && typeof value.harness_edit === "object"
+      ? { kind: typeof value.harness_edit.kind === "string" ? value.harness_edit.kind : null, target: typeof value.harness_edit.target === "string" ? value.harness_edit.target : null }
+      : null,
     // Whether it changes the harness or the codebase, and how it reads. For
     // the reviewer only: nothing is blocked on it.
     check: check(value),

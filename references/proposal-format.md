@@ -50,4 +50,19 @@ Accompany the metadata with a human-readable explanation and an exact or preview
 
 `evaluation.commands` lists every command the evaluation runs, exactly as it is run, including scripts the proposal itself adds, such as `bash .harness/evals/run.sh challenge`. Apply from the review UI lets its agent run these commands and improve's own proposal check, and no other; an evaluation that needs an unlisted command stops the run. The proposal check reports `evaluation-commands-missing` when an evaluation has pass conditions and adds files under `.harness/evals/` or names a `.harness/` script, but lists no commands. When a run stops for commands, the review UI offers to add exactly the commands it named; that withdraws the approval, so the proposal waits for a fresh one before any run may use them. Name the `.harness/` files the evaluation reads in its fields, so a run in a separate worktree receives them and a change to them fails the run. Every `.harness/` path the proposal names, in any field, is an input. The only outputs the run may write are files under `.harness/evals/results/` and the paths listed in `evaluation.outputs`, each under `.harness/`. An output that is or contains an input refuses the apply: this proposal, `.harness/improve.json`, `.harness/evals` itself, the suite, a path a command reads, or another path the evaluation names. In a command, only a long flag's value, such as `--out .harness/evals/scores.json` or `--out=.harness/evals/scores.json`, can be an output. The script the command runs, a path after a short flag such as `-o`, and a `--suite` value are always read. List the exact files the evaluation writes.
 
+A proposal filed from the review UI's Objectives page also carries `harness_edit`, the exact change to write:
+
+```yaml
+harness_edit:
+  kind: add-eval | edit-eval | delete-eval | delete-objective
+  target: the eval or objective id
+  digest: sha256 over every file's path, before_digest and contents
+  files:
+    - path: .harness/evals/suites/<id>.yaml   # or .harness/objectives.yaml
+      before_digest: sha256 of the file when it was filed, null for a new file
+      contents: the whole file to write, null to delete it
+```
+
+Only the UI's Approve and write applies it. It writes nothing unless the digest still matches the contents, every file is still what `before_digest` names, and no suite step runs a command the suite's `commands` does not declare. It may write only `.harness/objectives.yaml` and files directly under `.harness/evals/suites/`.
+
 Write every prose field by [writing.md](writing.md), and run `scripts/proposal-check-cli.mjs` on the file before showing it.

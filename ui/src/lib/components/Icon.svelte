@@ -20,7 +20,11 @@
     chevron: ["m9 18 6-6-6-6"],
     arrowLeft: ["M19 12H5", "m12 19-7-7 7-7"],
     terminal: ["m4 17 6-6-6-6", "M12 19h8"],
-    clock: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 6v6l4 2"]
+    clock: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 6v6l4 2"],
+    plus: ["M12 5v14", "M5 12h14"],
+    pencil: ["M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"],
+    trash: ["M3 6h18", "M8 6V4h8v2", "M19 6l-1 14H6L5 6"],
+    eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]
   };
   /** @type {{ name: keyof typeof PATHS, size?: number, label?: string }} */
   let { name, size = 16, label } = $props();

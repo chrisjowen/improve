@@ -806,6 +806,22 @@ tbody tr.clickable:hover td { background: var(--surface-hover); }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 2px 8px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); font: 12px var(--mono); overflow-wrap: anywhere; }
 .chip.outside { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
 
+/* ---- editors: an objective or an eval, beside the list -------------------- */
+
+.editor { position: sticky; top: 16px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.editor-body { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 20px; }
+.editor-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.editor .crumb { align-self: flex-start; min-height: 22px; padding: 0 4px; margin-left: -4px; color: var(--text-3); }
+.editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.editor legend { padding: 0; }
+.editor .group { display: flex; flex-direction: column; gap: 8px; }
+.editor .line { display: flex; gap: 6px; align-items: center; }
+.editor .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.editor .optional { font-weight: 400; }
+.editor .box { border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.editor .box-row { padding: 10px 12px; }
+@media (max-width: 1100px) { .editor { position: static; max-height: none; } }
+
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 `;
 
@@ -2213,11 +2229,11 @@ var Batch = class _Batch {
         this.#unlink();
         infinite_loop_guard();
       }
-      for (const root18 of this.#resolve()) {
+      for (const root21 of this.#resolve()) {
         try {
-          this.#traverse(root18, effects, render_effects);
+          this.#traverse(root21, effects, render_effects);
         } catch (e) {
-          reset_all(root18);
+          reset_all(root21);
           if (!this.#is_deferred()) this.discard();
           throw e;
         }
@@ -2283,9 +2299,9 @@ var Batch = class _Batch {
    * @param {Effect[]} effects
    * @param {Effect[]} render_effects
    */
-  #traverse(root18, effects, render_effects) {
-    root18.f ^= CLEAN;
-    var effect2 = root18.first;
+  #traverse(root21, effects, render_effects) {
+    root21.f ^= CLEAN;
+    var effect2 = root21.first;
     while (effect2 !== null) {
       var flags2 = effect2.f;
       var is_branch = (flags2 & (BRANCH_EFFECT | ROOT_EFFECT)) !== 0;
@@ -2530,8 +2546,8 @@ var Batch = class _Batch {
         }
         if (batch.#scheduled.length > 0 && !batch.#decrement_queued) {
           batch.apply();
-          for (var root18 of batch.#resolve()) {
-            batch.#traverse(root18, [], []);
+          for (var root21 of batch.#resolve()) {
+            batch.#traverse(root21, [], []);
           }
         }
         batch.deactivate();
@@ -4033,7 +4049,7 @@ function is_dirty(reaction) {
   }
   return false;
 }
-function schedule_possible_effect_self_invalidation(signal, effect2, root18 = true) {
+function schedule_possible_effect_self_invalidation(signal, effect2, root21 = true) {
   var reactions = signal.reactions;
   if (reactions === null) return;
   if (!async_mode_flag && current_sources !== null && current_sources.has(signal)) {
@@ -4049,7 +4065,7 @@ function schedule_possible_effect_self_invalidation(signal, effect2, root18 = tr
         false
       );
     } else if (effect2 === reaction) {
-      if (root18) {
+      if (root21) {
         set_signal_status(reaction, DIRTY);
       } else if ((reaction.f & CLEAN) !== 0) {
         set_signal_status(reaction, MAYBE_DIRTY);
@@ -4652,21 +4668,21 @@ function from_namespace(content, flags2, ns = "svg") {
         /** @type {DocumentFragment} */
         create_fragment_from_html(wrapped)
       );
-      var root18 = (
+      var root21 = (
         /** @type {Element} */
         get_first_child(fragment)
       );
       if (is_fragment) {
         node = document.createDocumentFragment();
-        while (get_first_child(root18)) {
+        while (get_first_child(root21)) {
           node.appendChild(
             /** @type {TemplateNode} */
-            get_first_child(root18)
+            get_first_child(root21)
           );
         }
       } else {
         node = /** @type {Element} */
-        get_first_child(root18);
+        get_first_child(root21);
       }
     }
     var clone = (
@@ -6266,16 +6282,16 @@ function component(node, get_component, render_fn) {
 function append_styles(anchor, css) {
   effect(() => {
     anchor = active_effect?.parent?.nodes?.start ?? anchor;
-    var root18 = anchor.getRootNode();
+    var root21 = anchor.getRootNode();
     var target = (
       /** @type {ShadowRoot} */
-      root18.host ? (
+      root21.host ? (
         /** @type {ShadowRoot} */
-        root18
+        root21
       ) : (
         /** @type {Document} */
-        root18.head ?? /** @type {Document} */
-        root18.ownerDocument.head
+        root21.head ?? /** @type {Document} */
+        root21.ownerDocument.head
       )
     );
     if (!target.querySelector("#" + css.hash)) {
@@ -7463,7 +7479,14 @@ function Icon($$anchor, $$props) {
     chevron: ["m9 18 6-6-6-6"],
     arrowLeft: ["M19 12H5", "m12 19-7-7 7-7"],
     terminal: ["m4 17 6-6-6-6", "M12 19h8"],
-    clock: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 6v6l4 2"]
+    clock: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M12 6v6l4 2"],
+    plus: ["M12 5v14", "M5 12h14"],
+    pencil: ["M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"],
+    trash: ["M3 6h18", "M8 6V4h8v2", "M19 6l-1 14H6L5 6"],
+    eye: [
+      "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z",
+      "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
+    ]
   };
   let size = prop($$props, "size", 3, 16);
   var svg = root_1();
@@ -10320,13 +10343,13 @@ function _page($$anchor, $$props) {
 
 // ../ui/src/lib/components/Diff.svelte
 var root8 = from_html(`<p class="empty small">Both versions are empty.</p>`);
-var root_19 = from_html(`<tr class="fold svelte-n0dad0"><td colspan="3" class="svelte-n0dad0"><button class="ghost small"> </button></td></tr>`);
-var root_25 = from_html(`<tr><td class="ln svelte-n0dad0"> </td><td class="ln svelte-n0dad0"> </td><td class="code svelte-n0dad0"><span class="sign svelte-n0dad0" aria-hidden="true"> </span> <span class="sr-only"> </span></td></tr>`);
-var root_35 = from_html(`<table class="svelte-n0dad0"><tbody></tbody></table>`);
-var root_44 = from_html(`<div class="diff svelte-n0dad0"><div class="diff-head svelte-n0dad0"><span class="mono diff-path svelte-n0dad0"> </span> <span class="num small"><span class="plus svelte-n0dad0"> </span> <span class="minus svelte-n0dad0"> </span></span></div> <!></div>`);
+var root_19 = from_html(`<tr class="fold svelte-rbbip2"><td colspan="3" class="svelte-rbbip2"><button class="ghost small"> </button></td></tr>`);
+var root_25 = from_html(`<tr><td class="ln svelte-rbbip2"> </td><td class="ln svelte-rbbip2"> </td><td class="code svelte-rbbip2"><span class="sign svelte-rbbip2" aria-hidden="true"> </span> <span class="sr-only"> </span></td></tr>`);
+var root_35 = from_html(`<table class="svelte-rbbip2"><colgroup><col class="ln-col svelte-rbbip2"/><col class="ln-col svelte-rbbip2"/><col/></colgroup><tbody></tbody></table>`);
+var root_44 = from_html(`<div class="diff svelte-rbbip2"><div class="diff-head svelte-rbbip2"><span class="mono diff-path svelte-rbbip2"> </span> <span class="num small"><span class="plus svelte-rbbip2"> </span> <span class="minus svelte-rbbip2"> </span></span></div> <!></div>`);
 var $$css2 = {
-  hash: "svelte-n0dad0",
-  code: ".diff.svelte-n0dad0 {border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);}.diff-head.svelte-n0dad0 {display:flex;justify-content:space-between;gap:12px;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);}.diff-path.svelte-n0dad0 {overflow-wrap:anywhere;}.plus.svelte-n0dad0 {color:var(--ok);font-weight:600;}.minus.svelte-n0dad0 {color:var(--bad);font-weight:600;}table.svelte-n0dad0 {font:12.5px/1.6 var(--mono);table-layout:fixed;}td.svelte-n0dad0 {padding:0 10px;border:0;vertical-align:top;}.ln.svelte-n0dad0 {width:46px;text-align:right;color:var(--text-3);user-select:none;padding:0 8px;}.code.svelte-n0dad0 {white-space:pre-wrap;overflow-wrap:anywhere;}.sign.svelte-n0dad0 {display:inline-block;width:14px;color:var(--text-3);user-select:none;}tr.add.svelte-n0dad0 td:where(.svelte-n0dad0) {background:var(--add-bg);}tr.add.svelte-n0dad0 .ln:where(.svelte-n0dad0) {background:var(--add-gutter);}tr.del.svelte-n0dad0 td:where(.svelte-n0dad0) {background:var(--del-bg);}tr.del.svelte-n0dad0 .ln:where(.svelte-n0dad0) {background:var(--del-gutter);}tr.fold.svelte-n0dad0 td:where(.svelte-n0dad0) {background:var(--surface-2);padding:2px 8px;color:var(--text-2);}"
+  hash: "svelte-rbbip2",
+  code: ".diff.svelte-rbbip2 {border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--surface);}.diff-head.svelte-rbbip2 {display:flex;justify-content:space-between;gap:12px;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);}.diff-path.svelte-rbbip2 {overflow-wrap:anywhere;}.plus.svelte-rbbip2 {color:var(--ok);font-weight:600;}.minus.svelte-rbbip2 {color:var(--bad);font-weight:600;}table.svelte-rbbip2 {font:12.5px/1.6 var(--mono);table-layout:fixed;}td.svelte-rbbip2 {padding:0 10px;border:0;vertical-align:top;}.ln-col.svelte-rbbip2 {width:46px;}.ln.svelte-rbbip2 {width:46px;text-align:right;color:var(--text-3);user-select:none;padding:0 8px;}.code.svelte-rbbip2 {white-space:pre-wrap;overflow-wrap:anywhere;}.sign.svelte-rbbip2 {display:inline-block;width:14px;color:var(--text-3);user-select:none;}tr.add.svelte-rbbip2 td:where(.svelte-rbbip2) {background:var(--add-bg);}tr.add.svelte-rbbip2 .ln:where(.svelte-rbbip2) {background:var(--add-gutter);}tr.del.svelte-rbbip2 td:where(.svelte-rbbip2) {background:var(--del-bg);}tr.del.svelte-rbbip2 .ln:where(.svelte-rbbip2) {background:var(--del-gutter);}tr.fold.svelte-rbbip2 td:where(.svelte-rbbip2) {background:var(--surface-2);padding:2px 8px;color:var(--text-2);}"
 };
 function Diff($$anchor, $$props) {
   push($$props, true);
@@ -10405,7 +10428,7 @@ function Diff($$anchor, $$props) {
     };
     var alternate_1 = ($$anchor2) => {
       var table_1 = root_35();
-      var tbody = child(table_1);
+      var tbody = sibling(child(table_1));
       each(tbody, 21, () => get(rows), index, ($$anchor3, row) => {
         var fragment = comment();
         var node_1 = first_child(fragment);
@@ -10436,7 +10459,7 @@ function Diff($$anchor, $$props) {
             reset(td_3);
             reset(tr_1);
             template_effect(() => {
-              set_class(tr_1, 1, clsx2(get(row).line.kind), "svelte-n0dad0");
+              set_class(tr_1, 1, clsx2(get(row).line.kind), "svelte-rbbip2");
               set_text(text_5, get(row).line.old ?? "");
               set_text(text_6, get(row).line.new ?? "");
               set_text(text_7, get(row).line.kind === "add" ? "+" : get(row).line.kind === "del" ? "\u2212" : " ");
@@ -10946,83 +10969,225 @@ function ApplyResult($$anchor, $$props) {
   pop();
 }
 
+// ../ui/src/lib/client/argv.js
+function splitArgv(text2) {
+  const argv = [];
+  let word = "";
+  let started = false;
+  let quote = null;
+  for (let i = 0; i < text2.length; i += 1) {
+    const c = text2[i];
+    if (quote) {
+      if (c === quote) quote = null;
+      else if (c === "\\" && quote === '"' && i + 1 < text2.length) word += text2[i += 1];
+      else word += c;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      started = true;
+    } else if (c === "\\" && i + 1 < text2.length) {
+      word += text2[i += 1];
+      started = true;
+    } else if (/\s/.test(c)) {
+      if (started) argv.push(word);
+      word = "";
+      started = false;
+    } else {
+      word += c;
+      started = true;
+    }
+  }
+  if (quote) return { argv: [], error: `Close the ${quote === '"' ? "double" : "single"} quote.` };
+  if (started) argv.push(word);
+  if (argv.some((w) => w === "")) return { argv: [], error: "An empty quoted word is not a word the rig can run." };
+  return { argv, error: null };
+}
+function joinArgv(argv) {
+  return argv.map((w) => /^[\w@%+=:,./-]+$/.test(w) ? w : `'${w.replaceAll("'", `'"'"'`)}'`).join(" ");
+}
+
+// ../ui/src/lib/components/RunsList.svelte
+var root11 = from_html(`<p class="small muted row" style="gap:6px"><!>No commands. Running it reads the transcript and files only.</p>`);
+var root_114 = from_html(`<span class="sr-only"> </span>`);
+var root_28 = from_html(`<li><span class="mark svelte-jlygl3" aria-hidden="true"> </span> <!><code class="svelte-jlygl3"> </code> <!></li>`);
+var root_38 = from_html(`<p class="small" style="color:var(--warn);margin-top:6px"> </p>`);
+var root_46 = from_html(`<p class="small faint" style="margin-top:6px"> </p>`);
+var root_55 = from_html(`<ul class="runs svelte-jlygl3"></ul> <!>`, 1);
+var $$css4 = {
+  hash: "svelte-jlygl3",
+  code: ".runs.svelte-jlygl3 {list-style:none;padding:0;margin:0;display:grid;gap:4px;}.runs.svelte-jlygl3 li:where(.svelte-jlygl3) {display:flex;align-items:center;gap:8px;margin:0;padding:5px 10px;border-radius:var(--radius-sm);background:var(--surface-2);overflow-wrap:anywhere;}.runs.svelte-jlygl3 li:where(.svelte-jlygl3) code:where(.svelte-jlygl3) {background:none;padding:0;}.runs.svelte-jlygl3 li.add:where(.svelte-jlygl3) {background:var(--add-bg);}.runs.svelte-jlygl3 li.del:where(.svelte-jlygl3) {background:var(--del-bg);}.runs.svelte-jlygl3 li.del:where(.svelte-jlygl3) code:where(.svelte-jlygl3) {text-decoration:line-through;color:var(--text-2);}.mark.svelte-jlygl3 {width:10px;flex:none;font:600 12.5px var(--mono);}.add.svelte-jlygl3 .mark:where(.svelte-jlygl3) {color:var(--ok);}.del.svelte-jlygl3 .mark:where(.svelte-jlygl3) {color:var(--bad);}"
+};
+function RunsList($$anchor, $$props) {
+  push($$props, true);
+  append_styles($$anchor, $$css4);
+  let before = prop($$props, "before", 19, () => []), after = prop($$props, "after", 19, () => []);
+  const key2 = (argv) => JSON.stringify(argv);
+  const lines = user_derived(() => {
+    const was = new Set(before().map(key2));
+    const now = new Set(after().map(key2));
+    return [
+      ...after().map((argv) => ({ argv, kind: was.has(key2(argv)) ? "same" : "add" })),
+      ...before().filter((argv) => !now.has(key2(argv))).map((argv) => ({ argv, kind: "del" }))
+    ];
+  });
+  const added = user_derived(() => get(lines).filter((l) => l.kind === "add").length);
+  const removed = user_derived(() => get(lines).filter((l) => l.kind === "del").length);
+  var fragment = comment();
+  var node = first_child(fragment);
+  {
+    var consequent = ($$anchor2) => {
+      var p = root11();
+      var node_1 = child(p);
+      Icon(node_1, { name: "eye", size: 13 });
+      next();
+      reset(p);
+      append2($$anchor2, p);
+    };
+    var alternate = ($$anchor2) => {
+      var fragment_1 = root_55();
+      var ul = first_child(fragment_1);
+      each(ul, 21, () => get(lines), index, ($$anchor3, line) => {
+        var li = root_28();
+        var span = child(li);
+        var text2 = only_child(span, true);
+        var node_2 = sibling(span, 2);
+        Icon(node_2, { name: "terminal", size: 12 });
+        var code = sibling(node_2);
+        var text_1 = only_child(code, true);
+        var node_3 = sibling(code, 2);
+        {
+          var consequent_1 = ($$anchor4) => {
+            var span_1 = root_114();
+            var text_2 = only_child(span_1, true);
+            template_effect(() => set_text(text_2, get(line).kind === "add" ? "(added)" : "(removed)"));
+            append2($$anchor4, span_1);
+          };
+          if_block(node_3, ($$render) => {
+            if (get(line).kind !== "same") $$render(consequent_1);
+          });
+        }
+        reset(li);
+        template_effect(
+          ($0) => {
+            set_class(li, 1, clsx2(get(line).kind), "svelte-jlygl3");
+            set_text(text2, get(line).kind === "add" ? "+" : get(line).kind === "del" ? "\u2212" : "");
+            set_text(text_1, $0);
+          },
+          [() => joinArgv(get(line).argv)]
+        );
+        append2($$anchor3, li);
+      });
+      reset(ul);
+      var node_4 = sibling(ul, 2);
+      {
+        var consequent_2 = ($$anchor3) => {
+          var p_1 = root_38();
+          var text_3 = only_child(p_1);
+          template_effect(() => set_text(text_3, `Adds ${get(added) === 1 ? "a command" : `${get(added)} commands`} to what running this eval executes in the repository.`));
+          append2($$anchor3, p_1);
+        };
+        var consequent_3 = ($$anchor3) => {
+          var p_2 = root_46();
+          var text_4 = only_child(p_2);
+          template_effect(() => set_text(text_4, `Removes ${get(removed) === 1 ? "a command" : `${get(removed)} commands`}; adds none.`));
+          append2($$anchor3, p_2);
+        };
+        if_block(node_4, ($$render) => {
+          if (get(added)) $$render(consequent_2);
+          else if (get(removed)) $$render(consequent_3, 1);
+        });
+      }
+      append2($$anchor2, fragment_1);
+    };
+    if_block(node, ($$render) => {
+      if (get(lines).length === 0) $$render(consequent);
+      else $$render(alternate, -1);
+    });
+  }
+  append2($$anchor, fragment);
+  pop();
+}
+
 // ../ui/src/routes/proposals/+page.svelte
-var root11 = from_html(`<button> <span class="faint num"> </span></button>`);
-var root_114 = from_html(`<p class="empty small">Loading\u2026</p>`);
-var root_28 = from_html(`New proposals come from <code>/improve propose</code>, <code>/improve review</code>, or an imported background finding.`, 1);
-var root_38 = from_html(`<div class="empty small"><strong> </strong> <!></div>`);
-var root_46 = from_html(`<li><button class="list-row stacked svelte-zx26br"><span class="title"> </span> <span class="row small faint"><!> <!> <!> <span> </span></span></button></li>`);
-var root_55 = from_html(`<ul class="list"></ul>`);
+var root12 = from_html(`<button> <span class="faint num"> </span></button>`);
+var root_115 = from_html(`<p class="empty small">Loading\u2026</p>`);
+var root_29 = from_html(`New proposals come from <code>/improve propose</code>, <code>/improve review</code>, or an imported background finding.`, 1);
+var root_39 = from_html(`<div class="empty small"><strong> </strong> <!></div>`);
+var root_47 = from_html(`<li><button class="list-row stacked svelte-zx26br"><span class="title"> </span> <span class="row small faint"><!> <!> <!> <span> </span></span></button></li>`);
+var root_56 = from_html(`<ul class="list"></ul>`);
 var root_64 = from_html(`<div class="panel empty"><strong> </strong> Its evidence, the files it changes, and the decision controls appear here.</div>`);
 var root_74 = from_html(`\xB7 objective <a> </a>`, 1);
 var root_84 = from_html(`<div class="panel-body"><!></div>`);
 var root_94 = from_html(`<div><div class="section-label">What changes</div> <p class="prose"> </p></div>`);
 var root_104 = from_html(`<div><div class="section-label">Why</div> <p class="prose"> </p></div>`);
-var root_115 = from_html(`<span class="faint"> </span>`);
+var root_116 = from_html(`<span class="faint"> </span>`);
 var root_125 = from_html(`<span><!> <!></span>`);
 var root_134 = from_html(`<div class="row"></div>`);
 var root_144 = from_html(`<p class="small muted">None listed.</p>`);
 var root_154 = from_html(`<p class="small" style="color:var(--warn);margin-top:6px">Changes permissions.</p>`);
-var root_164 = from_html(`<tr><td class="mono small svelte-zx26br" style="width:34%"> </td><td class="svelte-zx26br"> </td></tr>`);
-var root_174 = from_html(`<div class="table-wrap evidence svelte-zx26br"><table><thead><tr><th class="svelte-zx26br">Source</th><th class="svelte-zx26br">What it shows</th></tr></thead><tbody></tbody></table></div>`);
-var root_183 = from_html(`<p class="small" style="color:var(--warn)">No evidence is given. A proposal without evidence is a guess.</p>`);
-var root_193 = from_html(`<dt>Today</dt><dd> </dd>`, 1);
-var root_20 = from_html(`<dt>Measured by</dt><dd> </dd>`, 1);
-var root_21 = from_html(`<dt>Passes if</dt><dd> </dd>`, 1);
-var root_222 = from_html(`<dt>Fails if</dt><dd> </dd>`, 1);
-var root_232 = from_html(`<li><code> </code></li>`);
-var root_242 = from_html(`<dt>Runs</dt> <dd><ul class="confirm-commands small mono svelte-zx26br"></ul></dd>`, 1);
-var root_252 = from_html(`<div><div class="section-label">How we will know it worked</div> <dl class="kv"><!> <!> <!> <!> <!></dl></div>`);
-var root_262 = from_html(`<li> </li>`);
-var root_272 = from_html(`<p><strong>Reasons to reject, from whoever wrote it</strong></p> <ul class="small" style="margin-top:4px"></ul>`, 1);
-var root_282 = from_html(`<div><div class="section-label">Risks</div> <ul></ul></div>`);
-var root_29 = from_html(`<div><div class="section-label">How to undo it</div> <p> </p></div>`);
-var root_30 = from_html(`<div class="grid cols-2"><!> <!></div>`);
-var root_31 = from_html(`<li><span class="faint"> </span> </li>`);
-var root_322 = from_html(`<details><summary class="small muted"> </summary> <ul class="small" style="margin-top:8px"></ul></details>`);
-var root_332 = from_html(`<button class="small"><!> </button>`);
-var root_342 = from_html(`<div class="panel"><!></div>`);
-var root_352 = from_html(`<p class="small faint">Loading the diff\u2026</p>`);
-var root_362 = from_html(`<strong style="color:var(--warn)">The current file was not written by improve.</strong>`);
-var root_372 = from_html(`<li><span class="mono"> </span> </li>`);
-var root_382 = from_html(`<p><strong> </strong></p> <ul class="small" style="margin-top:4px"></ul>`, 1);
-var root_39 = from_html(`<div class="stack" style="gap:10px"><p class="small muted"> <code> </code> <!></p> <!> <!></div>`);
-var root_40 = from_html(`<p class="small muted">A read-only agent can draft the skill this proposal describes. Nothing is written until you apply the reviewed diff.</p>`);
-var root_41 = from_html(`<div><div class="spread" style="margin-bottom:8px"><div class="section-label" style="margin:0">Skill draft</div> <!></div> <!> <!></div>`);
-var root_422 = from_html(`<div><div class="section-label"> </div> <div class="panel panel-body"><!></div></div>`);
-var root_432 = from_html(`<p style="margin-top:6px"> </p>`);
-var root_442 = from_html(`<p class="small faint" style="margin-top:4px"> </p>`);
-var root_452 = from_html(`<li class="panel-body" style="padding:10px 14px"><div class="row"><!> <span class="small faint"> </span></div> <!> <!></li>`);
-var root_462 = from_html(`<div><div class="section-label">Decisions</div> <ul class="list panel"></ul></div>`);
-var root_47 = from_html(`<p class="small"> </p>`);
-var root_48 = from_html(`<p> </p> <!>`, 1);
-var root_49 = from_html(`<div class="panel-body" style="padding-top:0"><!></div>`);
-var root_50 = from_html(`<p id="reason-error" class="field-error"> </p>`);
-var root_51 = from_html(`Approving writes <code> </code> exactly as shown.`, 1);
-var root_522 = from_html(`Approving records your decision only. Nothing changes until you apply it, here or with <code> </code>.`, 1);
-var root_532 = from_html(`<button class="danger">Overwrite the hand-written file</button>`);
-var root_542 = from_html(`<button class="primary"><!> </button>`);
-var root_552 = from_html(`<footer class="decision svelte-zx26br"><label for="reason">Your reason <span class="faint" style="font-weight:400">(required to reject, kept with the decision)</span></label> <textarea id="reason" rows="2" placeholder="What convinced you, or what is wrong with it"></textarea> <!> <div class="decision-actions svelte-zx26br"><p id="reason-help" class="small faint svelte-zx26br"><!></p> <div class="row svelte-zx26br"><button class="danger"><!> </button> <!> <!></div></div></footer>`);
-var root_56 = from_html(`<p class="small faint">Checking what applying would change\u2026</p>`);
-var root_57 = from_html(`<p> </p> <p class="small faint" style="margin-top:4px">Fix the proposal, or run <code> </code> in Claude Code.</p>`, 1);
-var root_58 = from_html(`<li><span class="chip"><!> </span></li>`);
-var root_59 = from_html(`<ul class="confirm-commands small mono svelte-zx26br"></ul>`);
-var root_60 = from_html(`<p class="small muted">Nothing else.</p>`);
-var root_61 = from_html(`<div class="stack" style="gap:10px" role="group" aria-labelledby="confirm-title"><p id="confirm-title"><strong> </strong></p> <p class="small"> </p> <ul class="confirm-files svelte-zx26br"></ul> <p class="small">The only commands it may run:</p> <ul class="confirm-commands small mono svelte-zx26br"></ul> <p class="small">What the evaluation may rewrite, besides <code>.harness/evals/results/</code>:</p> <!> <p class="small muted"> </p> <div class="row" style="justify-content:flex-end"><button>Back</button> <button class="primary"><!> </button></div></div>`);
-var root_622 = from_html(`<div class="stack declare svelte-zx26br" role="group" aria-labelledby="declare-title"><p id="declare-title"><strong> </strong></p> <ul class="confirm-commands small mono svelte-zx26br"></ul> <div class="decision-actions svelte-zx26br" style="margin-top:0"><p class="small muted svelte-zx26br"> <code>evaluation.commands</code> </p> <div class="row svelte-zx26br"><button class="primary"><!> </button></div></div></div>`);
-var root_632 = from_html(`Prepared on <code> </code>; open its pull request, or prepare it again.`, 1);
-var root_642 = from_html(`<!> <div class="decision-actions svelte-zx26br" style="margin-top:0"><p class="small svelte-zx26br"><!></p> <div class="row svelte-zx26br"><button><!> </button></div></div>`, 1);
-var root_65 = from_html(`<footer class="decision svelte-zx26br"><!></footer>`);
-var root_66 = from_html(`<div class="panel-body stack" style="gap:20px"><!> <!> <!> <div><div class="section-label">Files</div> <!> <!></div> <div><div class="section-label">Evidence</div> <!></div> <!> <!> <!> <!> <!> <!> <!></div> <!> <!>`, 1);
-var root_67 = from_html(`<article class="panel"><header class="panel-body stack" style="gap:10px;border-bottom:1px solid var(--border)"><div class="row"><!> <!> <!> <!></div> <h2 style="font-size:18px"> </h2> <p class="small faint"><span class="mono"> </span> <!> <!> <!> <!></p></header> <!></article>`);
-var root_68 = from_html(`<div class="page-head"><div><h1>Proposals</h1> <p>Changes to the harness, waiting for a decision. A proposal is not approval: nothing changes until you approve it.</p></div></div> <div class="split svelte-zx26br"><section class="panel list-pane svelte-zx26br" aria-label="Proposal list"><div class="panel-head svelte-zx26br"><div class="segmented" role="group" aria-label="Filter"></div></div> <!></section> <section class="detail" aria-live="polite"><!></section></div>`, 1);
-var $$css4 = {
+var root_164 = from_html(`<p class="small faint">Loading\u2026</p>`);
+var root_174 = from_html(`<!> <!> <!> <div class="stack" style="gap:10px"><div class="section-label" style="margin:0">Exactly what is written</div> <!></div>`, 1);
+var root_183 = from_html(`<div><div class="section-label">What runs</div> <!></div> <!>`, 1);
+var root_193 = from_html(`<tr><td class="mono small svelte-zx26br" style="width:34%"> </td><td class="svelte-zx26br"> </td></tr>`);
+var root_20 = from_html(`<div class="table-wrap evidence svelte-zx26br"><table><thead><tr><th class="svelte-zx26br">Source</th><th class="svelte-zx26br">What it shows</th></tr></thead><tbody></tbody></table></div>`);
+var root_21 = from_html(`<p class="small" style="color:var(--warn)">No evidence is given. A proposal without evidence is a guess.</p>`);
+var root_222 = from_html(`<div><div class="section-label">Evidence</div> <!></div>`);
+var root_232 = from_html(`<dt>Today</dt><dd> </dd>`, 1);
+var root_242 = from_html(`<dt>Measured by</dt><dd> </dd>`, 1);
+var root_252 = from_html(`<dt>Passes if</dt><dd> </dd>`, 1);
+var root_262 = from_html(`<dt>Fails if</dt><dd> </dd>`, 1);
+var root_272 = from_html(`<li><code> </code></li>`);
+var root_282 = from_html(`<dt>Runs</dt> <dd><ul class="confirm-commands small mono svelte-zx26br"></ul></dd>`, 1);
+var root_292 = from_html(`<div><div class="section-label">How we will know it worked</div> <dl class="kv"><!> <!> <!> <!> <!></dl></div>`);
+var root_30 = from_html(`<li> </li>`);
+var root_31 = from_html(`<p><strong>Reasons to reject, from whoever wrote it</strong></p> <ul class="small" style="margin-top:4px"></ul>`, 1);
+var root_322 = from_html(`<div><div class="section-label">Risks</div> <ul></ul></div>`);
+var root_332 = from_html(`<div><div class="section-label">How to undo it</div> <p> </p></div>`);
+var root_342 = from_html(`<div class="grid cols-2"><!> <!></div>`);
+var root_352 = from_html(`<li><span class="faint"> </span> </li>`);
+var root_362 = from_html(`<details><summary class="small muted"> </summary> <ul class="small" style="margin-top:8px"></ul></details>`);
+var root_372 = from_html(`<button class="small"><!> </button>`);
+var root_382 = from_html(`<div class="panel"><!></div>`);
+var root_392 = from_html(`<p class="small faint">Loading the diff\u2026</p>`);
+var root_40 = from_html(`<strong style="color:var(--warn)">The current file was not written by improve.</strong>`);
+var root_41 = from_html(`<li><span class="mono"> </span> </li>`);
+var root_422 = from_html(`<p><strong> </strong></p> <ul class="small" style="margin-top:4px"></ul>`, 1);
+var root_432 = from_html(`<div class="stack" style="gap:10px"><p class="small muted"> <code> </code> <!></p> <!> <!></div>`);
+var root_442 = from_html(`<p class="small muted">A read-only agent can draft the skill this proposal describes. Nothing is written until you apply the reviewed diff.</p>`);
+var root_452 = from_html(`<div><div class="spread" style="margin-bottom:8px"><div class="section-label" style="margin:0">Skill draft</div> <!></div> <!> <!></div>`);
+var root_462 = from_html(`<div><div class="section-label"> </div> <div class="panel panel-body"><!></div></div>`);
+var root_472 = from_html(`<p style="margin-top:6px"> </p>`);
+var root_48 = from_html(`<p class="small faint" style="margin-top:4px"> </p>`);
+var root_49 = from_html(`<li class="panel-body" style="padding:10px 14px"><div class="row"><!> <span class="small faint"> </span></div> <!> <!></li>`);
+var root_50 = from_html(`<div><div class="section-label">Decisions</div> <ul class="list panel"></ul></div>`);
+var root_51 = from_html(`<p class="small"> </p>`);
+var root_522 = from_html(`<p> </p> <!>`, 1);
+var root_532 = from_html(`<div class="panel-body" style="padding-top:0"><!></div>`);
+var root_542 = from_html(`<p id="reason-error" class="field-error"> </p>`);
+var root_552 = from_html(`Approving writes <code> </code> exactly as shown.`, 1);
+var root_562 = from_html(`Approving records your decision only. Nothing changes until you apply it, here or with <code> </code>.`, 1);
+var root_57 = from_html(`<button class="danger">Overwrite the hand-written file</button>`);
+var root_58 = from_html(`<button class="primary"><!> </button>`);
+var root_59 = from_html(`<footer class="decision svelte-zx26br"><label for="reason">Your reason <span class="faint" style="font-weight:400">(required to reject, kept with the decision)</span></label> <textarea id="reason" rows="2" placeholder="What convinced you, or what is wrong with it"></textarea> <!> <div class="decision-actions svelte-zx26br"><p id="reason-help" class="small faint svelte-zx26br"><!></p> <div class="row svelte-zx26br"><button class="danger"><!> </button> <!> <!></div></div></footer>`);
+var root_60 = from_html(`<p class="small faint">Checking what applying would change\u2026</p>`);
+var root_61 = from_html(`<p> </p> <p class="small faint" style="margin-top:4px">Fix the proposal, or run <code> </code> in Claude Code.</p>`, 1);
+var root_622 = from_html(`<li><span class="chip"><!> </span></li>`);
+var root_632 = from_html(`<ul class="confirm-commands small mono svelte-zx26br"></ul>`);
+var root_642 = from_html(`<p class="small muted">Nothing else.</p>`);
+var root_65 = from_html(`<div class="stack" style="gap:10px" role="group" aria-labelledby="confirm-title"><p id="confirm-title"><strong> </strong></p> <p class="small"> </p> <ul class="confirm-files svelte-zx26br"></ul> <p class="small">The only commands it may run:</p> <ul class="confirm-commands small mono svelte-zx26br"></ul> <p class="small">What the evaluation may rewrite, besides <code>.harness/evals/results/</code>:</p> <!> <p class="small muted"> </p> <div class="row" style="justify-content:flex-end"><button>Back</button> <button class="primary"><!> </button></div></div>`);
+var root_66 = from_html(`<div class="stack declare svelte-zx26br" role="group" aria-labelledby="declare-title"><p id="declare-title"><strong> </strong></p> <ul class="confirm-commands small mono svelte-zx26br"></ul> <div class="decision-actions svelte-zx26br" style="margin-top:0"><p class="small muted svelte-zx26br"> <code>evaluation.commands</code> </p> <div class="row svelte-zx26br"><button class="primary"><!> </button></div></div></div>`);
+var root_67 = from_html(`Prepared on <code> </code>; open its pull request, or prepare it again.`, 1);
+var root_68 = from_html(`<!> <div class="decision-actions svelte-zx26br" style="margin-top:0"><p class="small svelte-zx26br"><!></p> <div class="row svelte-zx26br"><button><!> </button></div></div>`, 1);
+var root_69 = from_html(`<footer class="decision svelte-zx26br"><!></footer>`);
+var root_70 = from_html(`<div class="panel-body stack" style="gap:20px"><!> <!> <!> <div><div class="section-label">Files</div> <!> <!></div> <!> <!> <!> <!> <!> <!> <!> <!></div> <!> <!>`, 1);
+var root_71 = from_html(`<article class="panel"><header class="panel-body stack" style="gap:10px;border-bottom:1px solid var(--border)"><div class="row"><!> <!> <!> <!> <!></div> <h2 style="font-size:18px"> </h2> <p class="small faint"><span class="mono"> </span> <!> <!> <!> <!></p></header> <!></article>`);
+var root_722 = from_html(`<div class="page-head"><div><h1>Proposals</h1> <p>Changes to the harness, waiting for a decision. A proposal is not approval: nothing changes until you approve it.</p></div></div> <div class="split svelte-zx26br"><section class="panel list-pane svelte-zx26br" aria-label="Proposal list"><div class="panel-head svelte-zx26br"><div class="segmented" role="group" aria-label="Filter"></div></div> <!></section> <section class="detail" aria-live="polite"><!></section></div>`, 1);
+var $$css5 = {
   hash: "svelte-zx26br",
   code: ".split.svelte-zx26br {display:grid;grid-template-columns:minmax(300px, 380px) minmax(0, 1fr);gap:16px;align-items:start;}.list-pane.svelte-zx26br {position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;}.list-pane.svelte-zx26br .panel-head:where(.svelte-zx26br) {position:sticky;top:0;background:var(--surface);z-index:1;}.stacked.svelte-zx26br {flex-direction:column;align-items:flex-start;gap:6px;}.decision.svelte-zx26br {position:sticky;bottom:0;padding:14px 16px;background:var(--surface);border-top:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);}.decision-actions.svelte-zx26br {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;margin-top:10px;}.decision-actions.svelte-zx26br p:where(.svelte-zx26br) {flex:1 1 260px;}.decision-actions.svelte-zx26br .row:where(.svelte-zx26br) {flex:none;margin-left:auto;}.evidence.svelte-zx26br {border:1px solid var(--border);border-radius:var(--radius-sm);}.declare.svelte-zx26br {gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);}.confirm-files.svelte-zx26br {list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px;}.confirm-commands.svelte-zx26br {list-style:none;padding:0;margin:0;display:grid;gap:4px;overflow-wrap:anywhere;}.evidence.svelte-zx26br th:where(.svelte-zx26br), .evidence.svelte-zx26br td:where(.svelte-zx26br) {padding:8px 12px;}\n  @media (max-width: 960px) {.split.svelte-zx26br {grid-template-columns:1fr;}.list-pane.svelte-zx26br {position:static;max-height:none;}\n  }"
 };
 function _page2($$anchor, $$props) {
   push($$props, true);
-  append_styles($$anchor, $$css4);
+  append_styles($$anchor, $$css5);
   const VIEWS2 = [
     ["waiting", "Waiting", waiting],
     [
@@ -11073,6 +11238,10 @@ function _page2($$anchor, $$props) {
     null
   );
   let confirming = state(false);
+  let edit = state(
+    /** @type {any} */
+    null
+  );
   function go(params) {
     const url = new URL(page.url);
     for (const [key2, value] of Object.entries(params)) {
@@ -11104,7 +11273,25 @@ function _page2($$anchor, $$props) {
     set(diff, null);
     if (key2) loadDiff(key2.split("|")[0]);
   });
-  const planKey = user_derived(() => get(selected)?.status === "approved" ? `${get(selected).file}|${get(selected).last_apply?.at ?? ""}|${get(selected).upstream_change?.commit ?? ""}` : null);
+  const editKey = user_derived(() => get(selected)?.harness_edit ? `${get(selected).file}|${get(selected).status}` : null);
+  user_effect(() => {
+    const key2 = get(editKey);
+    set(edit, null);
+    if (key2) loadEdit(key2.split("|")[0]);
+  });
+  async function loadEdit(file) {
+    try {
+      set(edit, await api(`/api/proposals/${encodeURIComponent(file)}/edit`), true);
+    } catch (error) {
+      set(edit, { error: (
+        /** @type {Error} */
+        error.message
+      ) }, true);
+    }
+  }
+  const editOpen = user_derived(() => Boolean(get(selected)?.harness_edit) && ["draft", "proposed", "approved"].includes(get(selected)?.status));
+  const editBlocked = user_derived(() => !get(edit) || get(edit).error || get(edit).stale?.length || get(edit).tampered || get(edit).problems?.length);
+  const planKey = user_derived(() => get(selected)?.status === "approved" && !get(selected)?.harness_edit ? `${get(selected).file}|${get(selected).last_apply?.at ?? ""}|${get(selected).upstream_change?.commit ?? ""}` : null);
   user_effect(() => {
     const key2 = get(planKey);
     set(plan, null);
@@ -11243,6 +11430,23 @@ function _page2($$anchor, $$props) {
           },
           true
         );
+      } else if (kind === "write") {
+        const value = await api(`/api/proposals/${encodeURIComponent(file)}/edit`, {
+          method: "POST",
+          body: {
+            rationale: get(reason),
+            digest: get(edit)?.digest,
+            idempotency_key: `edit:${file}:${get(edit)?.digest}`
+          }
+        });
+        set(
+          notice,
+          {
+            tone: "ok",
+            text: `Approved and wrote ${value.written.join(", ")}.`
+          },
+          true
+        );
       } else {
         const value = await api(`/api/proposals/${encodeURIComponent(file)}/${kind}`, {
           method: "POST",
@@ -11269,6 +11473,7 @@ function _page2($$anchor, $$props) {
         cause
       );
       if (error.detail?.requires === "allow_unmarked_overwrite") set(confirmOverwrite, true);
+      if (kind === "write") loadEdit(file);
       set(notice, { tone: "bad", text: error.message, hint: error.hint }, true);
     } finally {
       set(busy, null);
@@ -11276,8 +11481,8 @@ function _page2($$anchor, $$props) {
   }
   const scope = user_derived(() => scopeLabel(get(selected)?.check));
   const status = user_derived(() => STATUS[get(selected)?.status] ?? { label: get(selected)?.status, tone: "" });
-  const decidable = user_derived(() => get(selected) && waiting(get(selected)) && !get(selected).malformed);
-  var fragment = root_68();
+  const decidable = user_derived(() => get(selected) && !get(selected).malformed && (waiting(get(selected)) || get(selected).harness_edit && get(selected).status === "approved"));
+  var fragment = root_722();
   var div = sibling(first_child(fragment), 2);
   var section = child(div);
   var div_1 = child(section);
@@ -11287,7 +11492,7 @@ function _page2($$anchor, $$props) {
     let key2 = () => get($$array)[0];
     let label = () => get($$array)[1];
     let test = () => get($$array)[2];
-    var button = root11();
+    var button = root12();
     var text2 = child(button);
     var span = sibling(text2);
     var text_1 = only_child(span, true);
@@ -11308,17 +11513,17 @@ function _page2($$anchor, $$props) {
   var node = sibling(div_1, 2);
   {
     var consequent = ($$anchor2) => {
-      var p_1 = root_114();
+      var p_1 = root_115();
       append2($$anchor2, p_1);
     };
     var consequent_2 = ($$anchor2) => {
-      var div_3 = root_38();
+      var div_3 = root_39();
       var strong = child(div_3);
       var text_2 = only_child(strong, true);
       var node_1 = sibling(strong, 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var fragment_1 = root_28();
+          var fragment_1 = root_29();
           next(4);
           append2($$anchor3, fragment_1);
         };
@@ -11331,10 +11536,10 @@ function _page2($$anchor, $$props) {
       append2($$anchor2, div_3);
     };
     var alternate = ($$anchor2) => {
-      var ul = root_55();
+      var ul = root_56();
       each(ul, 21, () => get(shown), (proposal) => proposal.file, ($$anchor3, proposal) => {
         const s = user_derived(() => STATUS[get(proposal).status] ?? { label: get(proposal).status, tone: "" });
-        var li = root_46();
+        var li = root_47();
         var button_1 = child(li);
         var span_1 = child(button_1);
         var text_3 = only_child(span_1, true);
@@ -11441,8 +11646,8 @@ function _page2($$anchor, $$props) {
       }
       append2($$anchor2, fragment_6);
     };
-    var alternate_10 = ($$anchor2) => {
-      var article = root_67();
+    var alternate_12 = ($$anchor2) => {
+      var article = root_71();
       var header = child(article);
       var div_5 = child(header);
       var node_7 = child(div_5);
@@ -11516,86 +11721,103 @@ function _page2($$anchor, $$props) {
           if (get(selected).provenance?.kind === "background-dream") $$render(consequent_9);
         });
       }
-      reset(div_5);
-      var h2 = sibling(div_5, 2);
-      var text_13 = only_child(h2, true);
-      var p_2 = sibling(h2, 2);
-      var span_4 = child(p_2);
-      var text_14 = only_child(span_4, true);
-      var node_11 = sibling(span_4, 2);
+      var node_11 = sibling(node_10, 2);
       {
         var consequent_10 = ($$anchor3) => {
-          var fragment_13 = root_74();
-          var a = sibling(first_child(fragment_13));
-          var text_15 = only_child(a, true);
-          template_effect(() => {
-            set_attribute2(a, "href", `#/objectives#${get(selected).objective_id ?? get(selected).objective ?? ""}`);
-            set_text(text_15, get(selected).objective_id ?? get(selected).objective);
+          Pill($$anchor3, {
+            plain: true,
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_13 = text("Filed from Objectives");
+              append2($$anchor4, text_13);
+            },
+            $$slots: { default: true }
           });
-          append2($$anchor3, fragment_13);
         };
         if_block(node_11, ($$render) => {
-          if (get(selected).objective_id || typeof get(selected).objective === "string") $$render(consequent_10);
+          if (get(selected).provenance?.kind === "objectives-editor") $$render(consequent_10);
         });
       }
-      var node_12 = sibling(node_11, 2);
+      reset(div_5);
+      var h2 = sibling(div_5, 2);
+      var text_14 = only_child(h2, true);
+      var p_2 = sibling(h2, 2);
+      var span_4 = child(p_2);
+      var text_15 = only_child(span_4, true);
+      var node_12 = sibling(span_4, 2);
       {
         var consequent_11 = ($$anchor3) => {
-          var text_16 = text();
-          template_effect(() => set_text(text_16, `\xB7 owner ${get(selected).owner ?? ""}`));
-          append2($$anchor3, text_16);
+          var fragment_14 = root_74();
+          var a = sibling(first_child(fragment_14));
+          var text_16 = only_child(a, true);
+          template_effect(() => {
+            set_attribute2(a, "href", `#/objectives#${get(selected).objective_id ?? get(selected).objective ?? ""}`);
+            set_text(text_16, get(selected).objective_id ?? get(selected).objective);
+          });
+          append2($$anchor3, fragment_14);
         };
         if_block(node_12, ($$render) => {
-          if (get(selected).owner) $$render(consequent_11);
+          if (get(selected).objective_id || typeof get(selected).objective === "string") $$render(consequent_11);
         });
       }
       var node_13 = sibling(node_12, 2);
       {
         var consequent_12 = ($$anchor3) => {
           var text_17 = text();
-          template_effect(($0) => set_text(text_17, `\xB7 proposed ${$0 ?? ""}`), [() => ago(get(selected).created_at)]);
+          template_effect(() => set_text(text_17, `\xB7 owner ${get(selected).owner ?? ""}`));
           append2($$anchor3, text_17);
         };
         if_block(node_13, ($$render) => {
-          if (get(selected).created_at) $$render(consequent_12);
+          if (get(selected).owner) $$render(consequent_12);
         });
       }
       var node_14 = sibling(node_13, 2);
       {
         var consequent_13 = ($$anchor3) => {
           var text_18 = text();
-          template_effect(($0) => set_text(text_18, `\xB7 review by ${$0 ?? ""}`), [() => when(get(selected).review_by)]);
+          template_effect(($0) => set_text(text_18, `\xB7 proposed ${$0 ?? ""}`), [() => ago(get(selected).created_at)]);
           append2($$anchor3, text_18);
         };
         if_block(node_14, ($$render) => {
-          if (get(selected).review_by) $$render(consequent_13);
+          if (get(selected).created_at) $$render(consequent_13);
+        });
+      }
+      var node_15 = sibling(node_14, 2);
+      {
+        var consequent_14 = ($$anchor3) => {
+          var text_19 = text();
+          template_effect(($0) => set_text(text_19, `\xB7 review by ${$0 ?? ""}`), [() => when(get(selected).review_by)]);
+          append2($$anchor3, text_19);
+        };
+        if_block(node_15, ($$render) => {
+          if (get(selected).review_by) $$render(consequent_14);
         });
       }
       reset(p_2);
       reset(header);
-      var node_15 = sibling(header, 2);
+      var node_16 = sibling(header, 2);
       {
-        var consequent_14 = ($$anchor3) => {
+        var consequent_15 = ($$anchor3) => {
           var div_6 = root_84();
-          var node_16 = child(div_6);
-          Notice(node_16, {
+          var node_17 = child(div_6);
+          Notice(node_17, {
             tone: "bad",
             children: ($$anchor4, $$slotProps) => {
               next();
-              var text_19 = text();
-              template_effect(() => set_text(text_19, `This file could not be parsed: ${get(selected).malformed ?? ""}`));
-              append2($$anchor4, text_19);
+              var text_20 = text();
+              template_effect(() => set_text(text_20, `This file could not be parsed: ${get(selected).malformed ?? ""}`));
+              append2($$anchor4, text_20);
             },
             $$slots: { default: true }
           });
           reset(div_6);
           append2($$anchor3, div_6);
         };
-        var alternate_9 = ($$anchor3) => {
-          var fragment_18 = root_66();
-          var div_7 = first_child(fragment_18);
-          var node_17 = child(div_7);
-          each(node_17, 17, () => get(selected).check?.findings ?? [], index, ($$anchor4, finding) => {
+        var alternate_11 = ($$anchor3) => {
+          var fragment_19 = root_70();
+          var div_7 = first_child(fragment_19);
+          var node_18 = child(div_7);
+          each(node_18, 17, () => get(selected).check?.findings ?? [], index, ($$anchor4, finding) => {
             {
               let $0 = user_derived(() => get(selected).check.scope === "codebase" ? "bad" : "warn");
               Notice($$anchor4, {
@@ -11604,71 +11826,71 @@ function _page2($$anchor, $$props) {
                 },
                 children: ($$anchor5, $$slotProps) => {
                   next();
-                  var text_20 = text();
-                  template_effect(() => set_text(text_20, get(finding).detail));
-                  append2($$anchor5, text_20);
+                  var text_21 = text();
+                  template_effect(() => set_text(text_21, get(finding).detail));
+                  append2($$anchor5, text_21);
                 },
                 $$slots: { default: true }
               });
             }
           });
-          var node_18 = sibling(node_17, 2);
-          {
-            var consequent_15 = ($$anchor4) => {
-              var div_8 = root_94();
-              var p_3 = sibling(child(div_8), 2);
-              var text_21 = only_child(p_3, true);
-              reset(div_8);
-              template_effect(() => set_text(text_21, get(selected).intervention.summary));
-              append2($$anchor4, div_8);
-            };
-            if_block(node_18, ($$render) => {
-              if (get(selected).intervention?.summary) $$render(consequent_15);
-            });
-          }
           var node_19 = sibling(node_18, 2);
           {
             var consequent_16 = ($$anchor4) => {
-              var div_9 = root_104();
-              var p_4 = sibling(child(div_9), 2);
-              var text_22 = only_child(p_4, true);
-              reset(div_9);
-              template_effect(() => set_text(text_22, get(selected).hypothesis));
-              append2($$anchor4, div_9);
+              var div_8 = root_94();
+              var p_3 = sibling(child(div_8), 2);
+              var text_22 = only_child(p_3, true);
+              reset(div_8);
+              template_effect(() => set_text(text_22, get(selected).intervention.summary));
+              append2($$anchor4, div_8);
             };
             if_block(node_19, ($$render) => {
-              if (get(selected).hypothesis) $$render(consequent_16);
+              if (get(selected).intervention?.summary) $$render(consequent_16);
             });
           }
-          var div_10 = sibling(node_19, 2);
-          var node_20 = sibling(child(div_10), 2);
+          var node_20 = sibling(node_19, 2);
           {
-            var consequent_18 = ($$anchor4) => {
+            var consequent_17 = ($$anchor4) => {
+              var div_9 = root_104();
+              var p_4 = sibling(child(div_9), 2);
+              var text_23 = only_child(p_4, true);
+              reset(div_9);
+              template_effect(() => set_text(text_23, get(selected).hypothesis));
+              append2($$anchor4, div_9);
+            };
+            if_block(node_20, ($$render) => {
+              if (get(selected).hypothesis) $$render(consequent_17);
+            });
+          }
+          var div_10 = sibling(node_20, 2);
+          var node_21 = sibling(child(div_10), 2);
+          {
+            var consequent_19 = ($$anchor4) => {
               var div_11 = root_134();
               each(div_11, 21, () => get(selected).scope.files, index, ($$anchor5, file) => {
                 const side = user_derived(() => get(selected).check?.firstmate?.files?.[get(file)]);
                 var span_5 = root_125();
                 let classes;
-                var node_21 = child(span_5);
-                Icon(node_21, { name: "file", size: 12 });
-                var text_23 = sibling(node_21, 1, true);
-                var node_22 = sibling(text_23);
+                var node_22 = child(span_5);
+                Icon(node_22, { name: "file", size: 12 });
+                var text_24 = sibling(node_22, 1, true);
+                var node_23 = sibling(text_24);
                 {
-                  var consequent_17 = ($$anchor6) => {
-                    var span_6 = root_115();
-                    var text_24 = only_child(span_6, true);
-                    template_effect(() => set_text(text_24, get(side) === "captain-private" ? "captain-private" : "shared"));
+                  var consequent_18 = ($$anchor6) => {
+                    var span_6 = root_116();
+                    var text_25 = only_child(span_6, true);
+                    template_effect(() => set_text(text_25, get(side) === "captain-private" ? "captain-private" : "shared"));
                     append2($$anchor6, span_6);
                   };
-                  if_block(node_22, ($$render) => {
-                    if (get(side) === "captain-private" || get(side) === "shared-tracked") $$render(consequent_17);
+                  if_block(node_23, ($$render) => {
+                    if (get(side) === "captain-private" || get(side) === "shared-tracked") $$render(consequent_18);
                   });
                 }
                 reset(span_5);
                 template_effect(
                   ($0) => {
                     classes = set_class(span_5, 1, "chip", null, classes, { outside: $0 });
-                    set_text(text_23, get(file));
+                    set_text(text_24, get(file));
                   },
                   [() => get(selected).check?.outside?.includes(get(file))]
                 );
@@ -11681,339 +11903,475 @@ function _page2($$anchor, $$props) {
               var p_5 = root_144();
               append2($$anchor4, p_5);
             };
-            if_block(node_20, ($$render) => {
-              if (get(selected).scope?.files?.length) $$render(consequent_18);
+            if_block(node_21, ($$render) => {
+              if (get(selected).scope?.files?.length) $$render(consequent_19);
               else $$render(alternate_1, -1);
             });
           }
-          var node_23 = sibling(node_20, 2);
+          var node_24 = sibling(node_21, 2);
           {
-            var consequent_19 = ($$anchor4) => {
+            var consequent_20 = ($$anchor4) => {
               var p_6 = root_154();
               append2($$anchor4, p_6);
             };
-            if_block(node_23, ($$render) => {
-              if (get(selected).scope?.permissions_changed) $$render(consequent_19);
+            if_block(node_24, ($$render) => {
+              if (get(selected).scope?.permissions_changed) $$render(consequent_20);
             });
           }
           reset(div_10);
-          var div_12 = sibling(div_10, 2);
-          var node_24 = sibling(child(div_12), 2);
+          var node_25 = sibling(div_10, 2);
           {
-            var consequent_20 = ($$anchor4) => {
-              var div_13 = root_174();
-              var table = child(div_13);
-              var tbody = sibling(child(table));
-              each(tbody, 21, () => get(selected).evidence, index, ($$anchor5, item) => {
-                var tr = root_164();
-                var td = child(tr);
-                var text_25 = only_child(td, true);
-                var td_1 = sibling(td);
-                var text_26 = only_child(td_1, true);
-                reset(tr);
-                template_effect(
-                  ($0) => {
-                    set_text(text_25, get(item).source ?? "unspecified");
-                    set_text(text_26, $0);
-                  },
-                  [() => get(item).observation ?? JSON.stringify(get(item))]
-                );
-                append2($$anchor5, tr);
-              });
-              reset(tbody);
-              reset(table);
-              reset(div_13);
-              append2($$anchor4, div_13);
-            };
-            var alternate_2 = ($$anchor4) => {
-              var p_7 = root_183();
-              append2($$anchor4, p_7);
-            };
-            if_block(node_24, ($$render) => {
-              if (get(selected).evidence.length) $$render(consequent_20);
-              else $$render(alternate_2, -1);
-            });
-          }
-          reset(div_12);
-          var node_25 = sibling(div_12, 2);
-          {
-            var consequent_26 = ($$anchor4) => {
-              var div_14 = root_252();
-              var dl = sibling(child(div_14), 2);
-              var node_26 = child(dl);
+            var consequent_27 = ($$anchor4) => {
+              var fragment_22 = root_183();
+              var div_12 = first_child(fragment_22);
+              var node_26 = sibling(child(div_12), 2);
               {
                 var consequent_21 = ($$anchor5) => {
-                  var fragment_21 = root_193();
-                  var dd = sibling(first_child(fragment_21));
-                  var text_27 = only_child(dd, true);
-                  template_effect(() => set_text(text_27, get(selected).evaluation.baseline));
-                  append2($$anchor5, fragment_21);
+                  var p_7 = root_164();
+                  append2($$anchor5, p_7);
+                };
+                var consequent_22 = ($$anchor5) => {
+                  Notice($$anchor5, {
+                    tone: "bad",
+                    children: ($$anchor6, $$slotProps) => {
+                      next();
+                      var text_26 = text();
+                      template_effect(() => set_text(text_26, get(edit).error));
+                      append2($$anchor6, text_26);
+                    },
+                    $$slots: { default: true }
+                  });
+                };
+                var alternate_2 = ($$anchor5) => {
+                  {
+                    let $0 = user_derived(() => get(editOpen) ? get(edit).runs.before : get(edit).runs.after);
+                    RunsList($$anchor5, {
+                      get before() {
+                        return get($0);
+                      },
+                      get after() {
+                        return get(edit).runs.after;
+                      }
+                    });
+                  }
                 };
                 if_block(node_26, ($$render) => {
-                  if (get(selected).evaluation.baseline) $$render(consequent_21);
+                  if (!get(edit)) $$render(consequent_21);
+                  else if (get(edit).error) $$render(consequent_22, 1);
+                  else $$render(alternate_2, -1);
                 });
               }
-              var node_27 = sibling(node_26, 2);
+              reset(div_12);
+              var node_27 = sibling(div_12, 2);
               {
-                var consequent_22 = ($$anchor5) => {
-                  var fragment_22 = root_20();
-                  var dd_1 = sibling(first_child(fragment_22));
-                  var text_28 = only_child(dd_1, true);
-                  template_effect(() => set_text(text_28, get(selected).evaluation.candidate));
-                  append2($$anchor5, fragment_22);
+                var consequent_26 = ($$anchor5) => {
+                  var fragment_26 = root_174();
+                  var node_28 = first_child(fragment_26);
+                  {
+                    var consequent_23 = ($$anchor6) => {
+                      Notice($$anchor6, {
+                        tone: "warn",
+                        children: ($$anchor7, $$slotProps) => {
+                          next();
+                          var text_27 = text();
+                          template_effect(($0) => set_text(text_27, `${$0 ?? ""} changed since this edit was filed, so it cannot be written. Reject it and make the edit again on Objectives.`), [() => get(edit).stale.join(", ")]);
+                          append2($$anchor7, text_27);
+                        },
+                        $$slots: { default: true }
+                      });
+                    };
+                    if_block(node_28, ($$render) => {
+                      if (get(edit).stale.length) $$render(consequent_23);
+                    });
+                  }
+                  var node_29 = sibling(node_28, 2);
+                  {
+                    var consequent_24 = ($$anchor6) => {
+                      Notice($$anchor6, {
+                        tone: "bad",
+                        children: ($$anchor7, $$slotProps) => {
+                          next();
+                          var text_28 = text("The proposal's file contents no longer match the change it recorded when it was filed, so it cannot be written.");
+                          append2($$anchor7, text_28);
+                        },
+                        $$slots: { default: true }
+                      });
+                    };
+                    if_block(node_29, ($$render) => {
+                      if (get(edit).tampered) $$render(consequent_24);
+                    });
+                  }
+                  var node_30 = sibling(node_29, 2);
+                  {
+                    var consequent_25 = ($$anchor6) => {
+                      Notice($$anchor6, {
+                        tone: "bad",
+                        children: ($$anchor7, $$slotProps) => {
+                          next();
+                          var text_29 = text();
+                          template_effect(($0) => set_text(text_29, `It runs a command it does not declare: ${$0 ?? ""}.`), [() => get(edit).problems.join("; ")]);
+                          append2($$anchor7, text_29);
+                        },
+                        $$slots: { default: true }
+                      });
+                    };
+                    if_block(node_30, ($$render) => {
+                      if (get(edit).problems.length) $$render(consequent_25);
+                    });
+                  }
+                  var div_13 = sibling(node_30, 2);
+                  var node_31 = sibling(child(div_13), 2);
+                  each(node_31, 17, () => get(edit).files, index, ($$anchor6, change) => {
+                    {
+                      let $0 = user_derived(() => get(change).current ?? "");
+                      let $1 = user_derived(() => get(change).proposed ?? "");
+                      Diff($$anchor6, {
+                        get current() {
+                          return get($0);
+                        },
+                        get proposed() {
+                          return get($1);
+                        },
+                        get path() {
+                          return get(change).path;
+                        }
+                      });
+                    }
+                  });
+                  reset(div_13);
+                  append2($$anchor5, fragment_26);
                 };
                 if_block(node_27, ($$render) => {
-                  if (get(selected).evaluation.candidate) $$render(consequent_22);
+                  if (get(editOpen) && get(edit) && !get(edit).error) $$render(consequent_26);
                 });
               }
-              var node_28 = sibling(node_27, 2);
+              append2($$anchor4, fragment_22);
+            };
+            var alternate_4 = ($$anchor4) => {
+              var div_14 = root_222();
+              var node_32 = sibling(child(div_14), 2);
               {
-                var consequent_23 = ($$anchor5) => {
-                  var fragment_23 = root_21();
-                  var dd_2 = sibling(first_child(fragment_23));
-                  var text_29 = only_child(dd_2, true);
-                  template_effect(($0) => set_text(text_29, $0), [() => get(selected).evaluation.pass_conditions.join("; ")]);
-                  append2($$anchor5, fragment_23);
-                };
-                if_block(node_28, ($$render) => {
-                  if (get(selected).evaluation.pass_conditions?.length) $$render(consequent_23);
-                });
-              }
-              var node_29 = sibling(node_28, 2);
-              {
-                var consequent_24 = ($$anchor5) => {
-                  var fragment_24 = root_222();
-                  var dd_3 = sibling(first_child(fragment_24));
-                  var text_30 = only_child(dd_3, true);
-                  template_effect(($0) => set_text(text_30, $0), [
-                    () => get(selected).evaluation.regression_conditions.join("; ")
-                  ]);
-                  append2($$anchor5, fragment_24);
-                };
-                if_block(node_29, ($$render) => {
-                  if (get(selected).evaluation.regression_conditions?.length) $$render(consequent_24);
-                });
-              }
-              var node_30 = sibling(node_29, 2);
-              {
-                var consequent_25 = ($$anchor5) => {
-                  var fragment_25 = root_242();
-                  var dd_4 = sibling(first_child(fragment_25), 2);
-                  var ul_1 = child(dd_4);
-                  each(ul_1, 21, () => get(selected).evaluation.commands, index, ($$anchor6, command) => {
-                    var li_1 = root_232();
-                    var code = child(li_1);
-                    var text_31 = only_child(code, true);
-                    reset(li_1);
-                    template_effect(() => set_text(text_31, get(command)));
-                    append2($$anchor6, li_1);
+                var consequent_28 = ($$anchor5) => {
+                  var div_15 = root_20();
+                  var table = child(div_15);
+                  var tbody = sibling(child(table));
+                  each(tbody, 21, () => get(selected).evidence, index, ($$anchor6, item) => {
+                    var tr = root_193();
+                    var td = child(tr);
+                    var text_30 = only_child(td, true);
+                    var td_1 = sibling(td);
+                    var text_31 = only_child(td_1, true);
+                    reset(tr);
+                    template_effect(
+                      ($0) => {
+                        set_text(text_30, get(item).source ?? "unspecified");
+                        set_text(text_31, $0);
+                      },
+                      [() => get(item).observation ?? JSON.stringify(get(item))]
+                    );
+                    append2($$anchor6, tr);
                   });
-                  reset(ul_1);
-                  reset(dd_4);
-                  append2($$anchor5, fragment_25);
+                  reset(tbody);
+                  reset(table);
+                  reset(div_15);
+                  append2($$anchor5, div_15);
                 };
-                if_block(node_30, ($$render) => {
-                  if (get(selected).evaluation.commands?.length) $$render(consequent_25);
+                var alternate_3 = ($$anchor5) => {
+                  var p_8 = root_21();
+                  append2($$anchor5, p_8);
+                };
+                if_block(node_32, ($$render) => {
+                  if (get(selected).evidence.length) $$render(consequent_28);
+                  else $$render(alternate_3, -1);
                 });
               }
-              reset(dl);
               reset(div_14);
               append2($$anchor4, div_14);
             };
             if_block(node_25, ($$render) => {
-              if (get(selected).evaluation && (get(selected).evaluation.baseline || get(selected).evaluation.candidate || get(selected).evaluation.pass_conditions?.length || get(selected).evaluation.commands?.length)) $$render(consequent_26);
+              if (get(selected).harness_edit) $$render(consequent_27);
+              else $$render(alternate_4, -1);
             });
           }
-          var node_31 = sibling(node_25, 2);
+          var node_33 = sibling(node_25, 2);
           {
-            var consequent_27 = ($$anchor4) => {
+            var consequent_34 = ($$anchor4) => {
+              var div_16 = root_292();
+              var dl = sibling(child(div_16), 2);
+              var node_34 = child(dl);
+              {
+                var consequent_29 = ($$anchor5) => {
+                  var fragment_33 = root_232();
+                  var dd = sibling(first_child(fragment_33));
+                  var text_32 = only_child(dd, true);
+                  template_effect(() => set_text(text_32, get(selected).evaluation.baseline));
+                  append2($$anchor5, fragment_33);
+                };
+                if_block(node_34, ($$render) => {
+                  if (get(selected).evaluation.baseline) $$render(consequent_29);
+                });
+              }
+              var node_35 = sibling(node_34, 2);
+              {
+                var consequent_30 = ($$anchor5) => {
+                  var fragment_34 = root_242();
+                  var dd_1 = sibling(first_child(fragment_34));
+                  var text_33 = only_child(dd_1, true);
+                  template_effect(() => set_text(text_33, get(selected).evaluation.candidate));
+                  append2($$anchor5, fragment_34);
+                };
+                if_block(node_35, ($$render) => {
+                  if (get(selected).evaluation.candidate) $$render(consequent_30);
+                });
+              }
+              var node_36 = sibling(node_35, 2);
+              {
+                var consequent_31 = ($$anchor5) => {
+                  var fragment_35 = root_252();
+                  var dd_2 = sibling(first_child(fragment_35));
+                  var text_34 = only_child(dd_2, true);
+                  template_effect(($0) => set_text(text_34, $0), [() => get(selected).evaluation.pass_conditions.join("; ")]);
+                  append2($$anchor5, fragment_35);
+                };
+                if_block(node_36, ($$render) => {
+                  if (get(selected).evaluation.pass_conditions?.length) $$render(consequent_31);
+                });
+              }
+              var node_37 = sibling(node_36, 2);
+              {
+                var consequent_32 = ($$anchor5) => {
+                  var fragment_36 = root_262();
+                  var dd_3 = sibling(first_child(fragment_36));
+                  var text_35 = only_child(dd_3, true);
+                  template_effect(($0) => set_text(text_35, $0), [
+                    () => get(selected).evaluation.regression_conditions.join("; ")
+                  ]);
+                  append2($$anchor5, fragment_36);
+                };
+                if_block(node_37, ($$render) => {
+                  if (get(selected).evaluation.regression_conditions?.length) $$render(consequent_32);
+                });
+              }
+              var node_38 = sibling(node_37, 2);
+              {
+                var consequent_33 = ($$anchor5) => {
+                  var fragment_37 = root_282();
+                  var dd_4 = sibling(first_child(fragment_37), 2);
+                  var ul_1 = child(dd_4);
+                  each(ul_1, 21, () => get(selected).evaluation.commands, index, ($$anchor6, command) => {
+                    var li_1 = root_272();
+                    var code = child(li_1);
+                    var text_36 = only_child(code, true);
+                    reset(li_1);
+                    template_effect(() => set_text(text_36, get(command)));
+                    append2($$anchor6, li_1);
+                  });
+                  reset(ul_1);
+                  reset(dd_4);
+                  append2($$anchor5, fragment_37);
+                };
+                if_block(node_38, ($$render) => {
+                  if (get(selected).evaluation.commands?.length) $$render(consequent_33);
+                });
+              }
+              reset(dl);
+              reset(div_16);
+              append2($$anchor4, div_16);
+            };
+            if_block(node_33, ($$render) => {
+              if (get(selected).evaluation && (get(selected).evaluation.baseline || get(selected).evaluation.candidate || get(selected).evaluation.pass_conditions?.length || get(selected).evaluation.commands?.length)) $$render(consequent_34);
+            });
+          }
+          var node_39 = sibling(node_33, 2);
+          {
+            var consequent_35 = ($$anchor4) => {
               Notice($$anchor4, {
                 tone: "warn",
                 children: ($$anchor5, $$slotProps) => {
-                  var fragment_27 = root_272();
-                  var ul_2 = sibling(first_child(fragment_27), 2);
+                  var fragment_39 = root_31();
+                  var ul_2 = sibling(first_child(fragment_39), 2);
                   each(ul_2, 21, () => get(selected).reasons_to_reject, index, ($$anchor6, item) => {
-                    var li_2 = root_262();
-                    var text_32 = only_child(li_2, true);
-                    template_effect(() => set_text(text_32, get(item)));
+                    var li_2 = root_30();
+                    var text_37 = only_child(li_2, true);
+                    template_effect(() => set_text(text_37, get(item)));
                     append2($$anchor6, li_2);
                   });
                   reset(ul_2);
-                  append2($$anchor5, fragment_27);
+                  append2($$anchor5, fragment_39);
                 },
                 $$slots: { default: true }
               });
             };
-            if_block(node_31, ($$render) => {
-              if (get(selected).reasons_to_reject.length) $$render(consequent_27);
+            if_block(node_39, ($$render) => {
+              if (get(selected).reasons_to_reject.length) $$render(consequent_35);
             });
           }
-          var node_32 = sibling(node_31, 2);
+          var node_40 = sibling(node_39, 2);
           {
-            var consequent_30 = ($$anchor4) => {
-              var div_15 = root_30();
-              var node_33 = child(div_15);
+            var consequent_38 = ($$anchor4) => {
+              var div_17 = root_342();
+              var node_41 = child(div_17);
               {
-                var consequent_28 = ($$anchor5) => {
-                  var div_16 = root_282();
-                  var ul_3 = sibling(child(div_16), 2);
+                var consequent_36 = ($$anchor5) => {
+                  var div_18 = root_322();
+                  var ul_3 = sibling(child(div_18), 2);
                   each(ul_3, 21, () => get(selected).risks, index, ($$anchor6, risk) => {
-                    var li_3 = root_262();
-                    var text_33 = only_child(li_3, true);
-                    template_effect(() => set_text(text_33, get(risk)));
+                    var li_3 = root_30();
+                    var text_38 = only_child(li_3, true);
+                    template_effect(() => set_text(text_38, get(risk)));
                     append2($$anchor6, li_3);
                   });
                   reset(ul_3);
-                  reset(div_16);
-                  append2($$anchor5, div_16);
+                  reset(div_18);
+                  append2($$anchor5, div_18);
                 };
-                if_block(node_33, ($$render) => {
-                  if (get(selected).risks.length) $$render(consequent_28);
+                if_block(node_41, ($$render) => {
+                  if (get(selected).risks.length) $$render(consequent_36);
                 });
               }
-              var node_34 = sibling(node_33, 2);
+              var node_42 = sibling(node_41, 2);
               {
-                var consequent_29 = ($$anchor5) => {
-                  var div_17 = root_29();
-                  var p_8 = sibling(child(div_17), 2);
-                  var text_34 = only_child(p_8, true);
-                  reset(div_17);
-                  template_effect(() => set_text(text_34, get(selected).rollback));
-                  append2($$anchor5, div_17);
+                var consequent_37 = ($$anchor5) => {
+                  var div_19 = root_332();
+                  var p_9 = sibling(child(div_19), 2);
+                  var text_39 = only_child(p_9, true);
+                  reset(div_19);
+                  template_effect(() => set_text(text_39, get(selected).rollback));
+                  append2($$anchor5, div_19);
                 };
-                if_block(node_34, ($$render) => {
-                  if (get(selected).rollback) $$render(consequent_29);
+                if_block(node_42, ($$render) => {
+                  if (get(selected).rollback) $$render(consequent_37);
                 });
               }
-              reset(div_15);
-              append2($$anchor4, div_15);
+              reset(div_17);
+              append2($$anchor4, div_17);
             };
-            if_block(node_32, ($$render) => {
-              if (get(selected).risks.length || get(selected).rollback) $$render(consequent_30);
+            if_block(node_40, ($$render) => {
+              if (get(selected).risks.length || get(selected).rollback) $$render(consequent_38);
             });
           }
-          var node_35 = sibling(node_32, 2);
+          var node_43 = sibling(node_40, 2);
           {
-            var consequent_31 = ($$anchor4) => {
-              var details2 = root_322();
+            var consequent_39 = ($$anchor4) => {
+              var details2 = root_362();
               var summary_1 = child(details2);
-              var text_35 = only_child(summary_1);
+              var text_40 = only_child(summary_1);
               var ul_4 = sibling(summary_1, 2);
               each(ul_4, 21, () => get(selected).check.prose, index, ($$anchor5, issue) => {
-                var li_4 = root_31();
+                var li_4 = root_352();
                 var span_7 = child(li_4);
-                var text_36 = only_child(span_7);
-                var text_37 = sibling(span_7);
+                var text_41 = only_child(span_7);
+                var text_42 = sibling(span_7);
                 reset(li_4);
                 template_effect(() => {
-                  set_text(text_36, `${get(issue).field ?? ""}:`);
-                  set_text(text_37, ` "${get(issue).match ?? ""}". ${get(issue).fix ?? ""}`);
+                  set_text(text_41, `${get(issue).field ?? ""}:`);
+                  set_text(text_42, ` "${get(issue).match ?? ""}". ${get(issue).fix ?? ""}`);
                 });
                 append2($$anchor5, li_4);
               });
               reset(ul_4);
               reset(details2);
-              template_effect(($0) => set_text(text_35, `Writing check: ${$0 ?? ""}`), [() => plural2(get(selected).check.prose.length, "issue")]);
+              template_effect(($0) => set_text(text_40, `Writing check: ${$0 ?? ""}`), [() => plural2(get(selected).check.prose.length, "issue")]);
               append2($$anchor4, details2);
             };
-            if_block(node_35, ($$render) => {
-              if (get(selected).check?.prose?.length) $$render(consequent_31);
+            if_block(node_43, ($$render) => {
+              if (get(selected).check?.prose?.length) $$render(consequent_39);
             });
           }
-          var node_36 = sibling(node_35, 2);
+          var node_44 = sibling(node_43, 2);
           {
-            var consequent_41 = ($$anchor4) => {
-              var div_18 = root_41();
-              var div_19 = child(div_18);
-              var node_37 = sibling(child(div_19), 2);
+            var consequent_49 = ($$anchor4) => {
+              var div_20 = root_452();
+              var div_21 = child(div_20);
+              var node_45 = sibling(child(div_21), 2);
               {
-                var consequent_32 = ($$anchor5) => {
-                  var button_2 = root_332();
-                  var node_38 = child(button_2);
-                  Icon(node_38, { name: "sparkles", size: 13 });
-                  var text_38 = sibling(node_38, 1, true);
+                var consequent_40 = ($$anchor5) => {
+                  var button_2 = root_372();
+                  var node_46 = child(button_2);
+                  Icon(node_46, { name: "sparkles", size: 13 });
+                  var text_43 = sibling(node_46, 1, true);
                   reset(button_2);
-                  template_effect(() => set_text(text_38, get(selected).skill_draft ? "Draft again" : "Draft a skill"));
+                  template_effect(() => set_text(text_43, get(selected).skill_draft ? "Draft again" : "Draft a skill"));
                   delegated("click", button_2, draft);
                   append2($$anchor5, button_2);
                 };
-                if_block(node_37, ($$render) => {
-                  if (get(decidable) && !get(draftJob)) $$render(consequent_32);
+                if_block(node_45, ($$render) => {
+                  if (get(decidable) && !get(draftJob)) $$render(consequent_40);
                 });
               }
-              reset(div_19);
-              var node_39 = sibling(div_19, 2);
+              reset(div_21);
+              var node_47 = sibling(div_21, 2);
               {
-                var consequent_33 = ($$anchor5) => {
-                  var div_20 = root_342();
-                  var node_40 = child(div_20);
-                  JobCard(node_40, {
+                var consequent_41 = ($$anchor5) => {
+                  var div_22 = root_382();
+                  var node_48 = child(div_22);
+                  JobCard(node_48, {
                     get job() {
                       return get(draftJob);
                     }
                   });
-                  reset(div_20);
-                  append2($$anchor5, div_20);
+                  reset(div_22);
+                  append2($$anchor5, div_22);
                 };
-                var consequent_34 = ($$anchor5) => {
-                  var div_21 = root_342();
-                  var node_41 = child(div_21);
-                  JobCard(node_41, {
+                var consequent_42 = ($$anchor5) => {
+                  var div_23 = root_382();
+                  var node_49 = child(div_23);
+                  JobCard(node_49, {
                     get job() {
                       return get(lastDraftJob);
                     }
                   });
-                  reset(div_21);
-                  append2($$anchor5, div_21);
+                  reset(div_23);
+                  append2($$anchor5, div_23);
                 };
-                if_block(node_39, ($$render) => {
-                  if (get(draftJob)) $$render(consequent_33);
-                  else if (get(lastDraftJob) && get(lastDraftJob).status !== "completed" && !get(selected).skill_draft) $$render(consequent_34, 1);
+                if_block(node_47, ($$render) => {
+                  if (get(draftJob)) $$render(consequent_41);
+                  else if (get(lastDraftJob) && get(lastDraftJob).status !== "completed" && !get(selected).skill_draft) $$render(consequent_42, 1);
                 });
               }
-              var node_42 = sibling(node_39, 2);
+              var node_50 = sibling(node_47, 2);
               {
-                var consequent_39 = ($$anchor5) => {
-                  var fragment_28 = comment();
-                  var node_43 = first_child(fragment_28);
+                var consequent_47 = ($$anchor5) => {
+                  var fragment_40 = comment();
+                  var node_51 = first_child(fragment_40);
                   {
-                    var consequent_35 = ($$anchor6) => {
-                      var p_9 = root_352();
-                      append2($$anchor6, p_9);
+                    var consequent_43 = ($$anchor6) => {
+                      var p_10 = root_392();
+                      append2($$anchor6, p_10);
                     };
-                    var consequent_36 = ($$anchor6) => {
+                    var consequent_44 = ($$anchor6) => {
                       Notice($$anchor6, {
                         tone: "bad",
                         children: ($$anchor7, $$slotProps) => {
                           next();
-                          var text_39 = text();
-                          template_effect(() => set_text(text_39, get(diff).error));
-                          append2($$anchor7, text_39);
+                          var text_44 = text();
+                          template_effect(() => set_text(text_44, get(diff).error));
+                          append2($$anchor7, text_44);
                         },
                         $$slots: { default: true }
                       });
                     };
-                    var alternate_3 = ($$anchor6) => {
-                      var div_22 = root_39();
-                      var p_10 = child(div_22);
-                      var text_40 = child(p_10);
-                      var code_1 = sibling(text_40);
-                      var text_41 = only_child(code_1, true);
-                      var text_42 = sibling(code_1);
-                      var node_44 = sibling(text_42);
+                    var alternate_5 = ($$anchor6) => {
+                      var div_24 = root_432();
+                      var p_11 = child(div_24);
+                      var text_45 = child(p_11);
+                      var code_1 = sibling(text_45);
+                      var text_46 = only_child(code_1, true);
+                      var text_47 = sibling(code_1);
+                      var node_52 = sibling(text_47);
                       {
-                        var consequent_37 = ($$anchor7) => {
-                          var strong_2 = root_362();
+                        var consequent_45 = ($$anchor7) => {
+                          var strong_2 = root_40();
                           append2($$anchor7, strong_2);
                         };
-                        if_block(node_44, ($$render) => {
-                          if (get(diff).exists && get(diff).plugin_authored === false) $$render(consequent_37);
+                        if_block(node_52, ($$render) => {
+                          if (get(diff).exists && get(diff).plugin_authored === false) $$render(consequent_45);
                         });
                       }
-                      reset(p_10);
-                      var node_45 = sibling(p_10, 2);
+                      reset(p_11);
+                      var node_53 = sibling(p_11, 2);
                       {
-                        var consequent_38 = ($$anchor7) => {
+                        var consequent_46 = ($$anchor7) => {
                           {
                             let $0 = user_derived(() => get(diff).blocked ? "bad" : "warn");
                             Notice($$anchor7, {
@@ -12021,41 +12379,41 @@ function _page2($$anchor, $$props) {
                                 return get($0);
                               },
                               children: ($$anchor8, $$slotProps) => {
-                                var fragment_32 = root_382();
-                                var p_11 = first_child(fragment_32);
-                                var strong_3 = child(p_11);
-                                var text_43 = only_child(strong_3, true);
-                                reset(p_11);
-                                var ul_5 = sibling(p_11, 2);
+                                var fragment_44 = root_422();
+                                var p_12 = first_child(fragment_44);
+                                var strong_3 = child(p_12);
+                                var text_48 = only_child(strong_3, true);
+                                reset(p_12);
+                                var ul_5 = sibling(p_12, 2);
                                 each(ul_5, 21, () => get(diff).findings, index, ($$anchor9, $$item) => {
                                   var $$array_1 = user_derived(() => to_array(get($$item), 2));
                                   let family = () => get($$array_1)[0];
                                   let detail = () => get($$array_1)[1];
-                                  var li_5 = root_372();
+                                  var li_5 = root_41();
                                   var span_8 = child(li_5);
-                                  var text_44 = only_child(span_8, true);
-                                  var text_45 = sibling(span_8);
+                                  var text_49 = only_child(span_8, true);
+                                  var text_50 = sibling(span_8);
                                   reset(li_5);
                                   template_effect(() => {
-                                    set_text(text_44, family());
-                                    set_text(text_45, `: ${detail() ?? ""}`);
+                                    set_text(text_49, family());
+                                    set_text(text_50, `: ${detail() ?? ""}`);
                                   });
                                   append2($$anchor9, li_5);
                                 });
                                 reset(ul_5);
-                                template_effect(() => set_text(text_43, get(diff).blocked ? "This draft cannot be applied." : "Check these before applying."));
-                                append2($$anchor8, fragment_32);
+                                template_effect(() => set_text(text_48, get(diff).blocked ? "This draft cannot be applied." : "Check these before applying."));
+                                append2($$anchor8, fragment_44);
                               },
                               $$slots: { default: true }
                             });
                           }
                         };
-                        if_block(node_45, ($$render) => {
-                          if (get(diff).findings?.length) $$render(consequent_38);
+                        if_block(node_53, ($$render) => {
+                          if (get(diff).findings?.length) $$render(consequent_46);
                         });
                       }
-                      var node_46 = sibling(node_45, 2);
-                      Diff(node_46, {
+                      var node_54 = sibling(node_53, 2);
+                      Diff(node_54, {
                         get current() {
                           return get(diff).current;
                         },
@@ -12066,278 +12424,301 @@ function _page2($$anchor, $$props) {
                           return get(diff).target;
                         }
                       });
-                      reset(div_22);
+                      reset(div_24);
                       template_effect(
                         ($0) => {
-                          set_text(text_40, `${get(diff).exists ? "Replaces" : "Creates"} `);
-                          set_text(text_41, get(diff).target);
-                          set_text(text_42, `.
+                          set_text(text_45, `${get(diff).exists ? "Replaces" : "Creates"} `);
+                          set_text(text_46, get(diff).target);
+                          set_text(text_47, `.
                         Drafted ${$0 ?? ""} by a read-only agent. `);
                         },
                         [() => ago(get(selected).skill_draft.drafted_at)]
                       );
-                      append2($$anchor6, div_22);
+                      append2($$anchor6, div_24);
                     };
-                    if_block(node_43, ($$render) => {
-                      if (!get(diff)) $$render(consequent_35);
-                      else if (get(diff).error) $$render(consequent_36, 1);
-                      else $$render(alternate_3, -1);
+                    if_block(node_51, ($$render) => {
+                      if (!get(diff)) $$render(consequent_43);
+                      else if (get(diff).error) $$render(consequent_44, 1);
+                      else $$render(alternate_5, -1);
                     });
                   }
-                  append2($$anchor5, fragment_28);
+                  append2($$anchor5, fragment_40);
                 };
-                var consequent_40 = ($$anchor5) => {
-                  var p_12 = root_40();
-                  append2($$anchor5, p_12);
+                var consequent_48 = ($$anchor5) => {
+                  var p_13 = root_442();
+                  append2($$anchor5, p_13);
                 };
-                if_block(node_42, ($$render) => {
-                  if (get(selected).skill_draft) $$render(consequent_39);
-                  else if (!get(draftJob)) $$render(consequent_40, 1);
+                if_block(node_50, ($$render) => {
+                  if (get(selected).skill_draft) $$render(consequent_47);
+                  else if (!get(draftJob)) $$render(consequent_48, 1);
                 });
               }
-              reset(div_18);
-              append2($$anchor4, div_18);
+              reset(div_20);
+              append2($$anchor4, div_20);
             };
-            if_block(node_36, ($$render) => {
-              if (get(selected).skill_draft || get(decidable) && get(selected).check?.scope !== "codebase") $$render(consequent_41);
+            if_block(node_44, ($$render) => {
+              if (!get(selected).harness_edit && (get(selected).skill_draft || get(decidable) && get(selected).check?.scope !== "codebase")) $$render(consequent_49);
             });
           }
-          var node_47 = sibling(node_36, 2);
+          var node_55 = sibling(node_44, 2);
           {
-            var consequent_42 = ($$anchor4) => {
-              var div_23 = root_422();
-              var div_24 = child(div_23);
-              var text_46 = only_child(div_24, true);
-              var div_25 = sibling(div_24, 2);
-              var node_48 = child(div_25);
-              ApplyResult(node_48, {
+            var consequent_50 = ($$anchor4) => {
+              var div_25 = root_462();
+              var div_26 = child(div_25);
+              var text_51 = only_child(div_26, true);
+              var div_27 = sibling(div_26, 2);
+              var node_56 = child(div_27);
+              ApplyResult(node_56, {
                 get job() {
                   return get(lastApplyJob);
                 }
               });
+              reset(div_27);
               reset(div_25);
-              reset(div_23);
-              template_effect(() => set_text(text_46, get(lastApplyJob).detail?.mode === "upstream-pr" ? "Upstream change" : "Apply run"));
-              append2($$anchor4, div_23);
+              template_effect(() => set_text(text_51, get(lastApplyJob).detail?.mode === "upstream-pr" ? "Upstream change" : "Apply run"));
+              append2($$anchor4, div_25);
             };
-            if_block(node_47, ($$render) => {
-              if (get(lastApplyJob)) $$render(consequent_42);
+            if_block(node_55, ($$render) => {
+              if (get(lastApplyJob)) $$render(consequent_50);
             });
           }
-          var node_49 = sibling(node_47, 2);
+          var node_57 = sibling(node_55, 2);
           {
-            var consequent_45 = ($$anchor4) => {
-              var div_26 = root_462();
-              var ul_6 = sibling(child(div_26), 2);
+            var consequent_53 = ($$anchor4) => {
+              var div_28 = root_50();
+              var ul_6 = sibling(child(div_28), 2);
               each(ul_6, 21, () => get(decisions), index, ($$anchor5, decision) => {
-                var li_6 = root_452();
-                var div_27 = child(li_6);
-                var node_50 = child(div_27);
+                var li_6 = root_49();
+                var div_29 = child(li_6);
+                var node_58 = child(div_29);
                 {
                   let $0 = user_derived(() => get(decision).decision === "rejected" ? "bad" : "ok");
-                  Pill(node_50, {
+                  Pill(node_58, {
                     get tone() {
                       return get($0);
                     },
                     children: ($$anchor6, $$slotProps) => {
                       next();
-                      var text_47 = text();
-                      template_effect(() => set_text(text_47, get(decision).decision === "rejected" ? "Rejected" : "Approved"));
-                      append2($$anchor6, text_47);
+                      var text_52 = text();
+                      template_effect(() => set_text(text_52, get(decision).decision === "rejected" ? "Rejected" : "Approved"));
+                      append2($$anchor6, text_52);
                     },
                     $$slots: { default: true }
                   });
                 }
-                var span_9 = sibling(node_50, 2);
-                var text_48 = only_child(span_9);
-                reset(div_27);
-                var node_51 = sibling(div_27, 2);
+                var span_9 = sibling(node_58, 2);
+                var text_53 = only_child(span_9);
+                reset(div_29);
+                var node_59 = sibling(div_29, 2);
                 {
-                  var consequent_43 = ($$anchor6) => {
-                    var p_13 = root_432();
-                    var text_49 = only_child(p_13, true);
-                    template_effect(() => set_text(text_49, get(decision).rationale));
-                    append2($$anchor6, p_13);
-                  };
-                  if_block(node_51, ($$render) => {
-                    if (get(decision).rationale) $$render(consequent_43);
-                  });
-                }
-                var node_52 = sibling(node_51, 2);
-                {
-                  var consequent_44 = ($$anchor6) => {
-                    var p_14 = root_442();
-                    var text_50 = only_child(p_14);
-                    template_effect(($0) => set_text(text_50, `Wrote ${$0 ?? ""}`), [() => get(decision).applied_files.join(", ")]);
+                  var consequent_51 = ($$anchor6) => {
+                    var p_14 = root_472();
+                    var text_54 = only_child(p_14, true);
+                    template_effect(() => set_text(text_54, get(decision).rationale));
                     append2($$anchor6, p_14);
                   };
-                  if_block(node_52, ($$render) => {
-                    if (get(decision).applied_files.length) $$render(consequent_44);
+                  if_block(node_59, ($$render) => {
+                    if (get(decision).rationale) $$render(consequent_51);
+                  });
+                }
+                var node_60 = sibling(node_59, 2);
+                {
+                  var consequent_52 = ($$anchor6) => {
+                    var p_15 = root_48();
+                    var text_55 = only_child(p_15);
+                    template_effect(($0) => set_text(text_55, `Wrote ${$0 ?? ""}`), [() => get(decision).applied_files.join(", ")]);
+                    append2($$anchor6, p_15);
+                  };
+                  if_block(node_60, ($$render) => {
+                    if (get(decision).applied_files.length) $$render(consequent_52);
                   });
                 }
                 reset(li_6);
-                template_effect(($0) => set_text(text_48, `${$0 ?? ""} \xB7 ${get(decision).decided_by ?? "unknown" ?? ""}`), [() => when(get(decision).decided_at)]);
+                template_effect(($0) => set_text(text_53, `${$0 ?? ""} \xB7 ${get(decision).decided_by ?? "unknown" ?? ""}`), [() => when(get(decision).decided_at)]);
                 append2($$anchor5, li_6);
               });
               reset(ul_6);
-              reset(div_26);
-              append2($$anchor4, div_26);
+              reset(div_28);
+              append2($$anchor4, div_28);
             };
-            if_block(node_49, ($$render) => {
-              if (get(decisions).length) $$render(consequent_45);
+            if_block(node_57, ($$render) => {
+              if (get(decisions).length) $$render(consequent_53);
             });
           }
           reset(div_7);
-          var node_53 = sibling(div_7, 2);
+          var node_61 = sibling(div_7, 2);
           {
-            var consequent_47 = ($$anchor4) => {
-              var div_28 = root_49();
-              var node_54 = child(div_28);
-              Notice(node_54, {
+            var consequent_55 = ($$anchor4) => {
+              var div_30 = root_532();
+              var node_62 = child(div_30);
+              Notice(node_62, {
                 get tone() {
                   return get(notice).tone;
                 },
                 children: ($$anchor5, $$slotProps) => {
-                  var fragment_34 = root_48();
-                  var p_15 = first_child(fragment_34);
-                  var text_51 = only_child(p_15, true);
-                  var node_55 = sibling(p_15, 2);
+                  var fragment_46 = root_522();
+                  var p_16 = first_child(fragment_46);
+                  var text_56 = only_child(p_16, true);
+                  var node_63 = sibling(p_16, 2);
                   {
-                    var consequent_46 = ($$anchor6) => {
-                      var p_16 = root_47();
-                      var text_52 = only_child(p_16, true);
-                      template_effect(() => set_text(text_52, get(notice).hint));
-                      append2($$anchor6, p_16);
+                    var consequent_54 = ($$anchor6) => {
+                      var p_17 = root_51();
+                      var text_57 = only_child(p_17, true);
+                      template_effect(() => set_text(text_57, get(notice).hint));
+                      append2($$anchor6, p_17);
                     };
-                    if_block(node_55, ($$render) => {
-                      if (get(notice).hint) $$render(consequent_46);
+                    if_block(node_63, ($$render) => {
+                      if (get(notice).hint) $$render(consequent_54);
                     });
                   }
-                  template_effect(() => set_text(text_51, get(notice).text));
-                  append2($$anchor5, fragment_34);
+                  template_effect(() => set_text(text_56, get(notice).text));
+                  append2($$anchor5, fragment_46);
                 },
                 $$slots: { default: true }
               });
-              reset(div_28);
-              append2($$anchor4, div_28);
+              reset(div_30);
+              append2($$anchor4, div_30);
             };
-            if_block(node_53, ($$render) => {
-              if (get(notice)) $$render(consequent_47);
+            if_block(node_61, ($$render) => {
+              if (get(notice)) $$render(consequent_55);
             });
           }
-          var node_56 = sibling(node_53, 2);
+          var node_64 = sibling(node_61, 2);
           {
-            var consequent_52 = ($$anchor4) => {
-              var footer = root_552();
+            var consequent_62 = ($$anchor4) => {
+              var footer = root_59();
               var textarea = sibling(child(footer), 2);
               remove_textarea_child(textarea);
               bind_this(textarea, ($$value) => set(reasonBox, $$value), () => get(reasonBox));
-              var node_57 = sibling(textarea, 2);
+              var node_65 = sibling(textarea, 2);
               {
-                var consequent_48 = ($$anchor5) => {
-                  var p_17 = root_50();
-                  var text_53 = only_child(p_17, true);
-                  template_effect(() => set_text(text_53, get(reasonError)));
-                  append2($$anchor5, p_17);
+                var consequent_56 = ($$anchor5) => {
+                  var p_18 = root_542();
+                  var text_58 = only_child(p_18, true);
+                  template_effect(() => set_text(text_58, get(reasonError)));
+                  append2($$anchor5, p_18);
                 };
-                if_block(node_57, ($$render) => {
-                  if (get(reasonError)) $$render(consequent_48);
+                if_block(node_65, ($$render) => {
+                  if (get(reasonError)) $$render(consequent_56);
                 });
               }
-              var div_29 = sibling(node_57, 2);
-              var p_18 = child(div_29);
-              var node_58 = child(p_18);
+              var div_31 = sibling(node_65, 2);
+              var p_19 = child(div_31);
+              var node_66 = child(p_19);
               {
-                var consequent_49 = ($$anchor5) => {
-                  var fragment_35 = root_51();
-                  var code_2 = sibling(first_child(fragment_35));
-                  var text_54 = only_child(code_2, true);
-                  next();
-                  template_effect(() => set_text(text_54, get(diff).target));
-                  append2($$anchor5, fragment_35);
+                var consequent_57 = ($$anchor5) => {
+                  var text_59 = text();
+                  template_effect(() => set_text(text_59, `Approving writes ${get(edit)?.files?.length === 1 ? "this file" : "these files"} exactly as shown.`));
+                  append2($$anchor5, text_59);
                 };
-                var alternate_4 = ($$anchor5) => {
-                  var fragment_36 = root_522();
-                  var code_3 = sibling(first_child(fragment_36));
-                  var text_55 = only_child(code_3);
+                var consequent_58 = ($$anchor5) => {
+                  var fragment_48 = root_552();
+                  var code_2 = sibling(first_child(fragment_48));
+                  var text_60 = only_child(code_2, true);
                   next();
-                  template_effect(() => set_text(text_55, `/improve apply ${get(selected).id ?? ""}`));
-                  append2($$anchor5, fragment_36);
+                  template_effect(() => set_text(text_60, get(diff).target));
+                  append2($$anchor5, fragment_48);
                 };
-                if_block(node_58, ($$render) => {
-                  if (get(selected).skill_draft && get(diff) && !get(diff).error) $$render(consequent_49);
-                  else $$render(alternate_4, -1);
+                var alternate_6 = ($$anchor5) => {
+                  var fragment_49 = root_562();
+                  var code_3 = sibling(first_child(fragment_49));
+                  var text_61 = only_child(code_3);
+                  next();
+                  template_effect(() => set_text(text_61, `/improve apply ${get(selected).id ?? ""}`));
+                  append2($$anchor5, fragment_49);
+                };
+                if_block(node_66, ($$render) => {
+                  if (get(selected).harness_edit) $$render(consequent_57);
+                  else if (get(selected).skill_draft && get(diff) && !get(diff).error) $$render(consequent_58, 1);
+                  else $$render(alternate_6, -1);
                 });
               }
-              reset(p_18);
-              var div_30 = sibling(p_18, 2);
-              var button_3 = child(div_30);
-              var node_59 = child(button_3);
-              Icon(node_59, { name: "x", size: 14 });
-              var text_56 = sibling(node_59, 1, true);
+              reset(p_19);
+              var div_32 = sibling(p_19, 2);
+              var button_3 = child(div_32);
+              var node_67 = child(button_3);
+              Icon(node_67, { name: "x", size: 14 });
+              var text_62 = sibling(node_67, 1, true);
               reset(button_3);
-              var node_60 = sibling(button_3, 2);
+              var node_68 = sibling(button_3, 2);
               {
-                var consequent_50 = ($$anchor5) => {
-                  var button_4 = root_532();
+                var consequent_59 = ($$anchor5) => {
+                  var button_4 = root_57();
                   template_effect(($0) => button_4.disabled = $0, [() => get(busy) !== null || Boolean(get(draftJob))]);
                   delegated("click", button_4, () => decide("apply", { overwrite: true }));
                   append2($$anchor5, button_4);
                 };
-                if_block(node_60, ($$render) => {
-                  if (get(confirmOverwrite)) $$render(consequent_50);
+                if_block(node_68, ($$render) => {
+                  if (get(confirmOverwrite)) $$render(consequent_59);
                 });
               }
-              var node_61 = sibling(node_60, 2);
+              var node_69 = sibling(node_68, 2);
               {
-                var consequent_51 = ($$anchor5) => {
-                  var button_5 = root_542();
-                  var node_62 = child(button_5);
-                  Icon(node_62, { name: "check", size: 14 });
-                  var text_57 = sibling(node_62, 1, true);
+                var consequent_60 = ($$anchor5) => {
+                  var button_5 = root_58();
+                  var node_70 = child(button_5);
+                  Icon(node_70, { name: "check", size: 14 });
+                  var text_63 = sibling(node_70, 1, true);
                   reset(button_5);
                   template_effect(
                     ($0) => {
                       button_5.disabled = $0;
-                      set_text(text_57, get(busy) === "apply" ? "Writing\u2026" : "Approve and write skill");
+                      set_text(text_63, get(busy) === "write" ? "Writing\u2026" : "Approve and write");
+                    },
+                    [() => get(busy) !== null || Boolean(get(editBlocked))]
+                  );
+                  delegated("click", button_5, () => decide("write"));
+                  append2($$anchor5, button_5);
+                };
+                var consequent_61 = ($$anchor5) => {
+                  var button_6 = root_58();
+                  var node_71 = child(button_6);
+                  Icon(node_71, { name: "check", size: 14 });
+                  var text_64 = sibling(node_71, 1, true);
+                  reset(button_6);
+                  template_effect(
+                    ($0) => {
+                      button_6.disabled = $0;
+                      set_text(text_64, get(busy) === "apply" ? "Writing\u2026" : "Approve and write skill");
                     },
                     [
                       () => get(busy) !== null || Boolean(get(draftJob)) || get(diff).blocked
                     ]
                   );
-                  delegated("click", button_5, () => decide("apply"));
-                  append2($$anchor5, button_5);
+                  delegated("click", button_6, () => decide("apply"));
+                  append2($$anchor5, button_6);
                 };
-                var alternate_5 = ($$anchor5) => {
-                  var button_6 = root_542();
-                  var node_63 = child(button_6);
-                  Icon(node_63, { name: "check", size: 14 });
-                  var text_58 = sibling(node_63, 1, true);
-                  reset(button_6);
+                var alternate_7 = ($$anchor5) => {
+                  var button_7 = root_58();
+                  var node_72 = child(button_7);
+                  Icon(node_72, { name: "check", size: 14 });
+                  var text_65 = sibling(node_72, 1, true);
+                  reset(button_7);
                   template_effect(
                     ($0) => {
-                      button_6.disabled = $0;
-                      set_text(text_58, get(busy) === "approve" ? "Approving\u2026" : "Approve");
+                      button_7.disabled = $0;
+                      set_text(text_65, get(busy) === "approve" ? "Approving\u2026" : "Approve");
                     },
                     [() => get(busy) !== null || Boolean(get(draftJob))]
                   );
-                  delegated("click", button_6, () => decide("approve"));
-                  append2($$anchor5, button_6);
+                  delegated("click", button_7, () => decide("approve"));
+                  append2($$anchor5, button_7);
                 };
-                if_block(node_61, ($$render) => {
-                  if (get(selected).skill_draft && get(diff) && !get(diff).error) $$render(consequent_51);
-                  else $$render(alternate_5, -1);
+                if_block(node_69, ($$render) => {
+                  if (get(selected).harness_edit) $$render(consequent_60);
+                  else if (get(selected).skill_draft && get(diff) && !get(diff).error) $$render(consequent_61, 1);
+                  else $$render(alternate_7, -1);
                 });
               }
-              reset(div_30);
-              reset(div_29);
+              reset(div_32);
+              reset(div_31);
               reset(footer);
               template_effect(
                 ($0) => {
                   set_attribute2(textarea, "aria-invalid", get(reasonError) ? "true" : void 0);
                   set_attribute2(textarea, "aria-describedby", get(reasonError) ? "reason-error" : "reason-help");
                   button_3.disabled = $0;
-                  set_text(text_56, get(busy) === "reject" ? "Rejecting\u2026" : "Reject");
+                  set_text(text_62, get(busy) === "reject" ? "Rejecting\u2026" : "Reject");
                 },
                 [() => get(busy) !== null || Boolean(get(draftJob))]
               );
@@ -12345,240 +12726,240 @@ function _page2($$anchor, $$props) {
               delegated("click", button_3, () => decide("reject"));
               append2($$anchor4, footer);
             };
-            var consequent_60 = ($$anchor4) => {
-              var footer_1 = root_65();
-              var node_64 = child(footer_1);
+            var consequent_70 = ($$anchor4) => {
+              var footer_1 = root_69();
+              var node_73 = child(footer_1);
               {
-                var consequent_53 = ($$anchor5) => {
+                var consequent_63 = ($$anchor5) => {
                   JobCard($$anchor5, {
                     get job() {
                       return get(applyJob);
                     }
                   });
                 };
-                var consequent_54 = ($$anchor5) => {
-                  var p_19 = root_56();
-                  append2($$anchor5, p_19);
+                var consequent_64 = ($$anchor5) => {
+                  var p_20 = root_60();
+                  append2($$anchor5, p_20);
                 };
-                var consequent_55 = ($$anchor5) => {
-                  var fragment_38 = root_57();
-                  var p_20 = first_child(fragment_38);
-                  var text_59 = only_child(p_20);
-                  var p_21 = sibling(p_20, 2);
-                  var code_4 = sibling(child(p_21));
-                  var text_60 = only_child(code_4);
+                var consequent_65 = ($$anchor5) => {
+                  var fragment_51 = root_61();
+                  var p_21 = first_child(fragment_51);
+                  var text_66 = only_child(p_21);
+                  var p_22 = sibling(p_21, 2);
+                  var code_4 = sibling(child(p_22));
+                  var text_67 = only_child(code_4);
                   next();
-                  reset(p_21);
-                  template_effect(() => {
-                    set_text(text_59, `Approved, but it cannot be applied from here: ${get(plan).error ?? ""}`);
-                    set_text(text_60, `/improve apply ${get(selected).id ?? ""}`);
-                  });
-                  append2($$anchor5, fragment_38);
-                };
-                var consequent_57 = ($$anchor5) => {
-                  var div_31 = root_61();
-                  var p_22 = child(div_31);
-                  var strong_4 = child(p_22);
-                  var text_61 = only_child(strong_4, true);
                   reset(p_22);
-                  var p_23 = sibling(p_22, 2);
-                  var text_62 = only_child(p_23, true);
-                  var ul_7 = sibling(p_23, 2);
+                  template_effect(() => {
+                    set_text(text_66, `Approved, but it cannot be applied from here: ${get(plan).error ?? ""}`);
+                    set_text(text_67, `/improve apply ${get(selected).id ?? ""}`);
+                  });
+                  append2($$anchor5, fragment_51);
+                };
+                var consequent_67 = ($$anchor5) => {
+                  var div_33 = root_65();
+                  var p_23 = child(div_33);
+                  var strong_4 = child(p_23);
+                  var text_68 = only_child(strong_4, true);
+                  reset(p_23);
+                  var p_24 = sibling(p_23, 2);
+                  var text_69 = only_child(p_24, true);
+                  var ul_7 = sibling(p_24, 2);
                   each(ul_7, 21, () => get(plan).files, index, ($$anchor6, file) => {
-                    var li_7 = root_58();
+                    var li_7 = root_622();
                     var span_10 = child(li_7);
-                    var node_65 = child(span_10);
-                    Icon(node_65, { name: "file", size: 12 });
-                    var text_63 = sibling(node_65, 1, true);
+                    var node_74 = child(span_10);
+                    Icon(node_74, { name: "file", size: 12 });
+                    var text_70 = sibling(node_74, 1, true);
                     reset(span_10);
                     reset(li_7);
-                    template_effect(() => set_text(text_63, get(file)));
+                    template_effect(() => set_text(text_70, get(file)));
                     append2($$anchor6, li_7);
                   });
                   reset(ul_7);
                   var ul_8 = sibling(ul_7, 4);
                   each(ul_8, 21, () => get(plan).commands, index, ($$anchor6, command) => {
-                    var li_8 = root_232();
+                    var li_8 = root_272();
                     var code_5 = child(li_8);
-                    var text_64 = only_child(code_5, true);
+                    var text_71 = only_child(code_5, true);
                     reset(li_8);
-                    template_effect(() => set_text(text_64, get(command)));
+                    template_effect(() => set_text(text_71, get(command)));
                     append2($$anchor6, li_8);
                   });
                   reset(ul_8);
-                  var node_66 = sibling(ul_8, 4);
+                  var node_75 = sibling(ul_8, 4);
                   {
-                    var consequent_56 = ($$anchor6) => {
-                      var ul_9 = root_59();
+                    var consequent_66 = ($$anchor6) => {
+                      var ul_9 = root_632();
                       each(ul_9, 21, () => get(plan).outputs, index, ($$anchor7, output) => {
-                        var li_9 = root_232();
+                        var li_9 = root_272();
                         var code_6 = child(li_9);
-                        var text_65 = only_child(code_6, true);
+                        var text_72 = only_child(code_6, true);
                         reset(li_9);
-                        template_effect(() => set_text(text_65, get(output)));
+                        template_effect(() => set_text(text_72, get(output)));
                         append2($$anchor7, li_9);
                       });
                       reset(ul_9);
                       append2($$anchor6, ul_9);
                     };
-                    var alternate_6 = ($$anchor6) => {
-                      var p_24 = root_60();
-                      append2($$anchor6, p_24);
+                    var alternate_8 = ($$anchor6) => {
+                      var p_25 = root_642();
+                      append2($$anchor6, p_25);
                     };
-                    if_block(node_66, ($$render) => {
-                      if (get(plan).outputs?.length) $$render(consequent_56);
-                      else $$render(alternate_6, -1);
+                    if_block(node_75, ($$render) => {
+                      if (get(plan).outputs?.length) $$render(consequent_66);
+                      else $$render(alternate_8, -1);
                     });
                   }
-                  var p_25 = sibling(node_66, 2);
-                  var text_66 = only_child(p_25);
-                  var div_32 = sibling(p_25, 2);
-                  var button_7 = child(div_32);
-                  var button_8 = sibling(button_7, 2);
-                  var node_67 = child(button_8);
-                  Icon(node_67, { name: "check", size: 14 });
-                  var text_67 = sibling(node_67, 1, true);
-                  reset(button_8);
-                  reset(div_32);
-                  reset(div_31);
+                  var p_26 = sibling(node_75, 2);
+                  var text_73 = only_child(p_26);
+                  var div_34 = sibling(p_26, 2);
+                  var button_8 = child(div_34);
+                  var button_9 = sibling(button_8, 2);
+                  var node_76 = child(button_9);
+                  Icon(node_76, { name: "check", size: 14 });
+                  var text_74 = sibling(node_76, 1, true);
+                  reset(button_9);
+                  reset(div_34);
+                  reset(div_33);
                   template_effect(() => {
-                    set_text(text_61, get(plan).mode === "upstream-pr" ? `Prepare branch ${get(plan).branch}?` : "Apply this proposal?");
-                    set_text(text_62, get(plan).mode === "upstream-pr" ? "The run changes exactly these files on the new branch, not here:" : "The run changes exactly these files in this repository:");
-                    set_text(text_66, `${get(plan).explanation ?? ""} A change to any other file fails the run, and a command not listed stops it.`);
-                    button_7.disabled = get(busy) !== null;
+                    set_text(text_68, get(plan).mode === "upstream-pr" ? `Prepare branch ${get(plan).branch}?` : "Apply this proposal?");
+                    set_text(text_69, get(plan).mode === "upstream-pr" ? "The run changes exactly these files on the new branch, not here:" : "The run changes exactly these files in this repository:");
+                    set_text(text_73, `${get(plan).explanation ?? ""} A change to any other file fails the run, and a command not listed stops it.`);
                     button_8.disabled = get(busy) !== null;
-                    set_text(text_67, get(busy) === "apply-run" ? "Starting\u2026" : get(plan).mode === "upstream-pr" ? "Confirm and prepare branch" : "Confirm and apply");
+                    button_9.disabled = get(busy) !== null;
+                    set_text(text_74, get(busy) === "apply-run" ? "Starting\u2026" : get(plan).mode === "upstream-pr" ? "Confirm and prepare branch" : "Confirm and apply");
                   });
-                  delegated("click", button_7, () => {
+                  delegated("click", button_8, () => {
                     set(confirming, false);
                   });
-                  delegated("click", button_8, startApply);
-                  append2($$anchor5, div_31);
+                  delegated("click", button_9, startApply);
+                  append2($$anchor5, div_33);
                 };
-                var alternate_8 = ($$anchor5) => {
-                  var fragment_39 = root_642();
-                  var node_68 = first_child(fragment_39);
+                var alternate_10 = ($$anchor5) => {
+                  var fragment_52 = root_68();
+                  var node_77 = first_child(fragment_52);
                   {
-                    var consequent_58 = ($$anchor6) => {
+                    var consequent_68 = ($$anchor6) => {
                       const one2 = user_derived(() => get(selected).pending_commands.length === 1);
-                      var div_33 = root_622();
-                      var p_26 = child(div_33);
-                      var strong_5 = child(p_26);
-                      var text_68 = only_child(strong_5);
-                      reset(p_26);
-                      var ul_10 = sibling(p_26, 2);
+                      var div_35 = root_66();
+                      var p_27 = child(div_35);
+                      var strong_5 = child(p_27);
+                      var text_75 = only_child(strong_5);
+                      reset(p_27);
+                      var ul_10 = sibling(p_27, 2);
                       each(ul_10, 21, () => get(selected).pending_commands, index, ($$anchor7, command) => {
-                        var li_10 = root_232();
+                        var li_10 = root_272();
                         var code_7 = child(li_10);
-                        var text_69 = only_child(code_7, true);
+                        var text_76 = only_child(code_7, true);
                         reset(li_10);
-                        template_effect(() => set_text(text_69, get(command)));
+                        template_effect(() => set_text(text_76, get(command)));
                         append2($$anchor7, li_10);
                       });
                       reset(ul_10);
-                      var div_34 = sibling(ul_10, 2);
-                      var p_27 = child(div_34);
-                      var text_70 = child(p_27);
-                      var text_71 = sibling(text_70, 2);
-                      reset(p_27);
-                      var div_35 = sibling(p_27, 2);
-                      var button_9 = child(div_35);
-                      var node_69 = child(button_9);
-                      Icon(node_69, { name: "check", size: 14 });
-                      var text_72 = sibling(node_69, 1, true);
-                      reset(button_9);
+                      var div_36 = sibling(ul_10, 2);
+                      var p_28 = child(div_36);
+                      var text_77 = child(p_28);
+                      var text_78 = sibling(text_77, 2);
+                      reset(p_28);
+                      var div_37 = sibling(p_28, 2);
+                      var button_10 = child(div_37);
+                      var node_78 = child(button_10);
+                      Icon(node_78, { name: "check", size: 14 });
+                      var text_79 = sibling(node_78, 1, true);
+                      reset(button_10);
+                      reset(div_37);
+                      reset(div_36);
                       reset(div_35);
-                      reset(div_34);
-                      reset(div_33);
                       template_effect(() => {
-                        set_text(text_68, `The last run stopped: the evaluation needs ${get(one2) ? "a command" : "commands"} this proposal does not declare.`);
-                        set_text(text_70, `Adding ${get(one2) ? "it" : "them"} to `);
-                        set_text(text_71, ` sends the proposal back to you for approval. A run can use ${get(one2) ? "it" : "them"} only after you approve it again and confirm at Apply.`);
-                        button_9.disabled = get(busy) !== null;
-                        set_text(text_72, get(busy) === "declare" ? "Adding\u2026" : get(one2) ? "Add the command and send back for approval" : "Add the commands and send back for approval");
+                        set_text(text_75, `The last run stopped: the evaluation needs ${get(one2) ? "a command" : "commands"} this proposal does not declare.`);
+                        set_text(text_77, `Adding ${get(one2) ? "it" : "them"} to `);
+                        set_text(text_78, ` sends the proposal back to you for approval. A run can use ${get(one2) ? "it" : "them"} only after you approve it again and confirm at Apply.`);
+                        button_10.disabled = get(busy) !== null;
+                        set_text(text_79, get(busy) === "declare" ? "Adding\u2026" : get(one2) ? "Add the command and send back for approval" : "Add the commands and send back for approval");
                       });
-                      delegated("click", button_9, declareCommands);
-                      append2($$anchor6, div_33);
+                      delegated("click", button_10, declareCommands);
+                      append2($$anchor6, div_35);
                     };
-                    if_block(node_68, ($$render) => {
-                      if (get(selected).pending_commands?.length) $$render(consequent_58);
+                    if_block(node_77, ($$render) => {
+                      if (get(selected).pending_commands?.length) $$render(consequent_68);
                     });
                   }
-                  var div_36 = sibling(node_68, 2);
-                  var p_28 = child(div_36);
-                  var node_70 = child(p_28);
+                  var div_38 = sibling(node_77, 2);
+                  var p_29 = child(div_38);
+                  var node_79 = child(p_29);
                   {
-                    var consequent_59 = ($$anchor6) => {
-                      var fragment_40 = root_632();
-                      var code_8 = sibling(first_child(fragment_40));
-                      var text_73 = only_child(code_8, true);
+                    var consequent_69 = ($$anchor6) => {
+                      var fragment_53 = root_67();
+                      var code_8 = sibling(first_child(fragment_53));
+                      var text_80 = only_child(code_8, true);
                       next();
-                      template_effect(() => set_text(text_73, get(selected).upstream_change.branch));
-                      append2($$anchor6, fragment_40);
+                      template_effect(() => set_text(text_80, get(selected).upstream_change.branch));
+                      append2($$anchor6, fragment_53);
                     };
-                    var alternate_7 = ($$anchor6) => {
-                      var text_74 = text();
-                      template_effect(() => set_text(text_74, `Approved and waiting to be applied. ${get(plan).mode === "upstream-pr" ? "These are shared Firstmate files, so the change is prepared on a branch for a pull request." : "Applying rechecks the proposal, makes the change, and runs its evaluation, as /improve apply does."}`));
-                      append2($$anchor6, text_74);
+                    var alternate_9 = ($$anchor6) => {
+                      var text_81 = text();
+                      template_effect(() => set_text(text_81, `Approved and waiting to be applied. ${get(plan).mode === "upstream-pr" ? "These are shared Firstmate files, so the change is prepared on a branch for a pull request." : "Applying rechecks the proposal, makes the change, and runs its evaluation, as /improve apply does."}`));
+                      append2($$anchor6, text_81);
                     };
-                    if_block(node_70, ($$render) => {
-                      if (get(selected).upstream_change) $$render(consequent_59);
-                      else $$render(alternate_7, -1);
+                    if_block(node_79, ($$render) => {
+                      if (get(selected).upstream_change) $$render(consequent_69);
+                      else $$render(alternate_9, -1);
                     });
                   }
-                  reset(p_28);
-                  var div_37 = sibling(p_28, 2);
-                  var button_10 = child(div_37);
+                  reset(p_29);
+                  var div_39 = sibling(p_29, 2);
+                  var button_11 = child(div_39);
                   let classes_1;
-                  var node_71 = child(button_10);
-                  Icon(node_71, { name: "play", size: 14 });
-                  var text_75 = sibling(node_71);
-                  reset(button_10);
-                  reset(div_37);
-                  reset(div_36);
+                  var node_80 = child(button_11);
+                  Icon(node_80, { name: "play", size: 14 });
+                  var text_82 = sibling(node_80);
+                  reset(button_11);
+                  reset(div_39);
+                  reset(div_38);
                   template_effect(() => {
-                    button_10.disabled = get(busy) !== null;
-                    classes_1 = set_class(button_10, 1, "", null, classes_1, { primary: !get(selected).pending_commands?.length });
-                    set_text(text_75, `${get(plan).action ?? ""}\u2026`);
+                    button_11.disabled = get(busy) !== null;
+                    classes_1 = set_class(button_11, 1, "", null, classes_1, { primary: !get(selected).pending_commands?.length });
+                    set_text(text_82, `${get(plan).action ?? ""}\u2026`);
                   });
-                  delegated("click", button_10, () => {
+                  delegated("click", button_11, () => {
                     set(confirming, true);
                   });
-                  append2($$anchor5, fragment_39);
+                  append2($$anchor5, fragment_52);
                 };
-                if_block(node_64, ($$render) => {
-                  if (get(applyJob)) $$render(consequent_53);
-                  else if (!get(plan)) $$render(consequent_54, 1);
-                  else if (get(plan).error) $$render(consequent_55, 2);
-                  else if (get(confirming)) $$render(consequent_57, 3);
-                  else $$render(alternate_8, -1);
+                if_block(node_73, ($$render) => {
+                  if (get(applyJob)) $$render(consequent_63);
+                  else if (!get(plan)) $$render(consequent_64, 1);
+                  else if (get(plan).error) $$render(consequent_65, 2);
+                  else if (get(confirming)) $$render(consequent_67, 3);
+                  else $$render(alternate_10, -1);
                 });
               }
               reset(footer_1);
               append2($$anchor4, footer_1);
             };
-            if_block(node_56, ($$render) => {
-              if (get(decidable)) $$render(consequent_52);
-              else if (get(selected).status === "approved") $$render(consequent_60, 1);
+            if_block(node_64, ($$render) => {
+              if (get(decidable)) $$render(consequent_62);
+              else if (get(selected).status === "approved") $$render(consequent_70, 1);
             });
           }
-          append2($$anchor3, fragment_18);
+          append2($$anchor3, fragment_19);
         };
-        if_block(node_15, ($$render) => {
-          if (get(selected).malformed) $$render(consequent_14);
-          else $$render(alternate_9, -1);
+        if_block(node_16, ($$render) => {
+          if (get(selected).malformed) $$render(consequent_15);
+          else $$render(alternate_11, -1);
         });
       }
       reset(article);
       template_effect(() => {
-        set_text(text_13, get(selected).title);
-        set_text(text_14, get(selected).id);
+        set_text(text_14, get(selected).title);
+        set_text(text_15, get(selected).id);
       });
       append2($$anchor2, article);
     };
     if_block(node_5, ($$render) => {
       if (!get(selected)) $$render(consequent_6);
-      else $$render(alternate_10, -1);
+      else $$render(alternate_12, -1);
     });
   }
   reset(section_1);
@@ -12589,18 +12970,18 @@ function _page2($$anchor, $$props) {
 delegate(["click"]);
 
 // ../ui/src/routes/findings/+page.svelte
-var root12 = from_html(`<div class="panel"><!></div>`);
-var root_116 = from_html(`<p class="small"> </p>`);
+var root13 = from_html(`<div class="panel"><!></div>`);
+var root_117 = from_html(`<p class="small"> </p>`);
 var root_210 = from_html(`<p> </p><!>`, 1);
 var root_310 = from_html(`<div class="panel empty"><strong>No background findings.</strong> Run a background review here, or enable <code>background_dreaming</code> in <code>.harness/improve.json</code> to run one after sessions. The agent cannot edit anything; it only reports.</div>`);
 var root_410 = from_html(`<span class="small faint num"> </span>`);
 var root_510 = from_html(`<button class="ghost small"><!> </button>`);
-var root_69 = from_html(`<div class="panel-body"><!></div>`);
+var root_610 = from_html(`<div class="panel-body"><!></div>`);
 var root_75 = from_html(`<p class="prose muted" style="margin-top:6px"> </p>`);
 var root_85 = from_html(`<p class="prose" style="margin-top:8px"><span class="faint">Suggested change:</span> </p>`);
 var root_95 = from_html(`<li><span class="mono faint"> </span> </li>`);
 var root_105 = from_html(`<ul class="small" style="margin-top:8px"></ul>`);
-var root_117 = from_html(`<p class="small" style="margin-top:8px;color:var(--warn)"> </p>`);
+var root_118 = from_html(`<p class="small" style="margin-top:8px;color:var(--warn)"> </p>`);
 var root_126 = from_html(`<li class="finding svelte-z6npyg"><div class="spread" style="align-items:flex-start"><h3 class="grow"> </h3> <button class="small">Review as a proposal</button></div> <!> <!> <!> <!></li>`);
 var root_135 = from_html(`<section class="panel"><div class="panel-head"><h2> <!> <!></h2> <div class="row"><!> <button class="ghost small danger">Dismiss report</button></div></div> <!> <!> <ul class="list"></ul></section>`);
 var root_145 = from_html(
@@ -12608,13 +12989,13 @@ var root_145 = from_html(
       repository. Import one to review it as a proposal, or dismiss the report.</p></div> <button class="primary"><!> </button></div> <div class="stack" style="gap:16px"><!> <!> <!> <!></div>`,
   1
 );
-var $$css5 = {
+var $$css6 = {
   hash: "svelte-z6npyg",
   code: ".finding.svelte-z6npyg {padding:14px 16px;}"
 };
 function _page3($$anchor, $$props) {
   push($$props, true);
-  append_styles($$anchor, $$css5);
+  append_styles($$anchor, $$css6);
   let notice = state(
     /** @type {{ tone: "ok" | "warn" | "bad" | "", text: string, hint?: string } | null} */
     null
@@ -12699,7 +13080,7 @@ function _page3($$anchor, $$props) {
   var node_1 = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root12();
+      var div_2 = root13();
       var node_2 = child(div_2);
       JobCard(node_2, {
         get job() {
@@ -12710,7 +13091,7 @@ function _page3($$anchor, $$props) {
       append2($$anchor2, div_2);
     };
     var consequent_1 = ($$anchor2) => {
-      var div_3 = root12();
+      var div_3 = root13();
       var node_3 = child(div_3);
       JobCard(node_3, {
         get job() {
@@ -12739,7 +13120,7 @@ function _page3($$anchor, $$props) {
           var node_5 = sibling(p);
           {
             var consequent_2 = ($$anchor4) => {
-              var p_1 = root_116();
+              var p_1 = root_117();
               var text_2 = only_child(p_1, true);
               template_effect(() => set_text(text_2, get(notice).hint));
               append2($$anchor4, p_1);
@@ -12848,7 +13229,7 @@ function _page3($$anchor, $$props) {
     var node_12 = sibling(div_5, 2);
     {
       var consequent_8 = ($$anchor3) => {
-        var div_7 = root_69();
+        var div_7 = root_610();
         var node_13 = child(div_7);
         Notice(node_13, {
           tone: "bad",
@@ -12870,7 +13251,7 @@ function _page3($$anchor, $$props) {
     var node_14 = sibling(node_12, 2);
     {
       var consequent_9 = ($$anchor3) => {
-        var div_8 = root_69();
+        var div_8 = root_610();
         var node_15 = child(div_8);
         {
           let $0 = user_derived(() => encodeURIComponent(get(report).file));
@@ -12946,7 +13327,7 @@ function _page3($$anchor, $$props) {
       var node_19 = sibling(node_18, 2);
       {
         var consequent_13 = ($$anchor4) => {
-          var p_4 = root_117();
+          var p_4 = root_118();
           var text_14 = only_child(p_4);
           template_effect(($0) => set_text(text_14, `Reasons to reject: ${$0 ?? ""}`), [() => get(finding).reasons_to_reject.join(" ")]);
           append2($$anchor4, p_4);
@@ -12990,8 +13371,8 @@ function _page3($$anchor, $$props) {
 delegate(["click"]);
 
 // ../ui/src/lib/components/ScoreChart.svelte
-var root13 = from_svg(`<line stroke="var(--border)" stroke-width="1"></line><text text-anchor="end" font-size="11" fill="var(--text-3)"> </text>`, 1);
-var root_118 = from_svg(`<circle r="3"><title> </title></circle>`);
+var root14 = from_svg(`<line stroke="var(--border)" stroke-width="1"></line><text text-anchor="end" font-size="11" fill="var(--text-3)"> </text>`, 1);
+var root_119 = from_svg(`<circle r="3"><title> </title></circle>`);
 var root_211 = from_svg(`<path fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><!>`, 1);
 var root_311 = from_html(`<span class="row" style="gap:5px"><span></span> </span>`);
 var root_411 = from_html(`<svg style="width:100%;height:auto" role="img" aria-label="Objective scores over successive runs"><!><!><text font-size="11" fill="var(--text-3)">oldest run</text><text text-anchor="end" font-size="11" fill="var(--text-3)">latest run</text></svg> <div class="row small" style="margin-top:8px"></div>`, 1);
@@ -13030,7 +13411,7 @@ function ScoreChart($$anchor, $$props) {
       var svg = first_child(fragment_1);
       var node_1 = child(svg);
       each(node_1, 16, () => [0, 0.5, 1], index, ($$anchor3, tick3) => {
-        var fragment_2 = root13();
+        var fragment_2 = root14();
         var line = first_child(fragment_2);
         var text2 = sibling(line);
         var text_1 = only_child(text2, true);
@@ -13058,7 +13439,7 @@ function ScoreChart($$anchor, $$props) {
         var path2 = first_child(fragment_3);
         var node_3 = sibling(path2);
         each(node_3, 17, () => get(s).values, index, ($$anchor4, point2, i) => {
-          var circle = root_118();
+          var circle = root_119();
           var title = child(circle);
           var text_2 = only_child(title);
           reset(circle);
@@ -13132,8 +13513,8 @@ function ScoreChart($$anchor, $$props) {
 }
 
 // ../ui/src/lib/components/StepBars.svelte
-var root14 = from_svg(`<g><text x="0" font-size="12" fill="var(--text-3)"> </text><rect height="12" rx="3" fill="var(--surface-2)"></rect><rect height="12" rx="3"></rect><line stroke="var(--text)" stroke-width="1" stroke-dasharray="2 2" opacity="0.5"></line><text font-size="12" font-variant-numeric="tabular-nums" fill="var(--text)"> </text></g>`);
-var root_119 = from_svg(`<svg role="img" aria-label="Score by evaluation step"></svg>`);
+var root15 = from_svg(`<g><text x="0" font-size="12" fill="var(--text-3)"> </text><rect height="12" rx="3" fill="var(--surface-2)"></rect><rect height="12" rx="3"></rect><line stroke="var(--text)" stroke-width="1" stroke-dasharray="2 2" opacity="0.5"></line><text font-size="12" font-variant-numeric="tabular-nums" fill="var(--text)"> </text></g>`);
+var root_120 = from_svg(`<svg role="img" aria-label="Score by evaluation step"></svg>`);
 function StepBars($$anchor, $$props) {
   push($$props, true);
   let steps = prop($$props, "steps", 19, () => []);
@@ -13153,10 +13534,10 @@ function StepBars($$anchor, $$props) {
   var node = first_child(fragment);
   {
     var consequent = ($$anchor2) => {
-      var svg = root_119();
+      var svg = root_120();
       set_style(svg, "width:100%;max-width:520px;height:auto");
       each(svg, 21, () => get(rows), index, ($$anchor3, row, i) => {
-        var g = root14();
+        var g = root15();
         set_attribute2(g, "transform", `translate(0,${i * rowHeight})`);
         var text2 = child(g);
         set_attribute2(text2, "y", rowHeight / 2 + 4);
@@ -13210,13 +13591,13 @@ function StepBars($$anchor, $$props) {
 }
 
 // ../ui/src/routes/evals/+page.svelte
-var root15 = from_html(`<div class="panel"><!></div>`);
-var root_120 = from_html(`<div class="panel-body"><!></div>`);
+var root16 = from_html(`<div class="panel"><!></div>`);
+var root_121 = from_html(`<div class="panel-body"><!></div>`);
 var root_212 = from_html(`<p class="empty small">Loading\u2026</p>`);
 var root_312 = from_html(`<p class="muted prose"> </p>`);
 var root_412 = from_html(`<p> </p>`);
 var root_512 = from_html(`<p class="faint"> </p>`);
-var root_610 = from_html(`<p style="color:var(--bad)"> </p>`);
+var root_611 = from_html(`<p style="color:var(--bad)"> </p>`);
 var root_76 = from_html(`<tr><td class="mono small"> </td><td><!></td><td class="num"> </td><td class="small"><!> <!> <!></td></tr>`);
 var root_86 = from_html(`<div class="panel-body stack" style="gap:16px"><div class="grid cols-3"><div><div class="section-label">Score</div><div class="stat-value"> </div></div> <div><div class="section-label">Needed</div><div class="stat-value"> </div></div> <div><div class="section-label">Objective</div><p style="margin-top:4px"> </p></div></div> <!> <!> <!> <div class="table-wrap" style="border:1px solid var(--border);border-radius:var(--radius-sm)"><table><thead><tr><th>Step</th><th>Result</th><th>Score</th><th>What it found</th></tr></thead><tbody></tbody></table></div></div>`);
 var root_96 = from_html(`<section class="panel"><div class="panel-head"><h2> <!></h2> <button class="ghost small" aria-label="Close the report"><!></button></div> <!></section>`);
@@ -13232,13 +13613,13 @@ var root_184 = from_html(`<p class="small"> </p>`);
 var root_194 = from_html(`<p> </p><!>`, 1);
 var root_202 = from_html(`<form class="panel-body stack" style="gap:16px"><div><label for="suite">Suite</label> <select id="suite"></select> <!></div> <div><label for="transcript">Session</label> <select id="transcript"><option>No session: grade the changes only</option><!><option>Another file\u2026</option></select> <!> <p class="help"> </p></div> <fieldset class="revisions svelte-lfj6yv"><legend class="label">Changes</legend> <div class="grid cols-2" style="gap:10px"><div><label for="base" class="faint">From</label><input id="base" placeholder="HEAD~1"/></div> <div><label for="head" class="faint">To</label><input id="head" placeholder="HEAD"/></div></div> <p class="help">Leave both empty to use uncommitted changes.</p></fieldset> <label class="check"><input type="checkbox"/> <span>Include message and tool content<br/><span class="help" style="margin:0">Needed to check which commands ran. The content is redacted and passed to the evaluators.</span></span></label> <!> <button class="primary" type="submit"><!> </button></form>`);
 var root_213 = from_html(`<div class="page-head"><div><h1>Evaluations</h1> <p>Score a session or a range of commits against a suite. Nothing runs on a schedule: an observed session cannot be replayed, so a score is only taken when you ask.</p></div></div> <div class="grid cols-main"><div class="stack" style="gap:16px"><!> <!> <section class="panel"><div class="panel-head"><h2>Score over runs</h2></div> <div class="panel-body"><!></div></section> <section class="panel"><div class="panel-head"><h2>History</h2><span class="small faint"> </span></div> <!></section></div> <section class="panel run-form svelte-lfj6yv" aria-labelledby="run-a-suite"><div class="panel-head"><h2 id="run-a-suite">Run a suite</h2></div> <!></section></div>`, 1);
-var $$css6 = {
+var $$css7 = {
   hash: "svelte-lfj6yv",
   code: ".run-form.svelte-lfj6yv {position:sticky;top:16px;align-self:start;}.revisions.svelte-lfj6yv {border:0;padding:0;margin:0;}\n  @media (max-width: 1100px) {.run-form.svelte-lfj6yv {position:static;order:-1;} }"
 };
 function _page4($$anchor, $$props) {
   push($$props, true);
-  append_styles($$anchor, $$css6);
+  append_styles($$anchor, $$css7);
   let suites = state(proxy(
     /** @type {any[]} */
     []
@@ -13336,7 +13717,7 @@ function _page4($$anchor, $$props) {
   var node = child(div_1);
   {
     var consequent = ($$anchor2) => {
-      var div_2 = root15();
+      var div_2 = root16();
       var node_1 = child(div_2);
       JobCard(node_1, {
         get job() {
@@ -13347,7 +13728,7 @@ function _page4($$anchor, $$props) {
       append2($$anchor2, div_2);
     };
     var consequent_1 = ($$anchor2) => {
-      var div_3 = root15();
+      var div_3 = root16();
       var node_2 = child(div_3);
       JobCard(node_2, {
         get job() {
@@ -13401,7 +13782,7 @@ function _page4($$anchor, $$props) {
       var node_6 = sibling(div_4, 2);
       {
         var consequent_3 = ($$anchor3) => {
-          var div_5 = root_120();
+          var div_5 = root_121();
           var node_7 = child(div_5);
           Notice(node_7, {
             tone: "bad",
@@ -13545,7 +13926,7 @@ function _page4($$anchor, $$props) {
             var node_14 = sibling(node_13, 2);
             {
               var consequent_9 = ($$anchor5) => {
-                var p_5 = root_610();
+                var p_5 = root_611();
                 var text_15 = only_child(p_5, true);
                 template_effect(() => set_text(text_15, get(step).error));
                 append2($$anchor5, p_5);
@@ -13855,97 +14236,1821 @@ function _page4($$anchor, $$props) {
 }
 delegate(["click"]);
 
+// ../ui/src/lib/components/ObjectiveEditor.svelte
+var root17 = from_html(`<button class="ghost small crumb"><!>Back to editing</button>`);
+var root_128 = from_html(`Delete <span class="mono"> </span>`, 1);
+var root_214 = from_html(`<span class="mono"> </span>`);
+var root_313 = from_html(`A change to this objective is waiting: <a> </a>.`, 1);
+var root_413 = from_html(`Only an eval names this objective so far. Saving adds it to <code>.harness/objectives.yaml</code>.`, 1);
+var root_513 = from_html(`<p id="objective-id-help" class="field-error"> </p>`);
+var root_612 = from_html(`<p id="objective-id-help" class="help"> </p>`);
+var root_77 = from_html(`<div class="line"><input/> <button class="ghost small"><!></button></div>`);
+var root_87 = from_html(`<span class="chip"><!> </span>`);
+var root_97 = from_html(`<span class="faint">Runs</span> <!>`, 1);
+var root_107 = from_html(`<span class="faint row" style="gap:4px"><!>Reads only; runs no command</span>`);
+var root_1111 = from_html(`<li class="spread box-row"><div class="grow stack" style="gap:4px"><div class="row"><span class="mono"> </span> <span class="small faint"> </span> <!></div> <div class="row small"><!></div></div> <button class="small"><!>Edit</button></li>`);
+var root_129 = from_html(`<ul class="list box"></ul>`);
+var root_137 = from_html(`<p class="small muted">Nothing measures this objective yet.</p>`);
+var root_147 = from_html(`<div class="group"><div class="spread"><span class="section-label" style="margin:0">Evals</span> <button class="ghost small"><!>New eval</button></div> <!></div>`);
+var root_156 = from_html(`<button class="danger small"><!>Delete</button>`);
+var root_166 = from_html(`<div class="editor-body"><!> <!> <div><label for="objective-id">Id</label> <input id="objective-id" class="mono" placeholder="tests-stay-green" aria-describedby="objective-id-help"/> <!></div> <div><label for="objective-description">What it means</label> <textarea id="objective-description" rows="2" placeholder="One sentence: what good looks like."></textarea></div> <fieldset class="group"><legend class="label">Success criteria</legend> <!> <div><button class="ghost small"><!>Add criterion</button></div></fieldset> <div><span class="label" id="objective-regime">Graded from</span> <div class="segmented" role="group" aria-labelledby="objective-regime"><button>Observed work</button> <button>A fixed task</button></div> <p class="help"> </p></div> <div class="fields"><div><label for="objective-target">Target score</label><input id="objective-target" type="number" min="0" max="1" step="0.05"/></div> <div><label for="objective-owner">Owner <span class="faint optional">optional</span></label><input id="objective-owner"/></div> <div><label for="objective-review">Review by <span class="faint optional">optional</span></label><input id="objective-review" type="date"/></div></div> <!> <!></div> <div class="editor-foot"><!> <span class="grow"></span> <button class="ghost">Cancel</button> <button class="primary"> </button></div>`, 1);
+var root_176 = from_html(`<div class="editor-body"><p class="small muted">Saving writes <code>.harness/objectives.yaml</code> now. An objective's fields change nothing that runs, so this needs no proposal.</p> <!> <!></div> <div class="editor-foot"><span class="grow"></span> <button class="ghost">Keep editing</button> <button class="primary"><!> </button></div>`, 1);
+var root_185 = from_html(`<p class="small">The evals that measure it are deleted with it, because an eval cannot run against an objective that is gone.</p>`);
+var root_195 = from_html(`<div class="editor-body"><p class="small muted"> </p> <!> <div><div class="section-label">What runs</div> <!></div> <div><label for="delete-reason">Why <span class="faint optional">optional, kept with the proposal</span></label> <textarea id="delete-reason" rows="2"></textarea></div> <!> <!></div> <div class="editor-foot"><span class="grow"></span> <button class="ghost">Cancel</button> <button class="danger"><!> </button></div>`, 1);
+var root_203 = from_html(`<section class="panel editor" aria-labelledby="objective-editor-title"><div class="panel-head"><div class="stack" style="gap:2px"><!> <h2 id="objective-editor-title"><!></h2></div> <button class="ghost small" aria-label="Close the editor"><!></button></div> <!></section>`);
+function ObjectiveEditor($$anchor, $$props) {
+  push($$props, true);
+  const create = user_derived(() => !$$props.objective || $$props.objective.registered === false);
+  const pending2 = user_derived(() => $$props.objective ? $$props.waiting("objective", $$props.objective.id) : null);
+  function fromObjective(o) {
+    return {
+      id: o?.id ?? "",
+      description: o?.description ?? "",
+      success_criteria: o?.success_criteria?.length ? [...o.success_criteria] : [""],
+      regime: o?.regime ?? "observed",
+      // A new objective aims for a full score, as the template does.
+      target: o ? o.target?.suite_score ?? (typeof o.target === "number" ? o.target : null) : 1,
+      owner: o?.owner ?? "",
+      review_by: o?.review_by ? String(o.review_by).slice(0, 10) : ""
+    };
+  }
+  const initial = fromObjective($$props.objective);
+  let form = proxy(structuredClone(initial));
+  let stage = state(
+    /** @type {"edit" | "review" | "delete"} */
+    "edit"
+  );
+  let shown = state(
+    /** @type {any} */
+    null
+  );
+  let error = state(
+    /** @type {string | null} */
+    null
+  );
+  let busy = state(false);
+  let reason = state("");
+  function fields() {
+    const now = {
+      description: form.description,
+      success_criteria: form.success_criteria.map((c) => c.trim()).filter(Boolean),
+      regime: form.regime,
+      target: form.target === null || form.target === "" ? null : Number(form.target),
+      owner: form.owner.trim() || null,
+      review_by: form.review_by || null
+    };
+    const was = {
+      description: initial.description,
+      success_criteria: initial.success_criteria.filter(Boolean),
+      regime: initial.regime,
+      target: initial.target,
+      owner: initial.owner || null,
+      review_by: initial.review_by || null
+    };
+    const out = {};
+    for (const [key2, value] of Object.entries(now)) {
+      if (get(
+        create
+        /** @type {any} */
+      ) || JSON.stringify(value) !== JSON.stringify(was[key2])) out[key2] = value;
+    }
+    return out;
+  }
+  const changed = user_derived(() => get(create) ? Boolean(form.id.trim() && form.description.trim()) : Object.keys(fields()).length > 0);
+  const idProblem = user_derived(() => get(create) && !$$props.objective && form.id && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(form.id) ? "Use lowercase letters, digits and single hyphens." : null);
+  async function review() {
+    set(busy, true);
+    set(error, null);
+    try {
+      set(
+        shown,
+        await api("/api/objectives", {
+          method: "POST",
+          body: { id: form.id.trim(), create: get(create), fields: fields() }
+        }),
+        true
+      );
+      set(stage, "review");
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function save2() {
+    set(busy, true);
+    set(error, null);
+    try {
+      await api("/api/objectives", {
+        method: "POST",
+        body: {
+          id: form.id.trim(),
+          create: get(create),
+          fields: fields(),
+          digest: get(shown).digest
+        }
+      });
+      $$props.onsaved(get(create) ? `Added ${form.id.trim()} to .harness/objectives.yaml.` : `Saved ${form.id} in .harness/objectives.yaml.`);
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+      if (
+        /** @type {any} */
+        cause.status === 409
+      ) set(stage, "edit");
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function askDelete() {
+    set(busy, true);
+    set(error, null);
+    try {
+      set(shown, await api(`/api/objectives/${encodeURIComponent($$props.objective.id)}/delete`, { method: "POST", body: {} }), true);
+      set(reason, "");
+      set(stage, "delete");
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function fileDeletion() {
+    set(busy, true);
+    set(error, null);
+    try {
+      const { proposal, id } = await api(`/api/objectives/${encodeURIComponent($$props.objective.id)}/delete`, {
+        method: "POST",
+        body: { digest: get(shown).digest, reason: get(reason) }
+      });
+      $$props.onfiled(proposal, `Filed ${id}. Nothing is deleted until you approve it on Proposals.`);
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  function close() {
+    if (get(stage) === "edit" && !get(create) && get(changed) && !confirm("Discard your changes to this objective?")) return;
+    $$props.onclose();
+  }
+  var section = root_203();
+  var div = child(section);
+  var div_1 = child(div);
+  var node = child(div_1);
+  {
+    var consequent = ($$anchor2) => {
+      var button = root17();
+      var node_1 = child(button);
+      Icon(node_1, { name: "arrowLeft", size: 12 });
+      next();
+      reset(button);
+      delegated("click", button, () => {
+        set(stage, "edit");
+        set(error, null);
+      });
+      append2($$anchor2, button);
+    };
+    if_block(node, ($$render) => {
+      if (get(stage) !== "edit") $$render(consequent);
+    });
+  }
+  var h2 = sibling(node, 2);
+  var node_2 = child(h2);
+  {
+    var consequent_1 = ($$anchor2) => {
+      var fragment = root_128();
+      var span = sibling(first_child(fragment));
+      var text2 = only_child(span, true);
+      template_effect(() => set_text(text2, $$props.objective.id));
+      append2($$anchor2, fragment);
+    };
+    var consequent_2 = ($$anchor2) => {
+      var text_1 = text("New objective");
+      append2($$anchor2, text_1);
+    };
+    var alternate = ($$anchor2) => {
+      var span_1 = root_214();
+      var text_2 = only_child(span_1, true);
+      template_effect(() => set_text(text_2, $$props.objective.id));
+      append2($$anchor2, span_1);
+    };
+    if_block(node_2, ($$render) => {
+      if (get(stage) === "delete") $$render(consequent_1);
+      else if (!$$props.objective) $$render(consequent_2, 1);
+      else $$render(alternate, -1);
+    });
+  }
+  reset(h2);
+  reset(div_1);
+  var button_1 = sibling(div_1, 2);
+  var node_3 = child(button_1);
+  Icon(node_3, { name: "x", size: 14 });
+  reset(button_1);
+  reset(div);
+  var node_4 = sibling(div, 2);
+  {
+    var consequent_12 = ($$anchor2) => {
+      var fragment_1 = root_166();
+      var div_2 = first_child(fragment_1);
+      var node_5 = child(div_2);
+      {
+        var consequent_3 = ($$anchor3) => {
+          Notice($$anchor3, {
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var fragment_3 = root_313();
+              var a = sibling(first_child(fragment_3));
+              var text_3 = only_child(a, true);
+              next();
+              template_effect(
+                ($0) => {
+                  set_attribute2(a, "href", `#/proposals?p=${$0 ?? ""}`);
+                  set_text(text_3, get(pending2).id);
+                },
+                [() => encodeURIComponent(get(pending2).file)]
+              );
+              append2($$anchor4, fragment_3);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_5, ($$render) => {
+          if (get(pending2)) $$render(consequent_3);
+        });
+      }
+      var node_6 = sibling(node_5, 2);
+      {
+        var consequent_4 = ($$anchor3) => {
+          Notice($$anchor3, {
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var fragment_5 = root_413();
+              next(2);
+              append2($$anchor4, fragment_5);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_6, ($$render) => {
+          if ($$props.objective && $$props.objective.registered === false) $$render(consequent_4);
+        });
+      }
+      var div_3 = sibling(node_6, 2);
+      var input = sibling(child(div_3), 2);
+      remove_input_defaults(input);
+      var node_7 = sibling(input, 2);
+      {
+        var consequent_5 = ($$anchor3) => {
+          var p = root_513();
+          var text_4 = only_child(p, true);
+          template_effect(() => set_text(text_4, get(idProblem)));
+          append2($$anchor3, p);
+        };
+        var alternate_1 = ($$anchor3) => {
+          var p_1 = root_612();
+          var text_5 = only_child(p_1, true);
+          template_effect(() => set_text(text_5, $$props.objective ? "Evals and readings refer to it by id, so it cannot be renamed." : "Evals and readings refer to it by this id. It cannot change later."));
+          append2($$anchor3, p_1);
+        };
+        if_block(node_7, ($$render) => {
+          if (get(idProblem)) $$render(consequent_5);
+          else $$render(alternate_1, -1);
+        });
+      }
+      reset(div_3);
+      var div_4 = sibling(div_3, 2);
+      var textarea = sibling(child(div_4), 2);
+      remove_textarea_child(textarea);
+      reset(div_4);
+      var fieldset = sibling(div_4, 2);
+      var node_8 = sibling(child(fieldset), 2);
+      each(node_8, 17, () => form.success_criteria, index, ($$anchor3, _, i) => {
+        var div_5 = root_77();
+        var input_1 = child(div_5);
+        remove_input_defaults(input_1);
+        set_attribute2(input_1, "aria-label", `Criterion ${i + 1}`);
+        var button_2 = sibling(input_1, 2);
+        set_attribute2(button_2, "aria-label", `Remove criterion ${i + 1}`);
+        var node_9 = child(button_2);
+        Icon(node_9, { name: "x", size: 14 });
+        reset(button_2);
+        reset(div_5);
+        bind_value(input_1, () => form.success_criteria[i], ($$value) => form.success_criteria[i] = $$value);
+        delegated("click", button_2, () => form.success_criteria.splice(i, 1));
+        append2($$anchor3, div_5);
+      });
+      var div_6 = sibling(node_8, 2);
+      var button_3 = child(div_6);
+      var node_10 = child(button_3);
+      Icon(node_10, { name: "plus", size: 14 });
+      next();
+      reset(button_3);
+      reset(div_6);
+      reset(fieldset);
+      var div_7 = sibling(fieldset, 2);
+      var div_8 = sibling(child(div_7), 2);
+      var button_4 = child(div_8);
+      var button_5 = sibling(button_4, 2);
+      reset(div_8);
+      var p_2 = sibling(div_8, 2);
+      var text_6 = only_child(p_2, true);
+      reset(div_7);
+      var div_9 = sibling(div_7, 2);
+      var div_10 = child(div_9);
+      var input_2 = sibling(child(div_10));
+      remove_input_defaults(input_2);
+      reset(div_10);
+      var div_11 = sibling(div_10, 2);
+      var input_3 = sibling(child(div_11));
+      remove_input_defaults(input_3);
+      reset(div_11);
+      var div_12 = sibling(div_11, 2);
+      var input_4 = sibling(child(div_12));
+      remove_input_defaults(input_4);
+      reset(div_12);
+      reset(div_9);
+      var node_11 = sibling(div_9, 2);
+      {
+        var consequent_9 = ($$anchor3) => {
+          var div_13 = root_147();
+          var div_14 = child(div_13);
+          var button_6 = sibling(child(div_14), 2);
+          var node_12 = child(button_6);
+          Icon(node_12, { name: "plus", size: 14 });
+          next();
+          reset(button_6);
+          reset(div_14);
+          var node_13 = sibling(div_14, 2);
+          {
+            var consequent_8 = ($$anchor4) => {
+              var ul = root_129();
+              each(ul, 21, () => $$props.suites, (suite) => suite.file, ($$anchor5, suite) => {
+                const filed = user_derived(() => $$props.waiting("suite", get(suite).id));
+                var li = root_1111();
+                var div_15 = child(li);
+                var div_16 = child(div_15);
+                var span_2 = child(div_16);
+                var text_7 = only_child(span_2, true);
+                var span_3 = sibling(span_2, 2);
+                var text_8 = only_child(span_3);
+                var node_14 = sibling(span_3, 2);
+                {
+                  var consequent_6 = ($$anchor6) => {
+                    Pill($$anchor6, {
+                      tone: "accent",
+                      get title() {
+                        return get(filed).id;
+                      },
+                      children: ($$anchor7, $$slotProps) => {
+                        next();
+                        var text_9 = text("Change waiting");
+                        append2($$anchor7, text_9);
+                      },
+                      $$slots: { default: true }
+                    });
+                  };
+                  if_block(node_14, ($$render) => {
+                    if (get(filed)) $$render(consequent_6);
+                  });
+                }
+                reset(div_16);
+                var div_17 = sibling(div_16, 2);
+                var node_15 = child(div_17);
+                {
+                  var consequent_7 = ($$anchor6) => {
+                    var fragment_7 = root_97();
+                    var node_16 = sibling(first_child(fragment_7), 2);
+                    each(node_16, 17, () => get(suite).commands, index, ($$anchor7, argv) => {
+                      var span_4 = root_87();
+                      var node_17 = child(span_4);
+                      Icon(node_17, { name: "terminal", size: 12 });
+                      var text_10 = sibling(node_17, 1, true);
+                      reset(span_4);
+                      template_effect(($0) => set_text(text_10, $0), [() => joinArgv(get(argv))]);
+                      append2($$anchor7, span_4);
+                    });
+                    append2($$anchor6, fragment_7);
+                  };
+                  var alternate_2 = ($$anchor6) => {
+                    var span_5 = root_107();
+                    var node_18 = child(span_5);
+                    Icon(node_18, { name: "eye", size: 12 });
+                    next();
+                    reset(span_5);
+                    append2($$anchor6, span_5);
+                  };
+                  if_block(node_15, ($$render) => {
+                    if (get(suite).commands?.length) $$render(consequent_7);
+                    else $$render(alternate_2, -1);
+                  });
+                }
+                reset(div_17);
+                reset(div_15);
+                var button_7 = sibling(div_15, 2);
+                var node_19 = child(button_7);
+                Icon(node_19, { name: "pencil", size: 13 });
+                next();
+                reset(button_7);
+                reset(li);
+                template_effect(
+                  ($0) => {
+                    set_text(text_7, get(suite).id);
+                    set_text(text_8, `${get(suite).steps ?? ""} ${get(suite).steps === 1 ? "step" : "steps"}${get(suite).threshold != null ? `, passes at ${get(suite).threshold}` : ""}`);
+                    button_7.disabled = $0;
+                  },
+                  [() => Boolean(get(suite).malformed)]
+                );
+                delegated("click", button_7, () => $$props.oneditsuite(get(suite).file));
+                append2($$anchor5, li);
+              });
+              reset(ul);
+              append2($$anchor4, ul);
+            };
+            var alternate_3 = ($$anchor4) => {
+              var p_3 = root_137();
+              append2($$anchor4, p_3);
+            };
+            if_block(node_13, ($$render) => {
+              if ($$props.suites.length) $$render(consequent_8);
+              else $$render(alternate_3, -1);
+            });
+          }
+          reset(div_13);
+          delegated("click", button_6, function(...$$args) {
+            $$props.onnewsuite?.apply(this, $$args);
+          });
+          append2($$anchor3, div_13);
+        };
+        if_block(node_11, ($$render) => {
+          if ($$props.objective) $$render(consequent_9);
+        });
+      }
+      var node_20 = sibling(node_11, 2);
+      {
+        var consequent_10 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_11 = text();
+              template_effect(() => set_text(text_11, get(error)));
+              append2($$anchor4, text_11);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_20, ($$render) => {
+          if (get(error)) $$render(consequent_10);
+        });
+      }
+      reset(div_2);
+      var div_18 = sibling(div_2, 2);
+      var node_21 = child(div_18);
+      {
+        var consequent_11 = ($$anchor3) => {
+          var button_8 = root_156();
+          var node_22 = child(button_8);
+          Icon(node_22, { name: "trash", size: 13 });
+          next();
+          reset(button_8);
+          template_effect(() => button_8.disabled = get(busy));
+          delegated("click", button_8, askDelete);
+          append2($$anchor3, button_8);
+        };
+        if_block(node_21, ($$render) => {
+          if ($$props.objective && $$props.objective.registered !== false) $$render(consequent_11);
+        });
+      }
+      var button_9 = sibling(node_21, 4);
+      var button_10 = sibling(button_9, 2);
+      var text_12 = only_child(button_10, true);
+      reset(div_18);
+      template_effect(
+        ($0, $1) => {
+          input.readOnly = $0;
+          set_attribute2(input, "aria-invalid", get(idProblem) ? "true" : void 0);
+          set_attribute2(button_4, "aria-pressed", form.regime === "observed");
+          set_attribute2(button_5, "aria-pressed", form.regime === "replayable");
+          set_text(text_6, form.regime === "replayable" ? "A fixed task that can be run again against a changed harness." : "Graded from what actually happened, one reading per run, with nothing to compare against.");
+          button_10.disabled = $1;
+          set_text(text_12, get(busy) ? "Checking\u2026" : "Review change");
+        },
+        [
+          () => Boolean($$props.objective),
+          () => get(busy) || !get(changed) || Boolean(get(idProblem))
+        ]
+      );
+      bind_value(input, () => form.id, ($$value) => form.id = $$value);
+      bind_value(textarea, () => form.description, ($$value) => form.description = $$value);
+      delegated("click", button_3, () => form.success_criteria.push(""));
+      delegated("click", button_4, () => {
+        form.regime = "observed";
+      });
+      delegated("click", button_5, () => {
+        form.regime = "replayable";
+      });
+      bind_value(input_2, () => form.target, ($$value) => form.target = $$value);
+      bind_value(input_3, () => form.owner, ($$value) => form.owner = $$value);
+      bind_value(input_4, () => form.review_by, ($$value) => form.review_by = $$value);
+      delegated("click", button_9, close);
+      delegated("click", button_10, review);
+      append2($$anchor2, fragment_1);
+    };
+    var consequent_14 = ($$anchor2) => {
+      var fragment_10 = root_176();
+      var div_19 = first_child(fragment_10);
+      var node_23 = sibling(child(div_19), 2);
+      each(node_23, 17, () => get(shown).files, index, ($$anchor3, file) => {
+        {
+          let $0 = user_derived(() => get(file).current ?? "");
+          let $1 = user_derived(() => get(file).proposed ?? "");
+          Diff($$anchor3, {
+            get current() {
+              return get($0);
+            },
+            get proposed() {
+              return get($1);
+            },
+            get path() {
+              return get(file).path;
+            }
+          });
+        }
+      });
+      var node_24 = sibling(node_23, 2);
+      {
+        var consequent_13 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_13 = text();
+              template_effect(() => set_text(text_13, get(error)));
+              append2($$anchor4, text_13);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_24, ($$render) => {
+          if (get(error)) $$render(consequent_13);
+        });
+      }
+      reset(div_19);
+      var div_20 = sibling(div_19, 2);
+      var button_11 = sibling(child(div_20), 2);
+      var button_12 = sibling(button_11, 2);
+      var node_25 = child(button_12);
+      Icon(node_25, { name: "check", size: 14 });
+      var text_14 = sibling(node_25, 1, true);
+      reset(button_12);
+      reset(div_20);
+      template_effect(() => {
+        button_12.disabled = get(busy);
+        set_text(text_14, get(busy) ? "Saving\u2026" : "Save");
+      });
+      delegated("click", button_11, () => {
+        set(stage, "edit");
+      });
+      delegated("click", button_12, save2);
+      append2($$anchor2, fragment_10);
+    };
+    var alternate_4 = ($$anchor2) => {
+      var fragment_14 = root_195();
+      var div_21 = first_child(fragment_14);
+      var p_4 = child(div_21);
+      var text_15 = only_child(p_4);
+      var node_26 = sibling(p_4, 2);
+      {
+        var consequent_15 = ($$anchor3) => {
+          var p_5 = root_185();
+          append2($$anchor3, p_5);
+        };
+        if_block(node_26, ($$render) => {
+          if (get(shown).files.length > 1) $$render(consequent_15);
+        });
+      }
+      var div_22 = sibling(node_26, 2);
+      var node_27 = sibling(child(div_22), 2);
+      RunsList(node_27, {
+        get before() {
+          return get(shown).runs.before;
+        },
+        get after() {
+          return get(shown).runs.after;
+        }
+      });
+      reset(div_22);
+      var div_23 = sibling(div_22, 2);
+      var textarea_1 = sibling(child(div_23), 2);
+      remove_textarea_child(textarea_1);
+      reset(div_23);
+      var node_28 = sibling(div_23, 2);
+      each(node_28, 17, () => get(shown).files, index, ($$anchor3, file) => {
+        {
+          let $0 = user_derived(() => get(file).current ?? "");
+          let $1 = user_derived(() => get(file).proposed ?? "");
+          Diff($$anchor3, {
+            get current() {
+              return get($0);
+            },
+            get proposed() {
+              return get($1);
+            },
+            get path() {
+              return get(file).path;
+            }
+          });
+        }
+      });
+      var node_29 = sibling(node_28, 2);
+      {
+        var consequent_16 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_16 = text();
+              template_effect(() => set_text(text_16, get(error)));
+              append2($$anchor4, text_16);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_29, ($$render) => {
+          if (get(error)) $$render(consequent_16);
+        });
+      }
+      reset(div_21);
+      var div_24 = sibling(div_21, 2);
+      var button_13 = sibling(child(div_24), 2);
+      var button_14 = sibling(button_13, 2);
+      var node_30 = child(button_14);
+      Icon(node_30, { name: "trash", size: 13 });
+      var text_17 = sibling(node_30, 1, true);
+      reset(button_14);
+      reset(div_24);
+      template_effect(() => {
+        set_text(text_15, `This files a proposal. Nothing is deleted until you approve it on Proposals.
+        ${$$props.objective.history.length ? `Its ${$$props.objective.history.length} readings stay in the results history.` : ""}`);
+        button_14.disabled = get(busy);
+        set_text(text_17, get(busy) ? "Filing\u2026" : "File deletion");
+      });
+      bind_value(textarea_1, () => get(reason), ($$value) => set(reason, $$value));
+      delegated("click", button_13, () => {
+        set(stage, "edit");
+      });
+      delegated("click", button_14, fileDeletion);
+      append2($$anchor2, fragment_14);
+    };
+    if_block(node_4, ($$render) => {
+      if (get(stage) === "edit") $$render(consequent_12);
+      else if (get(stage) === "review") $$render(consequent_14, 1);
+      else $$render(alternate_4, -1);
+    });
+  }
+  reset(section);
+  delegated("click", button_1, close);
+  append2($$anchor, section);
+  pop();
+}
+delegate(["click"]);
+
+// ../ui/src/lib/components/SuiteEditor.svelte
+var root18 = from_html(`<button class="ghost small crumb"><!>Back to editing</button>`);
+var root_130 = from_html(`<button class="ghost small crumb"><!> </button>`);
+var root_215 = from_html(`Delete eval <span class="mono"> </span>`, 1);
+var root_314 = from_html(`Eval <span class="mono"> </span>`, 1);
+var root_414 = from_html(`<p class="small faint">Loading\u2026</p>`);
+var root_514 = from_html(`<div class="editor-body"><!></div>`);
+var root_613 = from_html(`A change to this eval is waiting: <a> </a>. Filing another makes a second proposal.`, 1);
+var root_78 = from_html(`<option> </option>`);
+var root_88 = from_html(` <code>assets/eval-rig/</code> into <code>.harness/evals/</code>; Overview shows the installed and available versions.`, 1);
+var root_98 = from_html(`<p class="field-error"> </p>`);
+var root_108 = from_html(`<li class="box-row"><div class="line"><span class="faint" style="flex:none"><!></span> <input class="mono" placeholder="npm test"/> <button class="ghost small"><!></button></div> <!></li>`);
+var root_1112 = from_html(`<ul class="list box"></ul> <p class="help" style="margin-top:0">Run as words, never through a shell. Quote a word that holds spaces.</p>`, 1);
+var root_1210 = from_html(`<p class="small muted row" style="gap:6px"><!>None. This eval only reads the transcript and files.</p>`);
+var root_138 = from_html(`<!> `, 1);
+var root_148 = from_html(`<div><label>Command</label> <select class="mono"><!><!></select> <p class="help">Only the commands declared above can be picked.</p></div>`);
+var root_157 = from_html(`<li class="box-row stack" style="gap:10px"><div class="line"><input class="mono"/> <button class="ghost small"><!></button></div> <div class="fields step-fields svelte-7nvcsu"><div><label>Check</label> <select><!><!></select></div> <div><label>Passes at</label><input type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>Required</span></label></div> <p class="small faint row" style="gap:8px"><!> </p> <!> <div><label>Settings <span class="faint optional">YAML, read by the check</span></label> <textarea class="mono"></textarea></div></li>`);
+var root_167 = from_html(`<button class="danger small"><!>Delete</button>`);
+var root_177 = from_html(`<div class="editor-body"><!> <div class="fields"><div><label for="suite-id">Id</label> <input id="suite-id" class="mono" aria-describedby="suite-id-help"/> <p id="suite-id-help" class="help">The file is <code> </code>.</p></div> <div><label for="suite-objective">Measures</label> <select id="suite-objective" class="mono"></select></div></div> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Commands it may run</legend> <button class="ghost small"><!>Declare command</button></div> <p class="small faint">Every command the eval runs is listed here first. A step can run only a declared command, and approving the eval approves these.</p> <!> <!></fieldset> <fieldset class="group"><div class="spread"><legend class="section-label" style="margin:0">Steps</legend> <button class="ghost small"><!>Add step</button></div> <ul class="list box"></ul> <!></fieldset> <div class="fields"><div><label for="suite-threshold">The eval passes at</label><input id="suite-threshold" type="number" min="0" max="1" step="0.1"/></div> <label class="check required svelte-7nvcsu"><input type="checkbox"/><span>And every required step passes</span></label></div> <div class="group"><span class="section-label" style="margin:0">What this eval runs</span> <!></div> <!></div> <div class="editor-foot"><!> <span class="grow"></span> <button class="ghost">Cancel</button> <button class="primary"> </button></div>`, 1);
+var root_186 = from_html(`<button class="danger"><!> </button>`);
+var root_196 = from_html(`<button class="primary"> </button>`);
+var root_204 = from_html(`<div class="editor-body"><p class="small muted"> </p> <div class="group"><span class="section-label" style="margin:0">What runs</span> <!></div> <div><label for="suite-reason">Why <span class="faint optional">optional, kept with the proposal</span></label> <textarea id="suite-reason" rows="2"></textarea></div> <!> <!></div> <div class="editor-foot"><span class="grow"></span> <button class="ghost">Keep editing</button> <!></div>`, 1);
+var root_216 = from_html(`<section class="panel editor" aria-labelledby="suite-editor-title"><div class="panel-head"><div class="stack" style="gap:2px"><!> <h2 id="suite-editor-title"><!></h2></div> <button class="ghost small" aria-label="Close the editor"><!></button></div> <!></section>`);
+var $$css8 = {
+  hash: "svelte-7nvcsu",
+  code: ".required.svelte-7nvcsu {align-self:end;padding-bottom:9px;}.fields.step-fields.svelte-7nvcsu {grid-template-columns:minmax(0, 2fr) minmax(0, 1fr) max-content;}\n  @media (max-width: 700px) {.fields.step-fields.svelte-7nvcsu {grid-template-columns:1fr;} }"
+};
+function SuiteEditor($$anchor, $$props) {
+  push($$props, true);
+  append_styles($$anchor, $$css8);
+  const TRUST = (
+    /** @type {Record<string, { text: string, icon: "eye" | "terminal" | "sparkles", tone: string }>} */
+    {
+      deterministic: { text: "Reads only", icon: "eye", tone: "" },
+      "executes-command": { text: "Runs a command", icon: "terminal", tone: "warn" },
+      "external-model": { text: "Calls a model", icon: "sparkles", tone: "warn" }
+    }
+  );
+  const STARTERS = (
+    /** @type {Record<string, string>} */
+    {
+      "core.transcript-evidence": "require_read_before_edit: true\nrequire_verification: true\n",
+      "core.grep": 'paths_from: changed_files\npattern: ""\nregex: true\nshould_match: false\n',
+      "core.file-exists": "paths:\n  - README.md\n",
+      "core.command": "expected_exit_codes: [0]\n",
+      "llm.judge-command": 'rubric: ""\n'
+    }
+  );
+  let loaded = state(
+    /** @type {any} */
+    null
+  );
+  let evaluators = state(proxy(
+    /** @type {any[]} */
+    []
+  ));
+  let rig = state(
+    /** @type {{ installed: string | null, enforces_commands: boolean } | null} */
+    null
+  );
+  let form = state(
+    /** @type {any} */
+    null
+  );
+  let initial = "";
+  let stage = state(
+    /** @type {"edit" | "review" | "delete"} */
+    "edit"
+  );
+  let shown = state(
+    /** @type {any} */
+    null
+  );
+  let error = state(
+    /** @type {string | null} */
+    null
+  );
+  let busy = state(false);
+  let reason = state("");
+  function toForm(suite) {
+    return {
+      id: suite.id,
+      objective: suite.objective,
+      commands: suite.commands.map((argv) => joinArgv(argv)),
+      steps: suite.steps.map((step) => ({ ...step, command: step.command ? joinArgv(step.command) : "" })),
+      threshold: suite.aggregation.threshold,
+      require_all_required: suite.aggregation.require_all_required
+    };
+  }
+  user_effect(() => {
+    const target = $$props.file;
+    set(loaded, null);
+    set(error, null);
+    (target ? api(`/api/suites/${encodeURIComponent(target)}`) : api("/api/evaluators")).then((value) => {
+      set(evaluators, value.evaluators ?? [], true);
+      set(rig, value.rig ?? null, true);
+      const suite = target ? value.suite : {
+        id: `${$$props.objective}-checks`,
+        objective: $$props.objective,
+        commands: [],
+        steps: [
+          {
+            id: "first-check",
+            evaluator: "core.transcript-evidence",
+            threshold: 1,
+            required: true,
+            command: null,
+            settings: STARTERS["core.transcript-evidence"]
+          }
+        ],
+        aggregation: { threshold: 1, require_all_required: true }
+      };
+      set(loaded, target ? value : { suite }, true);
+      set(form, toForm(suite), true);
+      initial = JSON.stringify(get(form));
+    }).catch((cause) => {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    });
+  });
+  const byName = user_derived(() => new Map(get(evaluators).map((e) => [e.name, e])));
+  const parsed = user_derived(() => get(
+    form
+    /** @type {string} */
+  ) ? get(form).commands.map((text2) => splitArgv(text2)) : []);
+  const declared = user_derived(() => get(
+    parsed
+    /** @type {any} */
+    /** @type {any} */
+  ).filter((p) => !p.error && p.argv.length).map((p) => joinArgv(p.argv)));
+  const undeclared = user_derived(() => get(
+    form
+    /** @type {any} */
+  ) ? get(form).steps.filter((step) => get(byName).get(step.evaluator)?.command_field && !get(declared).includes(step.command)) : []);
+  const commandProblem = user_derived(() => get(
+    parsed
+    /** @type {any} */
+  ).some((p) => p.error || !p.argv.length));
+  const dirty = user_derived(() => get(form) ? JSON.stringify(get(form)) !== initial : false);
+  const objectiveChoices = user_derived(() => get(form) && !$$props.objectives.includes(get(form).objective) ? [get(form).objective, ...$$props.objectives] : $$props.objectives);
+  const pending2 = user_derived(() => $$props.file && get(loaded)?.suite ? $$props.waiting("suite", get(loaded).suite.id) : null);
+  function payload() {
+    return {
+      id: get(form).id.trim(),
+      objective: get(form).objective,
+      commands: get(
+        parsed
+        /** @type {any} */
+      ).map((p) => p.argv),
+      steps: get(
+        form
+        /** @type {any} */
+      ).steps.map((step) => ({
+        id: step.id,
+        evaluator: step.evaluator,
+        threshold: Number(step.threshold),
+        required: step.required,
+        command: get(byName).get(step.evaluator)?.command_field && step.command ? splitArgv(step.command).argv : null,
+        settings: step.settings ?? ""
+      })),
+      aggregation: {
+        threshold: Number(get(form).threshold),
+        require_all_required: get(form).require_all_required
+      }
+    };
+  }
+  function addStep() {
+    const n = get(form).steps.length + 1;
+    get(form).steps.push({
+      id: `step-${n}`,
+      evaluator: "core.grep",
+      threshold: 1,
+      required: true,
+      command: "",
+      settings: STARTERS["core.grep"]
+    });
+  }
+  function setEvaluator(step, name) {
+    const before = step.evaluator;
+    step.evaluator = name;
+    if (!step.settings?.trim() || step.settings === STARTERS[before]) step.settings = STARTERS[name] ?? "";
+    if (get(byName).get(name)?.command_field && !step.command) step.command = get(declared)[0] ?? "";
+  }
+  function removeCommand(index3) {
+    const row = get(parsed)[index3];
+    const gone = !row.error && row.argv.length ? joinArgv(row.argv) : null;
+    get(form).commands.splice(index3, 1);
+    if (gone === null || get(declared).includes(gone)) return;
+    for (const step of get(form).steps) if (step.command === gone) step.command = "";
+  }
+  async function review() {
+    set(busy, true);
+    set(error, null);
+    try {
+      set(
+        shown,
+        await api("/api/suites", {
+          method: "POST",
+          body: { file: $$props.file, suite: payload() }
+        }),
+        true
+      );
+      set(reason, "");
+      set(stage, "review");
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function fileEdit() {
+    set(busy, true);
+    set(error, null);
+    try {
+      const { proposal, id } = await api("/api/suites", {
+        method: "POST",
+        body: {
+          file: $$props.file,
+          suite: payload(),
+          digest: get(shown).digest,
+          reason: get(reason)
+        }
+      });
+      $$props.onfiled(proposal, `Filed ${id}. The eval changes only when you approve it on Proposals.`);
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function askDelete() {
+    set(busy, true);
+    set(error, null);
+    try {
+      set(shown, await api(
+        `/api/suites/${encodeURIComponent($$props.file)}/delete`,
+        /** @type {string} */
+        { method: "POST", body: {} }
+      ), true);
+      set(reason, "");
+      set(stage, "delete");
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  async function fileDeletion() {
+    set(busy, true);
+    set(error, null);
+    try {
+      const { proposal, id } = await api(
+        `/api/suites/${encodeURIComponent($$props.file)}/delete`,
+        /** @type {string} */
+        {
+          method: "POST",
+          body: { digest: get(shown).digest, reason: get(reason) }
+        }
+      );
+      $$props.onfiled(proposal, `Filed ${id}. Nothing is deleted until you approve it on Proposals.`);
+    } catch (cause) {
+      set(
+        error,
+        /** @type {Error} */
+        cause.message,
+        true
+      );
+    } finally {
+      set(busy, false);
+    }
+  }
+  function leave(next2) {
+    if (get(stage) === "edit" && get(dirty) && !confirm("Discard your changes to this eval?")) return;
+    next2();
+  }
+  var section = root_216();
+  var div = child(section);
+  var div_1 = child(div);
+  var node = child(div_1);
+  {
+    var consequent = ($$anchor2) => {
+      var button = root18();
+      var node_1 = child(button);
+      Icon(node_1, { name: "arrowLeft", size: 12 });
+      next();
+      reset(button);
+      delegated("click", button, () => {
+        set(stage, "edit");
+        set(error, null);
+      });
+      append2($$anchor2, button);
+    };
+    var consequent_1 = ($$anchor2) => {
+      var button_1 = root_130();
+      var node_2 = child(button_1);
+      Icon(node_2, { name: "arrowLeft", size: 12 });
+      var text_1 = sibling(node_2, 1, true);
+      reset(button_1);
+      template_effect(() => set_text(text_1, $$props.objective));
+      delegated("click", button_1, () => leave($$props.onback));
+      append2($$anchor2, button_1);
+    };
+    if_block(node, ($$render) => {
+      if (get(stage) !== "edit") $$render(consequent);
+      else if ($$props.onback) $$render(consequent_1, 1);
+    });
+  }
+  var h2 = sibling(node, 2);
+  var node_3 = child(h2);
+  {
+    var consequent_2 = ($$anchor2) => {
+      var fragment = root_215();
+      var span = sibling(first_child(fragment));
+      var text_2 = only_child(span, true);
+      template_effect(() => set_text(text_2, get(loaded).suite.id));
+      append2($$anchor2, fragment);
+    };
+    var consequent_3 = ($$anchor2) => {
+      var text_3 = text("New eval");
+      append2($$anchor2, text_3);
+    };
+    var alternate = ($$anchor2) => {
+      var fragment_1 = root_314();
+      var span_1 = sibling(first_child(fragment_1));
+      var text_4 = only_child(span_1, true);
+      template_effect(() => set_text(text_4, get(loaded)?.suite?.id ?? $$props.file));
+      append2($$anchor2, fragment_1);
+    };
+    if_block(node_3, ($$render) => {
+      if (get(stage) === "delete") $$render(consequent_2);
+      else if (!$$props.file) $$render(consequent_3, 1);
+      else $$render(alternate, -1);
+    });
+  }
+  reset(h2);
+  reset(div_1);
+  var button_2 = sibling(div_1, 2);
+  var node_4 = child(button_2);
+  Icon(node_4, { name: "x", size: 14 });
+  reset(button_2);
+  reset(div);
+  var node_5 = sibling(div, 2);
+  {
+    var consequent_5 = ($$anchor2) => {
+      var div_2 = root_514();
+      var node_6 = child(div_2);
+      {
+        var consequent_4 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_5 = text();
+              template_effect(() => set_text(text_5, get(error)));
+              append2($$anchor4, text_5);
+            },
+            $$slots: { default: true }
+          });
+        };
+        var alternate_1 = ($$anchor3) => {
+          var p_1 = root_414();
+          append2($$anchor3, p_1);
+        };
+        if_block(node_6, ($$render) => {
+          if (get(error)) $$render(consequent_4);
+          else $$render(alternate_1, -1);
+        });
+      }
+      reset(div_2);
+      append2($$anchor2, div_2);
+    };
+    var consequent_17 = ($$anchor2) => {
+      var fragment_4 = root_177();
+      var div_3 = first_child(fragment_4);
+      var node_7 = child(div_3);
+      {
+        var consequent_6 = ($$anchor3) => {
+          Notice($$anchor3, {
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var fragment_6 = root_613();
+              var a = sibling(first_child(fragment_6));
+              var text_6 = only_child(a, true);
+              next();
+              template_effect(
+                ($0) => {
+                  set_attribute2(a, "href", `#/proposals?p=${$0 ?? ""}`);
+                  set_text(text_6, get(pending2).id);
+                },
+                [() => encodeURIComponent(get(pending2).file)]
+              );
+              append2($$anchor4, fragment_6);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_7, ($$render) => {
+          if (get(pending2)) $$render(consequent_6);
+        });
+      }
+      var div_4 = sibling(node_7, 2);
+      var div_5 = child(div_4);
+      var input = sibling(child(div_5), 2);
+      remove_input_defaults(input);
+      var p_2 = sibling(input, 2);
+      var code = sibling(child(p_2));
+      var text_7 = only_child(code);
+      next();
+      reset(p_2);
+      reset(div_5);
+      var div_6 = sibling(div_5, 2);
+      var select = sibling(child(div_6), 2);
+      each(select, 21, () => get(objectiveChoices), index, ($$anchor3, id) => {
+        var option = root_78();
+        var text_8 = only_child(option, true);
+        var option_value = {};
+        template_effect(() => {
+          set_text(text_8, get(id));
+          if (option_value !== (option_value = get(id))) {
+            option.value = (option.__value = option_value) ?? "";
+          }
+        });
+        append2($$anchor3, option);
+      });
+      reset(select);
+      init_select(select);
+      reset(div_6);
+      reset(div_4);
+      var fieldset = sibling(div_4, 2);
+      var div_7 = child(fieldset);
+      var button_3 = sibling(child(div_7), 2);
+      var node_8 = child(button_3);
+      Icon(node_8, { name: "plus", size: 14 });
+      next();
+      reset(button_3);
+      reset(div_7);
+      var node_9 = sibling(div_7, 4);
+      {
+        var consequent_7 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "warn",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var fragment_8 = root_88();
+              var text_9 = first_child(fragment_8);
+              next(4);
+              template_effect(() => set_text(text_9, `This repository's eval rig ${get(rig).installed ? `is ${get(rig).installed}, which is` : "names no version, so it is"} older than 1.2.0 and does not enforce this list yet: it runs whatever command a step names.
+            Upgrade it by copying the plugin's `));
+              append2($$anchor4, fragment_8);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_9, ($$render) => {
+          if (get(rig) && !get(rig).enforces_commands) $$render(consequent_7);
+        });
+      }
+      var node_10 = sibling(node_9, 2);
+      {
+        var consequent_9 = ($$anchor3) => {
+          var fragment_9 = root_1112();
+          var ul = first_child(fragment_9);
+          each(ul, 21, () => get(form).commands, index, ($$anchor4, _, i) => {
+            var li = root_108();
+            var div_8 = child(li);
+            var span_2 = child(div_8);
+            var node_11 = child(span_2);
+            Icon(node_11, { name: "terminal", size: 14 });
+            reset(span_2);
+            var input_1 = sibling(span_2, 2);
+            remove_input_defaults(input_1);
+            set_attribute2(input_1, "aria-label", `Command ${i + 1}`);
+            var button_4 = sibling(input_1, 2);
+            set_attribute2(button_4, "aria-label", `Remove command ${i + 1}`);
+            var node_12 = child(button_4);
+            Icon(node_12, { name: "x", size: 14 });
+            reset(button_4);
+            reset(div_8);
+            var node_13 = sibling(div_8, 2);
+            {
+              var consequent_8 = ($$anchor5) => {
+                var p_3 = root_98();
+                var text_10 = only_child(p_3, true);
+                template_effect(() => set_text(text_10, get(parsed)[i].error));
+                append2($$anchor5, p_3);
+              };
+              if_block(node_13, ($$render) => {
+                if (get(parsed)[i]?.error) $$render(consequent_8);
+              });
+            }
+            reset(li);
+            template_effect(() => set_attribute2(input_1, "aria-invalid", get(parsed)[i]?.error ? "true" : void 0));
+            bind_value(input_1, () => get(form).commands[i], ($$value) => get(form).commands[i] = $$value);
+            delegated("click", button_4, () => removeCommand(i));
+            append2($$anchor4, li);
+          });
+          reset(ul);
+          next(2);
+          append2($$anchor3, fragment_9);
+        };
+        var alternate_2 = ($$anchor3) => {
+          var p_4 = root_1210();
+          var node_14 = child(p_4);
+          Icon(node_14, { name: "eye", size: 13 });
+          next();
+          reset(p_4);
+          append2($$anchor3, p_4);
+        };
+        if_block(node_10, ($$render) => {
+          if (get(form).commands.length) $$render(consequent_9);
+          else $$render(alternate_2, -1);
+        });
+      }
+      reset(fieldset);
+      var fieldset_1 = sibling(fieldset, 2);
+      var div_9 = child(fieldset_1);
+      var button_5 = sibling(child(div_9), 2);
+      var node_15 = child(button_5);
+      Icon(node_15, { name: "plus", size: 14 });
+      next();
+      reset(button_5);
+      reset(div_9);
+      var ul_1 = sibling(div_9, 2);
+      each(ul_1, 21, () => get(form).steps, index, ($$anchor3, step, i) => {
+        const info = user_derived(() => get(byName).get(get(step).evaluator));
+        const trust = user_derived(() => TRUST[get(info)?.trust ?? ""]);
+        var li_1 = root_157();
+        var div_10 = child(li_1);
+        var input_2 = child(div_10);
+        remove_input_defaults(input_2);
+        set_attribute2(input_2, "aria-label", `Step ${i + 1} id`);
+        var button_6 = sibling(input_2, 2);
+        var node_16 = child(button_6);
+        Icon(node_16, { name: "trash", size: 13 });
+        reset(button_6);
+        reset(div_10);
+        var div_11 = sibling(div_10, 2);
+        var div_12 = child(div_11);
+        var label = child(div_12);
+        set_attribute2(label, "for", `step-evaluator-${i}`);
+        var select_1 = sibling(label, 2);
+        set_attribute2(select_1, "id", `step-evaluator-${i}`);
+        var node_17 = child(select_1);
+        {
+          var consequent_10 = ($$anchor4) => {
+            var option_1 = root_78();
+            var text_11 = only_child(option_1, true);
+            var option_1_value = {};
+            template_effect(() => {
+              set_text(text_11, get(step).evaluator);
+              if (option_1_value !== (option_1_value = get(step).evaluator)) {
+                option_1.value = (option_1.__value = option_1_value) ?? "";
+              }
+            });
+            append2($$anchor4, option_1);
+          };
+          if_block(node_17, ($$render) => {
+            if (!get(info)) $$render(consequent_10);
+          });
+        }
+        var node_18 = sibling(node_17);
+        each(node_18, 17, () => get(evaluators), index, ($$anchor4, e) => {
+          var option_2 = root_78();
+          var text_12 = only_child(option_2, true);
+          var option_2_value = {};
+          template_effect(() => {
+            set_text(text_12, get(e).name);
+            if (option_2_value !== (option_2_value = get(e).name)) {
+              option_2.value = (option_2.__value = option_2_value) ?? "";
+            }
+          });
+          append2($$anchor4, option_2);
+        });
+        reset(select_1);
+        var select_1_value;
+        init_select(select_1);
+        reset(div_12);
+        var div_13 = sibling(div_12, 2);
+        var label_1 = child(div_13);
+        set_attribute2(label_1, "for", `step-threshold-${i}`);
+        var input_3 = sibling(label_1);
+        remove_input_defaults(input_3);
+        set_attribute2(input_3, "id", `step-threshold-${i}`);
+        reset(div_13);
+        var label_2 = sibling(div_13, 2);
+        var input_4 = child(label_2);
+        remove_input_defaults(input_4);
+        next();
+        reset(label_2);
+        reset(div_11);
+        var p_5 = sibling(div_11, 2);
+        var node_19 = child(p_5);
+        {
+          var consequent_11 = ($$anchor4) => {
+            Pill($$anchor4, {
+              get tone() {
+                return get(trust).tone;
+              },
+              plain: true,
+              children: ($$anchor5, $$slotProps) => {
+                var fragment_11 = root_138();
+                var node_20 = first_child(fragment_11);
+                Icon(node_20, {
+                  get name() {
+                    return get(trust).icon;
+                  },
+                  size: 12
+                });
+                var text_13 = sibling(node_20, 1, true);
+                template_effect(() => set_text(text_13, get(trust).text));
+                append2($$anchor5, fragment_11);
+              },
+              $$slots: { default: true }
+            });
+          };
+          if_block(node_19, ($$render) => {
+            if (get(trust)) $$render(consequent_11);
+          });
+        }
+        var text_14 = sibling(node_19);
+        reset(p_5);
+        var node_21 = sibling(p_5, 2);
+        {
+          var consequent_13 = ($$anchor4) => {
+            var div_14 = root_148();
+            var label_3 = child(div_14);
+            set_attribute2(label_3, "for", `step-command-${i}`);
+            var select_2 = sibling(label_3, 2);
+            set_attribute2(select_2, "id", `step-command-${i}`);
+            var node_22 = child(select_2);
+            {
+              var consequent_12 = ($$anchor5) => {
+                var option_3 = root_78();
+                var text_15 = only_child(option_3, true);
+                var option_3_value = {};
+                template_effect(() => {
+                  set_text(text_15, get(step).command || "Declare a command first");
+                  if (option_3_value !== (option_3_value = get(step).command)) {
+                    option_3.value = (option_3.__value = option_3_value) ?? "";
+                  }
+                });
+                append2($$anchor5, option_3);
+              };
+              var d = user_derived(() => !get(declared).includes(get(step).command));
+              if_block(node_22, ($$render) => {
+                if (get(d)) $$render(consequent_12);
+              });
+            }
+            var node_23 = sibling(node_22);
+            each(node_23, 17, () => get(declared), index, ($$anchor5, command) => {
+              var option_4 = root_78();
+              var text_16 = only_child(option_4, true);
+              var option_4_value = {};
+              template_effect(() => {
+                set_text(text_16, get(command));
+                if (option_4_value !== (option_4_value = get(command))) {
+                  option_4.value = (option_4.__value = option_4_value) ?? "";
+                }
+              });
+              append2($$anchor5, option_4);
+            });
+            reset(select_2);
+            init_select(select_2);
+            next(2);
+            reset(div_14);
+            template_effect(($0) => set_attribute2(select_2, "aria-invalid", $0), [
+              () => !get(declared).includes(get(step).command) ? "true" : void 0
+            ]);
+            bind_select_value(select_2, () => get(step).command, ($$value) => get(step).command = $$value);
+            append2($$anchor4, div_14);
+          };
+          if_block(node_21, ($$render) => {
+            if (get(info)?.command_field) $$render(consequent_13);
+          });
+        }
+        var div_15 = sibling(node_21, 2);
+        var label_4 = child(div_15);
+        set_attribute2(label_4, "for", `step-settings-${i}`);
+        var textarea = sibling(label_4, 2);
+        remove_textarea_child(textarea);
+        set_attribute2(textarea, "id", `step-settings-${i}`);
+        reset(div_15);
+        reset(li_1);
+        template_effect(
+          ($0) => {
+            button_6.disabled = get(form).steps.length === 1;
+            set_attribute2(button_6, "aria-label", `Remove step ${get(step).id ?? ""}`);
+            if (select_1_value !== (select_1_value = get(step).evaluator)) {
+              select_1.value = (select_1.__value = select_1_value) ?? "", select_option(select_1, select_1_value);
+            }
+            set_text(text_14, ` ${get(info)?.description ?? "Not in this eval's registries." ?? ""}`);
+            set_attribute2(textarea, "rows", $0);
+          },
+          [
+            () => Math.min(6, Math.max(2, (get(step).settings ?? "").split("\n").length))
+          ]
+        );
+        bind_value(input_2, () => get(step).id, ($$value) => get(step).id = $$value);
+        delegated("click", button_6, () => get(form).steps.splice(i, 1));
+        delegated("change", select_1, (e) => setEvaluator(get(step), e.currentTarget.value));
+        bind_value(input_3, () => get(step).threshold, ($$value) => get(step).threshold = $$value);
+        bind_checked(input_4, () => get(step).required, ($$value) => get(step).required = $$value);
+        bind_value(textarea, () => get(step).settings, ($$value) => get(step).settings = $$value);
+        append2($$anchor3, li_1);
+      });
+      reset(ul_1);
+      var node_24 = sibling(ul_1, 2);
+      {
+        var consequent_14 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "warn",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_17 = text();
+              template_effect(($0) => set_text(text_17, `${$0 ?? ""} ${get(undeclared).length === 1 ? "runs" : "run"} no declared command. Declare one above, then pick it.`), [() => get(undeclared).map((s) => s.id).join(", ")]);
+              append2($$anchor4, text_17);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_24, ($$render) => {
+          if (get(undeclared).length) $$render(consequent_14);
+        });
+      }
+      reset(fieldset_1);
+      var div_16 = sibling(fieldset_1, 2);
+      var div_17 = child(div_16);
+      var input_5 = sibling(child(div_17));
+      remove_input_defaults(input_5);
+      reset(div_17);
+      var label_5 = sibling(div_17, 2);
+      var input_6 = child(label_5);
+      remove_input_defaults(input_6);
+      next();
+      reset(label_5);
+      reset(div_16);
+      var div_18 = sibling(div_16, 2);
+      var node_25 = sibling(child(div_18), 2);
+      {
+        let $0 = user_derived(() => get(declared).map((c) => splitArgv(c).argv));
+        RunsList(node_25, {
+          get before() {
+            return get(loaded).suite.commands;
+          },
+          get after() {
+            return get($0);
+          }
+        });
+      }
+      reset(div_18);
+      var node_26 = sibling(div_18, 2);
+      {
+        var consequent_15 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_18 = text();
+              template_effect(() => set_text(text_18, get(error)));
+              append2($$anchor4, text_18);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_26, ($$render) => {
+          if (get(error)) $$render(consequent_15);
+        });
+      }
+      reset(div_3);
+      var div_19 = sibling(div_3, 2);
+      var node_27 = child(div_19);
+      {
+        var consequent_16 = ($$anchor3) => {
+          var button_7 = root_167();
+          var node_28 = child(button_7);
+          Icon(node_28, { name: "trash", size: 13 });
+          next();
+          reset(button_7);
+          template_effect(() => button_7.disabled = get(busy));
+          delegated("click", button_7, askDelete);
+          append2($$anchor3, button_7);
+        };
+        if_block(node_27, ($$render) => {
+          if ($$props.file) $$render(consequent_16);
+        });
+      }
+      var button_8 = sibling(node_27, 4);
+      var button_9 = sibling(button_8, 2);
+      var text_19 = only_child(button_9, true);
+      reset(div_19);
+      template_effect(
+        ($0) => {
+          input.readOnly = $0;
+          set_text(text_7, `suites/${$$props.file ?? `${get(form).id}.yaml` ?? ""}`);
+          button_9.disabled = get(busy) || !get(dirty) || get(commandProblem) || get(undeclared).length > 0;
+          set_text(text_19, get(busy) ? "Checking\u2026" : "Review change");
+        },
+        [() => Boolean($$props.file)]
+      );
+      bind_value(input, () => get(form).id, ($$value) => get(form).id = $$value);
+      bind_select_value(select, () => get(form).objective, ($$value) => get(form).objective = $$value);
+      delegated("click", button_3, () => get(form).commands.push(""));
+      delegated("click", button_5, addStep);
+      bind_value(input_5, () => get(form).threshold, ($$value) => get(form).threshold = $$value);
+      bind_checked(input_6, () => get(form).require_all_required, ($$value) => get(form).require_all_required = $$value);
+      delegated("click", button_8, () => leave($$props.onclose));
+      delegated("click", button_9, review);
+      append2($$anchor2, fragment_4);
+    };
+    var alternate_4 = ($$anchor2) => {
+      var fragment_16 = root_204();
+      var div_20 = first_child(fragment_16);
+      var p_6 = child(div_20);
+      var text_20 = only_child(p_6);
+      var div_21 = sibling(p_6, 2);
+      var node_29 = sibling(child(div_21), 2);
+      RunsList(node_29, {
+        get before() {
+          return get(shown).runs.before;
+        },
+        get after() {
+          return get(shown).runs.after;
+        }
+      });
+      reset(div_21);
+      var div_22 = sibling(div_21, 2);
+      var textarea_1 = sibling(child(div_22), 2);
+      remove_textarea_child(textarea_1);
+      reset(div_22);
+      var node_30 = sibling(div_22, 2);
+      each(node_30, 17, () => get(shown).files, index, ($$anchor3, change) => {
+        {
+          let $0 = user_derived(() => get(change).current ?? "");
+          let $1 = user_derived(() => get(change).proposed ?? "");
+          Diff($$anchor3, {
+            get current() {
+              return get($0);
+            },
+            get proposed() {
+              return get($1);
+            },
+            get path() {
+              return get(change).path;
+            }
+          });
+        }
+      });
+      var node_31 = sibling(node_30, 2);
+      {
+        var consequent_18 = ($$anchor3) => {
+          Notice($$anchor3, {
+            tone: "bad",
+            children: ($$anchor4, $$slotProps) => {
+              next();
+              var text_21 = text();
+              template_effect(() => set_text(text_21, get(error)));
+              append2($$anchor4, text_21);
+            },
+            $$slots: { default: true }
+          });
+        };
+        if_block(node_31, ($$render) => {
+          if (get(error)) $$render(consequent_18);
+        });
+      }
+      reset(div_20);
+      var div_23 = sibling(div_20, 2);
+      var button_10 = sibling(child(div_23), 2);
+      var node_32 = sibling(button_10, 2);
+      {
+        var consequent_19 = ($$anchor3) => {
+          var button_11 = root_186();
+          var node_33 = child(button_11);
+          Icon(node_33, { name: "trash", size: 13 });
+          var text_22 = sibling(node_33, 1, true);
+          reset(button_11);
+          template_effect(() => {
+            button_11.disabled = get(busy);
+            set_text(text_22, get(busy) ? "Filing\u2026" : "File deletion");
+          });
+          delegated("click", button_11, fileDeletion);
+          append2($$anchor3, button_11);
+        };
+        var alternate_3 = ($$anchor3) => {
+          var button_12 = root_196();
+          var text_23 = only_child(button_12, true);
+          template_effect(() => {
+            button_12.disabled = get(busy);
+            set_text(text_23, get(busy) ? "Filing\u2026" : "File proposal");
+          });
+          delegated("click", button_12, fileEdit);
+          append2($$anchor3, button_12);
+        };
+        if_block(node_32, ($$render) => {
+          if (get(stage) === "delete") $$render(consequent_19);
+          else $$render(alternate_3, -1);
+        });
+      }
+      reset(div_23);
+      template_effect(() => set_text(text_20, `This files a proposal. ${get(stage) === "delete" ? "Nothing is deleted" : "The eval does not change"} until you approve it on Proposals, and approving writes exactly what is shown here.`));
+      bind_value(textarea_1, () => get(reason), ($$value) => set(reason, $$value));
+      delegated("click", button_10, () => {
+        set(stage, "edit");
+      });
+      append2($$anchor2, fragment_16);
+    };
+    if_block(node_5, ($$render) => {
+      if (!get(form)) $$render(consequent_5);
+      else if (get(stage) === "edit") $$render(consequent_17, 1);
+      else $$render(alternate_4, -1);
+    });
+  }
+  reset(section);
+  delegated("click", button_2, () => leave($$props.onclose));
+  append2($$anchor, section);
+  pop();
+}
+delegate(["click", "change"]);
+
 // ../ui/src/routes/objectives/+page.svelte
-var root16 = from_html(`<p class="empty small">Loading\u2026</p>`);
-var root_121 = from_html(`<div class="empty"><strong>No objectives declared.</strong> Add them to <code>.harness/objectives.yaml</code>, or name one in a suite under <code>.harness/evals/suites/</code>.</div>`);
-var root_214 = from_html(`<p class="muted prose"> </p>`);
-var root_313 = from_html(`<li> </li>`);
-var root_413 = from_html(`<details><summary class="small muted">Success criteria</summary> <ul class="small" style="margin-top:6px"></ul></details>`);
-var root_513 = from_html(`<div class="small"> </div>`);
-var root_611 = from_html(`<li class="objective svelte-1ai8zh7"><div class="grow stack" style="gap:6px"><div class="row"><h2 class="mono" style="font-size:14px"> </h2> <!> <!> <!></div> <!> <p class="small faint"> <!> <!></p> <!></div> <div class="reading svelte-1ai8zh7"><!> <div style="text-align:right"><div class="stat-value"> </div> <!></div></div></li>`);
-var root_77 = from_html(`<ul class="list"></ul>`);
-var root_87 = from_html(`<p class="empty small">None yet. A skill applied from a proposal gets a <code>.improve.json</code> record beside it, and its use shows here.</p>`);
-var root_97 = from_html(`<tr><td class="mono small"> </td><td class="num"> </td><td class="num"> </td><td class="small num"> </td><td class="small faint"> </td><td class="small faint"> </td></tr>`);
-var root_107 = from_html(`<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Used</th><th>Read</th><th>Revisions</th><th>From</th><th>Last used</th></tr></thead><tbody></tbody></table></div> <p class="small faint panel-body" style="border-top:1px solid var(--border)">Used counts invocations; read counts reads of the file. Being read is not being followed, and neither shows the skill helped.</p>`, 1);
-var root_1111 = from_html(`<div class="page-head"><div><h1>Objectives</h1> <p>What this harness is supposed to be good at, and how its last readings went. A score shows a trend; it cannot prove a harness change caused it.</p></div></div> <div class="stack" style="gap:16px"><!> <section class="panel"><!></section> <section class="panel"><div class="panel-head"><h2>Skills applied from this page</h2></div> <!></section></div>`, 1);
-var $$css7 = {
-  hash: "svelte-1ai8zh7",
-  code: ".objective.svelte-1ai8zh7 {display:flex;gap:24px;padding:16px;align-items:flex-start;}.reading.svelte-1ai8zh7 {display:flex;align-items:center;gap:16px;flex:none;}\n  @media (max-width: 700px) {.objective.svelte-1ai8zh7 {flex-direction:column;} }"
+var root19 = from_html(` <a>Open it</a>`, 1);
+var root_131 = from_html(`<p> <!></p>`);
+var root_217 = from_html(`<p class="empty small">Loading\u2026</p>`);
+var root_315 = from_html(`<div class="empty"><strong>No objectives declared.</strong> An objective names something this harness should be good at. Add one with <strong>New objective</strong>, or in <code>.harness/objectives.yaml</code>.</div>`);
+var root_415 = from_html(`<a><!></a>`);
+var root_515 = from_html(`<p class="muted prose"> </p>`);
+var root_614 = from_html(`\xB7 runs <span class="mono"> </span>`, 1);
+var root_79 = from_html(`<li> </li>`);
+var root_89 = from_html(`<details><summary class="small muted">Success criteria</summary> <ul class="small" style="margin-top:6px"></ul></details>`);
+var root_99 = from_html(`<div class="small"> </div>`);
+var root_109 = from_html(`<div class="reading svelte-7frr3z"><!> <div style="text-align:right"><div class="stat-value"> </div> <!></div></div>`);
+var root_1113 = from_html(`<li class="objective svelte-7frr3z"><div class="grow stack" style="gap:6px"><div class="row"><h2 class="mono" style="font-size:14px"> </h2> <!> <!> <!> <!></div> <!> <p class="small faint"> <!> <!> <!></p> <!></div> <!> <button class="ghost small"><!> </button></li>`);
+var root_1211 = from_html(`<ul class="list"></ul>`);
+var root_139 = from_html(`<p class="empty small">None yet. A skill applied from a proposal gets a <code>.improve.json</code> record beside it, and its use shows here.</p>`);
+var root_149 = from_html(`<tr><td class="mono small"> </td><td class="num"> </td><td class="num"> </td><td class="small num"> </td><td class="small faint"> </td><td class="small faint"> </td></tr>`);
+var root_158 = from_html(`<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Used</th><th>Read</th><th>Revisions</th><th>From</th><th>Last used</th></tr></thead><tbody></tbody></table></div> <p class="small faint panel-body" style="border-top:1px solid var(--border)">Used counts invocations; read counts reads of the file. Being read is not being followed, and neither shows the skill helped.</p>`, 1);
+var root_168 = from_html(`<div class="page-head"><div><h1>Objectives</h1> <p>What this harness is supposed to be good at, the evals that measure it, and how its last readings went. A score shows a trend; it cannot prove a harness change caused it.</p></div> <button class="primary"><!>New objective</button></div> <div class="stack" style="gap:16px"><!> <!> <div><section class="panel"><!></section> <!></div> <section class="panel"><div class="panel-head"><h2>Skills applied from this page</h2></div> <!></section></div>`, 1);
+var $$css9 = {
+  hash: "svelte-7frr3z",
+  code: '.objective.svelte-7frr3z {display:flex;gap:24px;padding:16px;align-items:flex-start;}.objective[aria-current="true"].svelte-7frr3z {background:var(--accent-soft);}.editing.svelte-7frr3z {grid-template-columns:minmax(0, 1fr) minmax(0, 1.25fr);align-items:start;}\n  @media (max-width: 1100px) {.editing.svelte-7frr3z {grid-template-columns:1fr;} }.reading.svelte-7frr3z {display:flex;align-items:center;gap:16px;flex:none;}\n  @media (max-width: 700px) {.objective.svelte-7frr3z {flex-direction:column;} }'
 };
 function _page5($$anchor, $$props) {
   push($$props, true);
-  append_styles($$anchor, $$css7);
-  let objectives = state(proxy([]));
+  append_styles($$anchor, $$css9);
+  let objectives = state(proxy(
+    /** @type {any[]} */
+    []
+  ));
+  let suites = state(proxy(
+    /** @type {any[]} */
+    []
+  ));
   let skills = state(proxy([]));
   let cover = state(null);
   let loading = state(true);
-  user_effect(() => {
-    Promise.all([
+  let editing = state(
+    /** @type {Editing | null} */
+    null
+  );
+  let done = state(
+    /** @type {{ text: string, proposal?: string } | null} */
+    null
+  );
+  function load() {
+    return Promise.all([
       api("/api/objectives").catch(() => ({})),
+      api("/api/suites").catch(() => ({})),
       api("/api/skills").catch(() => ({})),
       api("/api/coverage").catch(() => null)
-    ]).then(([o, s, c]) => {
+    ]).then(([o, su, s, c]) => {
       set(objectives, o.objectives ?? [], true);
+      set(suites, su.suites ?? [], true);
       set(skills, s.skills ?? [], true);
       set(cover, c, true);
       set(loading, false);
     });
+  }
+  user_effect(() => {
+    load();
   });
+  function waiting2(kind, id) {
+    const kinds = kind === "objective" ? ["delete-objective"] : ["edit-eval", "add-eval", "delete-eval"];
+    return summary.proposals.find((p) => p.harness_edit && kinds.includes(p.harness_edit.kind) && p.harness_edit.target === id && waiting(p)) ?? null;
+  }
+  const suitesOf = (id) => get(suites).filter((s) => s.objective_id === id);
+  const editedId = user_derived(() => get(editing)?.kind === "objective" ? get(editing).id : null);
+  const editedObjective = user_derived(() => get(editedId) ? get(objectives).find((o) => o.id === get(editedId)) ?? null : null);
+  const current = user_derived(() => get(editing) ? get(editing).kind === "objective" ? get(editing).id : get(editing).objective : null);
+  async function saved(text2) {
+    set(editing, null);
+    set(done, { text: text2 }, true);
+    await load();
+  }
+  async function filed(proposal, text2) {
+    set(editing, null);
+    set(done, { text: text2, proposal }, true);
+    await Promise.all([load(), refreshSummary()]);
+  }
   function trendWords(trend) {
     if (trend === null) return null;
     if (trend === 0) return { text: "no change", tone: "" };
     return trend > 0 ? { text: `up ${trend.toFixed(2)}`, tone: "ok" } : { text: `down ${Math.abs(trend).toFixed(2)}`, tone: "bad" };
   }
-  var fragment = root_1111();
-  var div = sibling(first_child(fragment), 2);
-  var node = child(div);
+  var fragment = root_168();
+  var div = first_child(fragment);
+  var button = sibling(child(div), 2);
+  var node = child(button);
+  Icon(node, { name: "plus", size: 14 });
+  next();
+  reset(button);
+  reset(div);
+  var div_1 = sibling(div, 2);
+  var node_1 = child(div_1);
   {
-    var consequent = ($$anchor2) => {
+    var consequent_1 = ($$anchor2) => {
+      Notice($$anchor2, {
+        tone: "ok",
+        children: ($$anchor3, $$slotProps) => {
+          var p_1 = root_131();
+          var text_1 = child(p_1, true);
+          var node_2 = sibling(text_1);
+          {
+            var consequent = ($$anchor4) => {
+              var fragment_2 = root19();
+              var text_2 = first_child(fragment_2, true);
+              text_2.nodeValue = " ";
+              var a = sibling(text_2);
+              template_effect(($0) => set_attribute2(a, "href", `#/proposals?p=${$0 ?? ""}`), [() => encodeURIComponent(get(done).proposal)]);
+              append2($$anchor4, fragment_2);
+            };
+            if_block(node_2, ($$render) => {
+              if (get(done).proposal) $$render(consequent);
+            });
+          }
+          reset(p_1);
+          template_effect(() => set_text(text_1, get(done).text));
+          append2($$anchor3, p_1);
+        },
+        $$slots: { default: true }
+      });
+    };
+    if_block(node_1, ($$render) => {
+      if (get(done)) $$render(consequent_1);
+    });
+  }
+  var node_3 = sibling(node_1, 2);
+  {
+    var consequent_2 = ($$anchor2) => {
       Notice($$anchor2, {
         tone: "warn",
         children: ($$anchor3, $$slotProps) => {
           next();
-          var text2 = text();
+          var text_3 = text();
           template_effect(
-            ($0, $1) => set_text(text2, `${$0 ?? ""} no suite, so nothing measures
+            ($0, $1) => set_text(text_3, `${$0 ?? ""} no suite, so nothing measures
       ${get(cover).uncovered.length === 1 ? "it" : "them"}: ${$1 ?? ""}.`),
             [
               () => plural2(get(cover).uncovered.length, "objective has", "objectives have"),
               () => get(cover).uncovered.join(", ")
             ]
           );
-          append2($$anchor3, text2);
+          append2($$anchor3, text_3);
         },
         $$slots: { default: true }
       });
     };
-    if_block(node, ($$render) => {
-      if (get(cover)?.uncovered?.length) $$render(consequent);
+    if_block(node_3, ($$render) => {
+      if (get(cover)?.uncovered?.length) $$render(consequent_2);
     });
   }
-  var section = sibling(node, 2);
-  var node_1 = child(section);
+  var div_2 = sibling(node_3, 2);
+  let classes;
+  var section = child(div_2);
+  var node_4 = child(section);
   {
-    var consequent_1 = ($$anchor2) => {
-      var p = root16();
-      append2($$anchor2, p);
+    var consequent_3 = ($$anchor2) => {
+      var p_2 = root_217();
+      append2($$anchor2, p_2);
     };
-    var consequent_2 = ($$anchor2) => {
-      var div_1 = root_121();
-      append2($$anchor2, div_1);
+    var consequent_4 = ($$anchor2) => {
+      var div_3 = root_315();
+      append2($$anchor2, div_3);
     };
     var alternate = ($$anchor2) => {
-      var ul = root_77();
-      each(ul, 21, () => get(objectives), (objective) => objective.id, ($$anchor3, objective) => {
+      var ul = root_1211();
+      each(ul, 21, () => get(objectives), (objective) => objective.id, ($$anchor3, objective, $$index_1, $$array) => {
         const t = user_derived(() => trendWords(get(objective).trend));
-        var li = root_611();
-        var div_2 = child(li);
-        var div_3 = child(div_2);
-        var h2 = child(div_3);
-        var text_1 = only_child(h2, true);
-        var node_2 = sibling(h2, 2);
+        const runs = user_derived(() => suitesOf(get(objective).id).flatMap((suite) => suite.commands ?? []));
+        const filed2 = user_derived(() => waiting2("objective", get(objective).id) ?? get(objective).suites.map((id) => waiting2("suite", id)).find(Boolean));
+        var li = root_1113();
+        var div_4 = child(li);
+        var div_5 = child(div_4);
+        var h2 = child(div_5);
+        var text_4 = only_child(h2, true);
+        var node_5 = sibling(h2, 2);
         {
-          var consequent_3 = ($$anchor4) => {
+          var consequent_5 = ($$anchor4) => {
             {
               let $0 = user_derived(() => get(objective).regime === "observed" ? "Graded from what happened; one reading per run" : "A fixed task that can be re-run");
               Pill($$anchor4, {
@@ -13955,214 +16060,381 @@ function _page5($$anchor, $$props) {
                 },
                 children: ($$anchor5, $$slotProps) => {
                   next();
-                  var text_2 = text();
-                  template_effect(() => set_text(text_2, get(objective).regime));
-                  append2($$anchor5, text_2);
+                  var text_5 = text();
+                  template_effect(() => set_text(text_5, get(objective).regime));
+                  append2($$anchor5, text_5);
                 },
                 $$slots: { default: true }
               });
             }
           };
-          if_block(node_2, ($$render) => {
-            if (get(objective).regime) $$render(consequent_3);
+          if_block(node_5, ($$render) => {
+            if (get(objective).regime) $$render(consequent_5);
           });
         }
-        var node_3 = sibling(node_2, 2);
+        var node_6 = sibling(node_5, 2);
         {
-          var consequent_4 = ($$anchor4) => {
+          var consequent_6 = ($$anchor4) => {
             Pill($$anchor4, {
               tone: "warn",
               title: "Declared inside a suite, not in .harness/objectives.yaml",
               children: ($$anchor5, $$slotProps) => {
                 next();
-                var text_3 = text("Not registered");
-                append2($$anchor5, text_3);
+                var text_6 = text("Not registered");
+                append2($$anchor5, text_6);
               },
               $$slots: { default: true }
             });
-          };
-          if_block(node_3, ($$render) => {
-            if (!get(objective).registered) $$render(consequent_4);
-          });
-        }
-        var node_4 = sibling(node_3, 2);
-        {
-          var consequent_5 = ($$anchor4) => {
-            Pill($$anchor4, {
-              tone: "bad",
-              children: ($$anchor5, $$slotProps) => {
-                next();
-                var text_4 = text("No suite");
-                append2($$anchor5, text_4);
-              },
-              $$slots: { default: true }
-            });
-          };
-          var consequent_6 = ($$anchor4) => {
-            Pill($$anchor4, {
-              children: ($$anchor5, $$slotProps) => {
-                next();
-                var text_5 = text("Not measured yet");
-                append2($$anchor5, text_5);
-              },
-              $$slots: { default: true }
-            });
-          };
-          if_block(node_4, ($$render) => {
-            if (!get(objective).covered) $$render(consequent_5);
-            else if (!get(objective).encountered) $$render(consequent_6, 1);
-          });
-        }
-        reset(div_3);
-        var node_5 = sibling(div_3, 2);
-        {
-          var consequent_7 = ($$anchor4) => {
-            var p_1 = root_214();
-            var text_6 = only_child(p_1, true);
-            template_effect(() => set_text(text_6, get(objective).description));
-            append2($$anchor4, p_1);
-          };
-          if_block(node_5, ($$render) => {
-            if (get(objective).description) $$render(consequent_7);
-          });
-        }
-        var p_2 = sibling(node_5, 2);
-        var text_7 = child(p_2);
-        var node_6 = sibling(text_7);
-        {
-          var consequent_8 = ($$anchor4) => {
-            var text_8 = text();
-            template_effect(() => set_text(text_8, `\xB7 owner ${get(objective).owner ?? ""}`));
-            append2($$anchor4, text_8);
           };
           if_block(node_6, ($$render) => {
-            if (get(objective).owner) $$render(consequent_8);
+            if (!get(objective).registered) $$render(consequent_6);
           });
         }
         var node_7 = sibling(node_6, 2);
         {
-          var consequent_9 = ($$anchor4) => {
-            var text_9 = text();
-            template_effect(($0) => set_text(text_9, `\xB7 last ${$0 ?? ""}`), [() => ago(get(objective).latest.occurred_at)]);
-            append2($$anchor4, text_9);
+          var consequent_7 = ($$anchor4) => {
+            Pill($$anchor4, {
+              tone: "bad",
+              children: ($$anchor5, $$slotProps) => {
+                next();
+                var text_7 = text("No suite");
+                append2($$anchor5, text_7);
+              },
+              $$slots: { default: true }
+            });
+          };
+          var consequent_8 = ($$anchor4) => {
+            Pill($$anchor4, {
+              children: ($$anchor5, $$slotProps) => {
+                next();
+                var text_8 = text("Not measured yet");
+                append2($$anchor5, text_8);
+              },
+              $$slots: { default: true }
+            });
           };
           if_block(node_7, ($$render) => {
-            if (get(objective).latest) $$render(consequent_9);
+            if (!get(objective).covered) $$render(consequent_7);
+            else if (!get(objective).encountered) $$render(consequent_8, 1);
           });
         }
-        reset(p_2);
-        var node_8 = sibling(p_2, 2);
+        var node_8 = sibling(node_7, 2);
+        {
+          var consequent_9 = ($$anchor4) => {
+            var a_1 = root_415();
+            var node_9 = child(a_1);
+            Pill(node_9, {
+              tone: "accent",
+              get title() {
+                return get(filed2).id;
+              },
+              children: ($$anchor5, $$slotProps) => {
+                next();
+                var text_9 = text("Change waiting");
+                append2($$anchor5, text_9);
+              },
+              $$slots: { default: true }
+            });
+            reset(a_1);
+            template_effect(($0) => set_attribute2(a_1, "href", `#/proposals?p=${$0 ?? ""}`), [() => encodeURIComponent(get(filed2).file)]);
+            append2($$anchor4, a_1);
+          };
+          if_block(node_8, ($$render) => {
+            if (get(filed2)) $$render(consequent_9);
+          });
+        }
+        reset(div_5);
+        var node_10 = sibling(div_5, 2);
         {
           var consequent_10 = ($$anchor4) => {
-            var details2 = root_413();
+            var p_3 = root_515();
+            var text_10 = only_child(p_3, true);
+            template_effect(() => set_text(text_10, get(objective).description));
+            append2($$anchor4, p_3);
+          };
+          if_block(node_10, ($$render) => {
+            if (get(objective).description) $$render(consequent_10);
+          });
+        }
+        var p_4 = sibling(node_10, 2);
+        var text_11 = child(p_4);
+        var node_11 = sibling(text_11);
+        {
+          var consequent_11 = ($$anchor4) => {
+            var fragment_10 = root_614();
+            var span = sibling(first_child(fragment_10));
+            var text_12 = only_child(span, true);
+            template_effect(($0) => set_text(text_12, $0), [() => get(runs).map(joinArgv).join(", ")]);
+            append2($$anchor4, fragment_10);
+          };
+          if_block(node_11, ($$render) => {
+            if (get(runs).length) $$render(consequent_11);
+          });
+        }
+        var node_12 = sibling(node_11, 2);
+        {
+          var consequent_12 = ($$anchor4) => {
+            var text_13 = text();
+            template_effect(() => set_text(text_13, `\xB7 owner ${get(objective).owner ?? ""}`));
+            append2($$anchor4, text_13);
+          };
+          if_block(node_12, ($$render) => {
+            if (get(objective).owner) $$render(consequent_12);
+          });
+        }
+        var node_13 = sibling(node_12, 2);
+        {
+          var consequent_13 = ($$anchor4) => {
+            var text_14 = text();
+            template_effect(($0) => set_text(text_14, `\xB7 last ${$0 ?? ""}`), [() => ago(get(objective).latest.occurred_at)]);
+            append2($$anchor4, text_14);
+          };
+          if_block(node_13, ($$render) => {
+            if (get(objective).latest) $$render(consequent_13);
+          });
+        }
+        reset(p_4);
+        var node_14 = sibling(p_4, 2);
+        {
+          var consequent_14 = ($$anchor4) => {
+            var details2 = root_89();
             var ul_1 = sibling(child(details2), 2);
             each(ul_1, 21, () => get(objective).success_criteria, index, ($$anchor5, criterion) => {
-              var li_1 = root_313();
-              var text_10 = only_child(li_1, true);
-              template_effect(() => set_text(text_10, get(criterion)));
+              var li_1 = root_79();
+              var text_15 = only_child(li_1, true);
+              template_effect(() => set_text(text_15, get(criterion)));
               append2($$anchor5, li_1);
             });
             reset(ul_1);
             reset(details2);
             append2($$anchor4, details2);
           };
-          if_block(node_8, ($$render) => {
-            if (get(objective).success_criteria?.length) $$render(consequent_10);
+          if_block(node_14, ($$render) => {
+            if (get(objective).success_criteria?.length) $$render(consequent_14);
           });
         }
-        reset(div_2);
-        var div_4 = sibling(div_2, 2);
-        var node_9 = child(div_4);
-        Trend(node_9, {
-          get history() {
-            return get(objective).history;
-          },
-          width: 140,
-          height: 36
-        });
-        var div_5 = sibling(node_9, 2);
-        var div_6 = child(div_5);
-        var text_11 = only_child(div_6, true);
-        var node_10 = sibling(div_6, 2);
-        {
-          var consequent_11 = ($$anchor4) => {
-            var div_7 = root_513();
-            var text_12 = only_child(div_7, true);
-            template_effect(() => {
-              set_style(div_7, `color:${get(t).tone ? `var(--${get(t).tone})` : "var(--text-3)"}`);
-              set_text(text_12, get(t).text);
-            });
-            append2($$anchor4, div_7);
-          };
-          if_block(node_10, ($$render) => {
-            if (get(t)) $$render(consequent_11);
-          });
-        }
-        reset(div_5);
         reset(div_4);
+        var node_15 = sibling(div_4, 2);
+        {
+          var consequent_16 = ($$anchor4) => {
+            var div_6 = root_109();
+            var node_16 = child(div_6);
+            Trend(node_16, {
+              get history() {
+                return get(objective).history;
+              },
+              width: 140,
+              height: 36
+            });
+            var div_7 = sibling(node_16, 2);
+            var div_8 = child(div_7);
+            var text_16 = only_child(div_8, true);
+            var node_17 = sibling(div_8, 2);
+            {
+              var consequent_15 = ($$anchor5) => {
+                var div_9 = root_99();
+                var text_17 = only_child(div_9, true);
+                template_effect(() => {
+                  set_style(div_9, `color:${get(t).tone ? `var(--${get(t).tone})` : "var(--text-3)"}`);
+                  set_text(text_17, get(t).text);
+                });
+                append2($$anchor5, div_9);
+              };
+              if_block(node_17, ($$render) => {
+                if (get(t)) $$render(consequent_15);
+              });
+            }
+            reset(div_7);
+            reset(div_6);
+            template_effect(
+              ($0) => {
+                set_style(div_8, `font-size:22px;color:${get(objective).latest ? get(objective).latest.success ? "var(--ok)" : "var(--bad)" : "var(--text-3)"}`);
+                set_text(text_16, $0);
+              },
+              [() => score(get(objective).latest?.score)]
+            );
+            append2($$anchor4, div_6);
+          };
+          if_block(node_15, ($$render) => {
+            if (!get(editing)) $$render(consequent_16);
+          });
+        }
+        var button_1 = sibling(node_15, 2);
+        var node_18 = child(button_1);
+        Icon(node_18, { name: "pencil", size: 13 });
+        var text_18 = sibling(node_18, 1, true);
+        reset(button_1);
         reset(li);
         template_effect(
-          ($0, $1, $2, $3) => {
+          ($0, $1, $2) => {
             set_attribute2(li, "id", get(objective).id);
-            set_text(text_1, get(objective).id);
-            set_text(text_7, `${$0 ?? ""} \xB7 ${$1 ?? ""}${$2 ?? ""} `);
-            set_style(div_6, `font-size:22px;color:${get(objective).latest ? get(objective).latest.success ? "var(--ok)" : "var(--bad)" : "var(--text-3)"}`);
-            set_text(text_11, $3);
+            set_attribute2(li, "aria-current", get(current) === get(objective).id ? "true" : void 0);
+            set_text(text_4, get(objective).id);
+            set_text(text_11, `${$0 ?? ""} \xB7 ${$1 ?? ""}${$2 ?? ""} `);
+            set_attribute2(button_1, "aria-label", `Edit ${get(objective).id ?? ""}`);
+            set_text(text_18, get(editing) ? "" : "Edit");
           },
           [
             () => plural2(get(objective).history.length, "reading"),
             () => plural2(get(objective).suites.length, "suite"),
-            () => get(objective).suites.length ? `: ${get(objective).suites.join(", ")}` : "",
-            () => score(get(objective).latest?.score)
+            () => get(objective).suites.length ? `: ${get(objective).suites.join(", ")}` : ""
           ]
         );
+        delegated("click", button_1, () => {
+          set(done, null);
+          set(editing, { kind: "objective", id: get(objective).id }, true);
+        });
         append2($$anchor3, li);
       });
       reset(ul);
       append2($$anchor2, ul);
     };
-    if_block(node_1, ($$render) => {
-      if (get(loading)) $$render(consequent_1);
-      else if (get(objectives).length === 0) $$render(consequent_2, 1);
+    if_block(node_4, ($$render) => {
+      if (get(loading)) $$render(consequent_3);
+      else if (get(objectives).length === 0) $$render(consequent_4, 1);
       else $$render(alternate, -1);
     });
   }
   reset(section);
-  var section_1 = sibling(section, 2);
-  var node_11 = sibling(child(section_1), 2);
+  var node_19 = sibling(section, 2);
   {
-    var consequent_12 = ($$anchor2) => {
-      var p_3 = root_87();
-      append2($$anchor2, p_3);
+    var consequent_17 = ($$anchor2) => {
+      var fragment_13 = comment();
+      var node_20 = first_child(fragment_13);
+      key(node_20, () => get(editing).id, ($$anchor3) => {
+        {
+          let $0 = user_derived(() => get(editing).id ? suitesOf(get(editing).id) : []);
+          ObjectiveEditor($$anchor3, {
+            get objective() {
+              return get(editedObjective);
+            },
+            get suites() {
+              return get($0);
+            },
+            waiting: waiting2,
+            onclose: () => {
+              set(editing, null);
+            },
+            onsaved: saved,
+            onfiled: filed,
+            oneditsuite: (file) => {
+              set(
+                editing,
+                {
+                  kind: "suite",
+                  file,
+                  objective: get(
+                    /** @type {string} */
+                    current
+                  ),
+                  from: get(current)
+                },
+                true
+              );
+            },
+            onnewsuite: () => {
+              set(
+                editing,
+                {
+                  kind: "suite",
+                  file: null,
+                  objective: get(
+                    /** @type {string} */
+                    current
+                  ),
+                  from: get(current)
+                },
+                true
+              );
+            }
+          });
+        }
+      });
+      append2($$anchor2, fragment_13);
+    };
+    var consequent_18 = ($$anchor2) => {
+      var fragment_15 = comment();
+      var node_21 = first_child(fragment_15);
+      key(node_21, () => `${get(editing).file}|${get(editing).objective}`, ($$anchor3) => {
+        {
+          let $0 = user_derived(() => get(objectives).map((o) => o.id));
+          let $1 = user_derived(() => get(editing).from ? () => {
+            set(
+              editing,
+              {
+                kind: "objective",
+                id: (
+                  /** @type {any} */
+                  get(editing).from
+                )
+              },
+              true
+            );
+          } : null);
+          SuiteEditor($$anchor3, {
+            get file() {
+              return get(editing).file;
+            },
+            get objective() {
+              return get(editing).objective;
+            },
+            get objectives() {
+              return get($0);
+            },
+            waiting: waiting2,
+            onclose: () => {
+              set(editing, null);
+            },
+            get onback() {
+              return get($1);
+            },
+            onfiled: filed
+          });
+        }
+      });
+      append2($$anchor2, fragment_15);
+    };
+    if_block(node_19, ($$render) => {
+      if (get(editing)?.kind === "objective") $$render(consequent_17);
+      else if (get(editing)?.kind === "suite") $$render(consequent_18, 1);
+    });
+  }
+  reset(div_2);
+  var section_1 = sibling(div_2, 2);
+  var node_22 = sibling(child(section_1), 2);
+  {
+    var consequent_19 = ($$anchor2) => {
+      var p_5 = root_139();
+      append2($$anchor2, p_5);
     };
     var alternate_1 = ($$anchor2) => {
-      var fragment_10 = root_107();
-      var div_8 = first_child(fragment_10);
-      var table = child(div_8);
+      var fragment_17 = root_158();
+      var div_10 = first_child(fragment_17);
+      var table = child(div_10);
       var tbody = sibling(child(table));
       each(tbody, 21, () => get(skills), index, ($$anchor3, skill) => {
-        var tr = root_97();
+        var tr = root_149();
         var td = child(tr);
-        var text_13 = only_child(td, true);
+        var text_19 = only_child(td, true);
         var td_1 = sibling(td);
-        var text_14 = only_child(td_1, true);
+        var text_20 = only_child(td_1, true);
         var td_2 = sibling(td_1);
-        var text_15 = only_child(td_2, true);
+        var text_21 = only_child(td_2, true);
         var td_3 = sibling(td_2);
-        var text_16 = only_child(td_3);
+        var text_22 = only_child(td_3);
         var td_4 = sibling(td_3);
-        var text_17 = only_child(td_4, true);
+        var text_23 = only_child(td_4, true);
         var td_5 = sibling(td_4);
-        var text_18 = only_child(td_5, true);
+        var text_24 = only_child(td_5, true);
         reset(tr);
         template_effect(
           ($0) => {
-            set_text(text_13, get(skill).name);
-            set_text(text_14, get(skill).use);
-            set_text(text_15, get(skill).view);
-            set_text(text_16, `${get(skill).patch ?? ""}${get(skill).archived_versions ? ` (${get(skill).archived_versions} archived)` : ""}`);
-            set_text(text_17, get(skill).proposal ?? "unknown");
-            set_text(text_18, $0);
+            set_text(text_19, get(skill).name);
+            set_text(text_20, get(skill).use);
+            set_text(text_21, get(skill).view);
+            set_text(text_22, `${get(skill).patch ?? ""}${get(skill).archived_versions ? ` (${get(skill).archived_versions} archived)` : ""}`);
+            set_text(text_23, get(skill).proposal ?? "unknown");
+            set_text(text_24, $0);
           },
           [
             () => get(skill).use_last_at ? ago(get(skill).use_last_at) : "never"
@@ -14172,38 +16444,44 @@ function _page5($$anchor, $$props) {
       });
       reset(tbody);
       reset(table);
-      reset(div_8);
+      reset(div_10);
       next(2);
-      append2($$anchor2, fragment_10);
+      append2($$anchor2, fragment_17);
     };
-    if_block(node_11, ($$render) => {
-      if (get(skills).length === 0) $$render(consequent_12);
+    if_block(node_22, ($$render) => {
+      if (get(skills).length === 0) $$render(consequent_19);
       else $$render(alternate_1, -1);
     });
   }
   reset(section_1);
-  reset(div);
+  reset(div_1);
+  template_effect(() => classes = set_class(div_2, 1, "grid svelte-7frr3z", null, classes, { editing: get(editing) !== null }));
+  delegated("click", button, () => {
+    set(done, null);
+    set(editing, { kind: "objective", id: null }, true);
+  });
   append2($$anchor, fragment);
   pop();
 }
+delegate(["click"]);
 
 // ../ui/src/routes/runs/+page.svelte
-var root17 = from_html(`<dt>Finished</dt><dd> </dd>`, 1);
-var root_128 = from_html(`<dt>Suite</dt><dd class="mono"> </dd>`, 1);
-var root_215 = from_html(`<dt>Revisions</dt><dd class="mono"> </dd>`, 1);
-var root_314 = from_html(`<dt>Transcript</dt><dd class="mono"> </dd>`, 1);
-var root_414 = from_html(`<dt>Proposal</dt><dd><a> </a></dd>`, 1);
-var root_514 = from_html(`<dt>Result</dt><dd><a> </a></dd>`, 1);
-var root_612 = from_html(`<dt>Evaluation</dt><dd> </dd>`, 1);
-var root_78 = from_html(`<dt>Branch</dt><dd class="mono"> </dd>`, 1);
-var root_88 = from_html(`<dt>Report</dt><dd><a href="#/findings"> </a></dd>`, 1);
-var root_98 = from_html(`<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h2><button class="ghost small" aria-label="Back to all runs"><!></button> </h2></div> <!> <div class="panel-body stack" style="border-top:1px solid var(--border)"><dl class="kv small"><dt>Started</dt><dd> </dd> <!> <!> <!> <!> <!> <!> <!> <!> <!></dl> <div><div class="section-label">Log</div> <!></div></div></section>`);
-var root_108 = from_html(`<div style="margin-bottom:16px"><p class="muted">That run is no longer recorded. Older runs are pruned after a hundred.</p></div>`);
-var root_1112 = from_html(`<p class="empty small">Loading\u2026</p>`);
-var root_129 = from_html(`<div class="empty"><strong>No runs yet.</strong> Run an evaluation, draft a skill from a proposal, or run a background review, and it shows up here with its progress and log.</div>`);
-var root_137 = from_html(`<tr class="clickable"><td><!></td><td><a> </a> <div class="small faint"> </div></td><td class="small faint"> </td><td class="small num"> </td><td class="small muted"> </td></tr>`);
-var root_147 = from_html(`<div class="table-wrap"><table><thead><tr><th>Status</th><th>What</th><th>Started</th><th>Took</th><th>Now</th></tr></thead><tbody></tbody></table></div>`);
-var root_156 = from_html(`<div class="page-head"><div><h1>Runs</h1> <p>Evaluations, skill drafts and background reviews started from this page. Each keeps a log, and a running one can be cancelled.</p></div></div> <!> <section class="panel"><!></section>`, 1);
+var root20 = from_html(`<dt>Finished</dt><dd> </dd>`, 1);
+var root_140 = from_html(`<dt>Suite</dt><dd class="mono"> </dd>`, 1);
+var root_218 = from_html(`<dt>Revisions</dt><dd class="mono"> </dd>`, 1);
+var root_316 = from_html(`<dt>Transcript</dt><dd class="mono"> </dd>`, 1);
+var root_416 = from_html(`<dt>Proposal</dt><dd><a> </a></dd>`, 1);
+var root_516 = from_html(`<dt>Result</dt><dd><a> </a></dd>`, 1);
+var root_615 = from_html(`<dt>Evaluation</dt><dd> </dd>`, 1);
+var root_710 = from_html(`<dt>Branch</dt><dd class="mono"> </dd>`, 1);
+var root_810 = from_html(`<dt>Report</dt><dd><a href="#/findings"> </a></dd>`, 1);
+var root_910 = from_html(`<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h2><button class="ghost small" aria-label="Back to all runs"><!></button> </h2></div> <!> <div class="panel-body stack" style="border-top:1px solid var(--border)"><dl class="kv small"><dt>Started</dt><dd> </dd> <!> <!> <!> <!> <!> <!> <!> <!> <!></dl> <div><div class="section-label">Log</div> <!></div></div></section>`);
+var root_1010 = from_html(`<div style="margin-bottom:16px"><p class="muted">That run is no longer recorded. Older runs are pruned after a hundred.</p></div>`);
+var root_1114 = from_html(`<p class="empty small">Loading\u2026</p>`);
+var root_1212 = from_html(`<div class="empty"><strong>No runs yet.</strong> Run an evaluation, draft a skill from a proposal, or run a background review, and it shows up here with its progress and log.</div>`);
+var root_1310 = from_html(`<tr class="clickable"><td><!></td><td><a> </a> <div class="small faint"> </div></td><td class="small faint"> </td><td class="small num"> </td><td class="small muted"> </td></tr>`);
+var root_1410 = from_html(`<div class="table-wrap"><table><thead><tr><th>Status</th><th>What</th><th>Started</th><th>Took</th><th>Now</th></tr></thead><tbody></tbody></table></div>`);
+var root_159 = from_html(`<div class="page-head"><div><h1>Runs</h1> <p>Evaluations, skill drafts and background reviews started from this page. Each keeps a log, and a running one can be cancelled.</p></div></div> <!> <section class="panel"><!></section>`, 1);
 function _page6($$anchor, $$props) {
   push($$props, true);
   const KIND = {
@@ -14217,11 +16495,11 @@ function _page6($$anchor, $$props) {
   function open(id) {
     goto(`/runs?job=${id}`, { noScroll: true, keepFocus: true });
   }
-  var fragment = root_156();
+  var fragment = root_159();
   var node = sibling(first_child(fragment), 2);
   {
     var consequent_9 = ($$anchor2) => {
-      var section = root_98();
+      var section = root_910();
       var div = child(section);
       var h2 = child(div);
       var button = child(h2);
@@ -14244,7 +16522,7 @@ function _page6($$anchor, $$props) {
       var node_3 = sibling(dd, 2);
       {
         var consequent = ($$anchor3) => {
-          var fragment_1 = root17();
+          var fragment_1 = root20();
           var dd_1 = sibling(first_child(fragment_1));
           var text_2 = only_child(dd_1);
           template_effect(($0, $1) => set_text(text_2, `${$0 ?? ""} (took ${$1 ?? ""})`), [
@@ -14260,7 +16538,7 @@ function _page6($$anchor, $$props) {
       var node_4 = sibling(node_3, 2);
       {
         var consequent_1 = ($$anchor3) => {
-          var fragment_2 = root_128();
+          var fragment_2 = root_140();
           var dd_2 = sibling(first_child(fragment_2));
           var text_3 = only_child(dd_2, true);
           template_effect(() => set_text(text_3, get(selected).detail.suite));
@@ -14273,7 +16551,7 @@ function _page6($$anchor, $$props) {
       var node_5 = sibling(node_4, 2);
       {
         var consequent_2 = ($$anchor3) => {
-          var fragment_3 = root_215();
+          var fragment_3 = root_218();
           var dd_3 = sibling(first_child(fragment_3));
           var text_4 = only_child(dd_3);
           template_effect(() => set_text(text_4, `${get(selected).detail.base ?? "working tree" ?? ""}..${get(selected).detail.head ?? "HEAD" ?? ""}`));
@@ -14286,7 +16564,7 @@ function _page6($$anchor, $$props) {
       var node_6 = sibling(node_5, 2);
       {
         var consequent_3 = ($$anchor3) => {
-          var fragment_4 = root_314();
+          var fragment_4 = root_316();
           var dd_4 = sibling(first_child(fragment_4));
           var text_5 = only_child(dd_4, true);
           template_effect(() => set_text(text_5, get(selected).detail.transcript));
@@ -14299,7 +16577,7 @@ function _page6($$anchor, $$props) {
       var node_7 = sibling(node_6, 2);
       {
         var consequent_4 = ($$anchor3) => {
-          var fragment_5 = root_414();
+          var fragment_5 = root_416();
           var dd_5 = sibling(first_child(fragment_5));
           var a = child(dd_5);
           var text_6 = only_child(a, true);
@@ -14320,7 +16598,7 @@ function _page6($$anchor, $$props) {
       var node_8 = sibling(node_7, 2);
       {
         var consequent_5 = ($$anchor3) => {
-          var fragment_6 = root_514();
+          var fragment_6 = root_516();
           var dd_6 = sibling(first_child(fragment_6));
           var a_1 = child(dd_6);
           var text_7 = only_child(a_1);
@@ -14341,7 +16619,7 @@ function _page6($$anchor, $$props) {
       var node_9 = sibling(node_8, 2);
       {
         var consequent_6 = ($$anchor3) => {
-          var fragment_7 = root_612();
+          var fragment_7 = root_615();
           var dd_7 = sibling(first_child(fragment_7));
           var text_8 = only_child(dd_7);
           template_effect(() => set_text(text_8, `${get(selected).result.evaluation.passed ? "Passed" : "Failed"}${get(selected).result.evaluation.summary ? `: ${get(selected).result.evaluation.summary}` : ""}`));
@@ -14354,7 +16632,7 @@ function _page6($$anchor, $$props) {
       var node_10 = sibling(node_9, 2);
       {
         var consequent_7 = ($$anchor3) => {
-          var fragment_8 = root_78();
+          var fragment_8 = root_710();
           var dd_8 = sibling(first_child(fragment_8));
           var text_9 = only_child(dd_8, true);
           template_effect(() => set_text(text_9, get(selected).result.branch));
@@ -14367,7 +16645,7 @@ function _page6($$anchor, $$props) {
       var node_11 = sibling(node_10, 2);
       {
         var consequent_8 = ($$anchor3) => {
-          var fragment_9 = root_88();
+          var fragment_9 = root_810();
           var dd_9 = sibling(first_child(fragment_9));
           var a_2 = child(dd_9);
           var text_10 = only_child(a_2, true);
@@ -14407,7 +16685,7 @@ function _page6($$anchor, $$props) {
       append2($$anchor2, section);
     };
     var consequent_10 = ($$anchor2) => {
-      var div_3 = root_108();
+      var div_3 = root_1010();
       append2($$anchor2, div_3);
     };
     if_block(node, ($$render) => {
@@ -14419,20 +16697,20 @@ function _page6($$anchor, $$props) {
   var node_13 = child(section_1);
   {
     var consequent_11 = ($$anchor2) => {
-      var p = root_1112();
+      var p = root_1114();
       append2($$anchor2, p);
     };
     var consequent_12 = ($$anchor2) => {
-      var div_4 = root_129();
+      var div_4 = root_1212();
       append2($$anchor2, div_4);
     };
     var alternate = ($$anchor2) => {
-      var div_5 = root_147();
+      var div_5 = root_1410();
       var table = child(div_5);
       var tbody = sibling(child(table));
       each(tbody, 21, () => jobs.list, (job) => job.id, ($$anchor3, job) => {
         const meta = user_derived(() => JOB[get(job).status] ?? { label: get(job).status, tone: "" });
-        var tr = root_137();
+        var tr = root_1310();
         var td = child(tr);
         var node_14 = child(td);
         Pill(node_14, {
@@ -14534,19 +16812,19 @@ function Live($$anchor, $$props) {
 }
 
 // src/ui/app/App.svelte
-var root_130 = from_html(`<span class="count"> </span>`);
-var root_216 = from_html(`<a><!> <!></a>`);
-var root_315 = from_html(`<!> <improve-firstmate-view></improve-firstmate-view>`, 3);
-var root_415 = from_html(`<span class="faint">improve\u2019s review UI for <span class="mono"> </span></span>`);
-var root_515 = from_html(`<span style="color:var(--warn)"> </span>`);
-var root_613 = from_html(`<span style="color:var(--bad)"> </span>`);
-var root_79 = from_html(`<div class="strip small"><!> <a target="_blank" rel="noreferrer">Open in its own tab</a> <!> <!></div>`);
-var root_89 = from_html(`<!> <!>`, 1);
-var root_99 = from_html(`<div class="improve-app"><nav class="tabs" aria-label="improve"></nav> <!></div>`);
+var root_141 = from_html(`<span class="count"> </span>`);
+var root_219 = from_html(`<a><!> <!></a>`);
+var root_317 = from_html(`<!> <improve-firstmate-view></improve-firstmate-view>`, 3);
+var root_417 = from_html(`<span class="faint">improve\u2019s review UI for <span class="mono"> </span></span>`);
+var root_517 = from_html(`<span style="color:var(--warn)"> </span>`);
+var root_616 = from_html(`<span style="color:var(--bad)"> </span>`);
+var root_711 = from_html(`<div class="strip small"><!> <a target="_blank" rel="noreferrer">Open in its own tab</a> <!> <!></div>`);
+var root_811 = from_html(`<!> <!>`, 1);
+var root_911 = from_html(`<div class="improve-app"><nav class="tabs" aria-label="improve"></nav> <!></div>`);
 function App($$anchor, $$props) {
   push($$props, true);
   let link2 = state("checking");
-  let root18 = state(
+  let root21 = state(
     /** @type {HTMLElement | undefined} */
     void 0
   );
@@ -14617,7 +16895,7 @@ function App($$anchor, $$props) {
     };
   });
   user_effect(() => {
-    setAnchorHome(get(root18) ?? null);
+    setAnchorHome(get(root21) ?? null);
     return () => setAnchorHome(null);
   });
   user_effect(() => {
@@ -14625,14 +16903,14 @@ function App($$anchor, $$props) {
     if (!id || get(link2) !== "ready") return;
     const t = setTimeout(() => (
       /** @type {ShadowRoot} */
-      get(root18)?.getRootNode()?.getElementById?.(decodeURIComponent(id))?.scrollIntoView({ block: "start" })
+      get(root21)?.getRootNode()?.getElementById?.(decodeURIComponent(id))?.scrollIntoView({ block: "start" })
     ), 120);
     return () => clearTimeout(t);
   });
-  var div = root_99();
+  var div = root_911();
   var nav = child(div);
   each(nav, 21, () => get(TABS), index, ($$anchor2, tab) => {
-    var a = root_216();
+    var a = root_219();
     var node = child(a);
     Icon(node, {
       get name() {
@@ -14644,7 +16922,7 @@ function App($$anchor, $$props) {
     var node_1 = sibling(text2);
     {
       var consequent = ($$anchor3) => {
-        var span = root_130();
+        var span = root_141();
         var text_1 = only_child(span, true);
         template_effect(() => set_text(text_1, get(tab).count));
         append2($$anchor3, span);
@@ -14665,7 +16943,7 @@ function App($$anchor, $$props) {
   var node_2 = sibling(nav, 2);
   {
     var consequent_2 = ($$anchor2) => {
-      var fragment = root_315();
+      var fragment = root_317();
       var node_3 = first_child(fragment);
       {
         var consequent_1 = ($$anchor3) => {
@@ -14692,15 +16970,15 @@ function App($$anchor, $$props) {
       append2($$anchor2, fragment);
     };
     var consequent_7 = ($$anchor2) => {
-      var fragment_2 = root_89();
+      var fragment_2 = root_811();
       var node_4 = first_child(fragment_2);
       {
         var consequent_6 = ($$anchor3) => {
-          var div_1 = root_79();
+          var div_1 = root_711();
           var node_5 = child(div_1);
           {
             var consequent_3 = ($$anchor4) => {
-              var span_1 = root_415();
+              var span_1 = root_417();
               var span_2 = sibling(child(span_1));
               var text_2 = only_child(span_2, true);
               reset(span_1);
@@ -14718,7 +16996,7 @@ function App($$anchor, $$props) {
           var node_6 = sibling(a_1, 2);
           {
             var consequent_4 = ($$anchor4) => {
-              var span_3 = root_515();
+              var span_3 = root_517();
               var text_3 = only_child(span_3);
               template_effect(() => set_text(text_3, `This repository's eval rig is ${summary.status.eval_rig.installed ?? ""}; the plugin has ${summary.status.eval_rig.available ?? ""}.`));
               append2($$anchor4, span_3);
@@ -14730,7 +17008,7 @@ function App($$anchor, $$props) {
           var node_7 = sibling(node_6, 2);
           {
             var consequent_5 = ($$anchor4) => {
-              var span_4 = root_613();
+              var span_4 = root_616();
               var text_4 = only_child(span_4, true);
               template_effect(() => set_text(text_4, summary.error));
               append2($$anchor4, span_4);
@@ -14776,7 +17054,7 @@ function App($$anchor, $$props) {
     });
   }
   reset(div);
-  bind_this(div, ($$value) => set(root18, $$value), () => get(root18));
+  bind_this(div, ($$value) => set(root21, $$value), () => get(root21));
   append2($$anchor, div);
   pop();
 }
@@ -15051,15 +17329,15 @@ var ImproveImprovements = class extends HTMLElement {
     return this.#entry;
   }
   connectedCallback() {
-    const root18 = (
+    const root21 = (
       /** @type {ShadowRoot} */
       this.shadowRoot
     );
     if (this.#app) return;
     const style = document.createElement("style");
     style.textContent = APP_STYLE;
-    root18.replaceChildren(style);
-    this.#app = mountApp(root18, { data: this.#data, host: this.#host });
+    root21.replaceChildren(style);
+    this.#app = mountApp(root21, { data: this.#data, host: this.#host });
   }
   disconnectedCallback() {
     this.#app?.destroy();

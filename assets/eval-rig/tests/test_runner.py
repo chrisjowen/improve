@@ -74,6 +74,82 @@ class EvalRigTest(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["score"], 0.9)
 
+    def _run_suite(self, suite: dict, registry: str | None = None) -> dict:
+        """Run `suite` against the fixture context, with this rig's registry unless given another."""
+        import yaml
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            registries = [str(ROOT / "registry.yaml")]
+            if registry is not None:
+                (base / "registry.yaml").write_text(registry)
+                registries = ["registry.yaml"]
+            suite = {
+                "version": 1, "id": "commands",
+                "objective": {"id": "o", "success_criteria": ["Runs."]},
+                "registries": registries,
+                "aggregation": {"threshold": 1.0},
+                **suite,
+            }
+            (base / "suite.yaml").write_text(yaml.safe_dump(suite))
+            context = base / "context.json"
+            context.write_text(json.dumps(self._good_context()))
+            return run(base / "suite.yaml", context)
+
+    def _command_step(self, argv: list[str]) -> dict:
+        return {"id": "check", "evaluator": "core.command", "metadata": {"argv": argv}}
+
+    def test_declared_command_runs(self) -> None:
+        argv = [sys.executable, "-c", "pass"]
+        report = self._run_suite({"commands": [argv], "steps": [self._command_step(argv)]})
+        self.assertTrue(report["success"], report)
+        self.assertEqual(report["steps"][0]["result"]["evidence"][0]["data"]["argv"], argv)
+
+    def test_undeclared_command_does_not_run(self) -> None:
+        """Editing a step must not add a command nobody approved."""
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / "ran"
+            argv = [sys.executable, "-c", f"open({str(marker)!r}, 'w').close()"]
+            report = self._run_suite({
+                "commands": [[sys.executable, "-c", "pass"]],
+                "steps": [self._command_step(argv)],
+            })
+            self.assertFalse(marker.exists(), "an undeclared command ran")
+        step = report["steps"][0]
+        self.assertFalse(report["success"])
+        self.assertEqual(step["status"], "error")
+        self.assertIn("Command not declared in the suite's commands", step["error"])
+
+    def test_a_suite_without_commands_runs_none(self) -> None:
+        report = self._run_suite({"steps": [self._command_step([sys.executable, "-c", "pass"])]})
+        self.assertEqual(report["steps"][0]["status"], "error")
+        self.assertIn("not declared", report["steps"][0]["error"])
+
+    def test_judge_adapter_must_be_declared(self) -> None:
+        adapter = [sys.executable, "-c", "import json; print(json.dumps({'success': True, 'score': 1, 'notes': []}))"]
+        step = {"id": "judge", "evaluator": "llm.judge-command", "metadata": {"adapter_argv": adapter, "rubric": "r"}}
+        refused = self._run_suite({"steps": [step]})
+        self.assertIn("not declared", refused["steps"][0]["error"])
+        allowed = self._run_suite({"commands": [adapter], "steps": [step]})
+        self.assertTrue(allowed["success"], allowed)
+
+    def test_a_command_evaluator_must_say_where_its_command_is(self) -> None:
+        registry = (
+            "version: 1\nevaluators:\n"
+            "  - name: custom.run\n    language: python\n"
+            f"    module: {ROOT / 'evaluators/command.py'}\n"
+            "    export: evaluate\n    trust: executes-command\n"
+        )
+        report = self._run_suite({
+            "commands": [[sys.executable, "-c", "pass"]],
+            "steps": [{"id": "x", "evaluator": "custom.run", "metadata": {"argv": [sys.executable, "-c", "pass"]}}],
+        }, registry=registry)
+        self.assertIn("names no command_field", report["steps"][0]["error"])
+
+    def test_malformed_commands_refuse_the_suite(self) -> None:
+        for commands in ["npm test", [["npm", ""]], [[]], [[1]]]:
+            with self.subTest(commands=commands), self.assertRaisesRegex(ValueError, "argv string arrays"):
+                self._run_suite({"commands": commands, "steps": [{"id": "s", "evaluator": "core.file-exists"}]})
+
     def test_transcript_capture_is_redacted_by_default(self) -> None:
         event = {
             "uuid": "m1",

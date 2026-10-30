@@ -28,6 +28,7 @@ evaluators:
     version: 1.0.0
     description: Run an argv-form test or check and grade its exit code.
     trust: executes-command
+    command_field: argv
   - name: llm.judge-command
     language: python
     module: evaluators/llm_judge.py
@@ -35,6 +36,7 @@ evaluators:
     version: 1.0.0
     description: Send a rubric and context to an explicitly configured JSON-command LLM adapter.
     trust: external-model
+    command_field: adapter_argv
   - name: example.python
     language: python
     module: evaluators/example_python.py

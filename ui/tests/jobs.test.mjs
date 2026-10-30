@@ -39,6 +39,8 @@ fs.writeFileSync(path.join(suites, "slow.yaml"), `version: 1
 id: slow
 objective: { id: tidy, success_criteria: [no markers] }
 registries: [../registry.yaml]
+commands:
+  - ["sh", "-c", "sleep 30 & echo $! > '${pidFile}'; wait"]
 steps:
   - id: waits
     evaluator: core.command

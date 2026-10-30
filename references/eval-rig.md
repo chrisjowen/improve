@@ -103,7 +103,10 @@ discoverable without importing untrusted code, works identically across
 languages, and provides a stable name independent of a file path.
 
 Each entry declares `name`, `language`, `module`, optional `export`, `version`,
-description, owner, and trust classification. Names are unique across all loaded
+description, owner, and trust classification. An evaluator whose trust is
+`executes-command` or `external-model` starts a process the suite names, and
+its entry names the metadata field that holds that argv in `command_field`
+(`argv` for `core.command`, `adapter_argv` for `llm.judge-command`). Names are unique across all loaded
 registries. Relative modules resolve from their registry file. Reject duplicate
 names, missing files, unsupported languages, and modules that escape the
 repository root.
@@ -119,12 +122,20 @@ A suite declares:
 - the charter objective, baseline, and success criteria it measures;
 - task prompts and optional fixtures;
 - registry paths;
+- `commands`: every command its steps may run, each an argv array;
 - ordered evaluation steps;
 - aggregation and budget policy.
 
 Each step supplies an evaluator name, threshold, weight, whether it is required,
 whether evaluator-native `success` is required, timeout, and metadata. The
 runner injects this metadata into the context.
+
+A step whose evaluator runs a command must name one of the suite's `commands`
+exactly, in the field its registry entry's `command_field` names. Otherwise the
+step errors without running anything, and so does a step whose evaluator runs
+a command but whose entry names no `command_field`. A suite with no `commands`
+runs no command. Listing the commands first means approving a suite approves
+exactly what it runs, and an edit to a step cannot add a command on its own.
 
 A step passes when:
 

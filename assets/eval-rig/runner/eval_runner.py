@@ -73,6 +73,42 @@ def load_registry(path: Path, project_root: Path) -> tuple[dict[str, dict[str, A
     return entries, digest(path)
 
 
+# Registry trust levels whose evaluators start a process the suite names.
+RUNS_COMMANDS = {"executes-command", "external-model"}
+
+
+def declared_commands(suite: dict[str, Any]) -> list[list[str]]:
+    """The commands a suite may run, each an argv list.
+
+    A suite lists every command before any step uses it, so a person approving
+    the suite approves exactly these, and editing a step cannot quietly add
+    another.
+    """
+    commands = suite.get("commands", [])
+    if commands is None:
+        return []
+    if not isinstance(commands, list) or any(
+        not isinstance(argv, list) or not argv or not all(isinstance(item, str) and item for item in argv)
+        for argv in commands
+    ):
+        raise ValueError("Suite commands must be a list of non-empty argv string arrays")
+    return commands
+
+
+def undeclared_command(entry: dict[str, Any], step: dict[str, Any], declared: list[list[str]]) -> str | None:
+    """Why this step may not run, or None when it runs no command or a declared one."""
+    field = entry.get("command_field")
+    if not field:
+        if entry.get("trust") in RUNS_COMMANDS:
+            return f"Evaluator {step['evaluator']} runs a command, but its registry entry names no command_field"
+        return None
+    argv = (step.get("metadata") or {}).get(field)
+    if argv in declared:
+        return None
+    shown = " ".join(argv) if isinstance(argv, list) and all(isinstance(item, str) for item in argv) else repr(argv)
+    return f"Command not declared in the suite's commands: {shown}"
+
+
 def validate_result(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Evaluator result must be an object")
@@ -164,6 +200,7 @@ def validate_suite(suite: dict[str, Any], objectives: dict[str, dict[str, Any]] 
             raise ValueError(f"Step threshold must be between 0 and 1: {step['id']}")
         if not math.isfinite(weight) or weight <= 0:
             raise ValueError(f"Step weight must be positive and finite: {step['id']}")
+    declared_commands(suite)
     suite_threshold = float(suite.get("aggregation", {}).get("threshold", 1.0))
     if not 0 <= suite_threshold <= 1:
         raise ValueError("Aggregation threshold must be between 0 and 1")
@@ -228,6 +265,7 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
         registry.update(loaded)
         registry_digests[str(path)] = checksum
 
+    declared = declared_commands(suite)
     outcomes = []
     fail_fast = bool(suite.get("aggregation", {}).get("fail_fast", False))
     stopped_at: int | None = None
@@ -244,6 +282,9 @@ def run(suite_path: Path, context_path: Path) -> dict[str, Any]:
         }
         try:
             entry = registry[step["evaluator"]]
+            refusal = undeclared_command(entry, step, declared)
+            if refusal:
+                raise ValueError(refusal)
             context = deepcopy(base)
             context["step"] = {
                 "id": step["id"], "evaluator": step["evaluator"],

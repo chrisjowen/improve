@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { classifyScope, lintProse, readScopeFiles } from "./proposal-check.mjs";
+import { classifyScope, evaluationFindings, lintProse, readBlock, readBlockList, readScopeFiles } from "./proposal-check.mjs";
 import { detectFirstmate } from "../adapters/firstmate/home.mjs";
 import { checkFirstmateScope, isFirstmateHarnessPath } from "../adapters/firstmate/surfaces.mjs";
 
@@ -11,8 +11,9 @@ import { checkFirstmateScope, isFirstmateHarnessPath } from "../adapters/firstma
  *   node proposal-check-cli.mjs .harness/proposals/IMP-*.yaml
  *
  * Prints one JSON report per file. Exits 1 when any proposal changes files
- * outside the harness or lists no files; writing findings alone exit 0,
- * because they are for the author to fix, not a reason to refuse.
+ * outside the harness or lists no files; writing findings and `findings`
+ * alone exit 0, because they are for the author to fix, not a reason to
+ * refuse.
  *
  * In a project where the Firstmate adapter is enabled, Firstmate's surfaces
  * define the harness instead, and each report gains a `firstmate` block naming
@@ -47,7 +48,13 @@ for (const file of files) {
   // text, which is enough to find it in the file.
   const joined = text.replace(/\n[ \t]+(?![ \t]|-\s|[\w.-]+:)/g, " ");
   const prose = lintProse(joined).map(({ rule, match, fix }) => ({ rule, match, fix }));
-  const report = { file, scope, outside, prose };
+  const findings = evaluationFindings({
+    files: scopeFiles,
+    commands: readBlockList(text, "evaluation", "commands"),
+    passConditions: readBlockList(text, "evaluation", "pass_conditions"),
+    evaluationText: readBlock(text, "evaluation").join("\n")
+  });
+  const report = { file, scope, outside, findings, prose };
   if (scopeOptions.isHarness) {
     const { delivery, visibility, surfaces, findings } = checkFirstmateScope(scopeFiles);
     report.firstmate = { delivery, visibility, surfaces, findings };

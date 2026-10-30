@@ -111,6 +111,11 @@ const ROUTES = {
   "POST /api/proposals/IMP-1.yaml/approve": () => ({ ok: true, next: "Apply it when you are ready." }),
   "POST /api/proposals/IMP-1.yaml/reject": () => ({ ok: true }),
   "POST /api/proposals/IMP-9.yaml/apply-run": () => job({ id: "job-apply", kind: "apply", title: "Apply IMP-9", detail: { proposal: "IMP-9.yaml" } }),
+  "POST /api/proposals/IMP-9.yaml/declare-commands": () => {
+    const p = api.state.proposals.find((x) => x.file === "IMP-9.yaml");
+    Object.assign(p, { status: "proposed", evaluation: { commands: p.pending_commands }, pending_commands: [] });
+    return { ok: true, commands: p.evaluation.commands, next: "Added to evaluation.commands. The proposal waits for your approval again; once approved, Apply lists it for you to confirm." };
+  },
   "POST /api/dreams": () => job({ id: "job-dream", kind: "dream", title: "Background review" }),
   "POST /api/dreams/dream-1.json/import": () => ({ ok: true, proposal: "IMP-1.yaml" }),
   "POST /api/dreams/dream-1.json/dismiss": () => ({ ok: true }),
@@ -307,6 +312,21 @@ const go = async (hash) => {
   el.remove();
 }
 
+// A card whose apply run stopped for a command it does not declare says so, and links to where it is added.
+{
+  const applyStopped = "Apply stopped: the evaluation needs a command the proposal does not declare (bash .harness/evals/run.sh). Add it on the Proposals tab; the proposal then waits for your approval again.";
+  const el = mount("improve-firstmate-view", harness({
+    proposals: [proposal({ file: "IMP-9.yaml", status: "approved", statusShort: "Approved", group: "approved", waiting: false, decision: null, reviewHref: "/plugins/improve/improvements#/proposals?view=all&p=IMP-9.yaml", pendingCommands: ["bash .harness/evals/run.sh"], applyStopped })]
+  }));
+  const chip = [...el.shadowRoot.querySelectorAll("a.chip")].find((a) => a.textContent.trim() === "Needs commands");
+  assert.ok(chip, "the card flags it");
+  assert.equal(chip.getAttribute("href"), "/plugins/improve/improvements#/proposals?view=all&p=IMP-9.yaml");
+  assert.equal(chip.getAttribute("title"), applyStopped);
+  el.shadowRoot.getElementById("IMP-9.yaml").querySelector("button.details-toggle").click();
+  assert.ok(text(el).includes(applyStopped));
+  el.remove();
+}
+
 // Nothing proposed yet, and problems said plainly.
 {
   const el = mount("improve-firstmate-view", harness({ proposals: [], waiting: 0, problems: ["improve could not be read: boom."] }));
@@ -437,6 +457,27 @@ const root = page.shadowRoot;
   const run = posts().find((r) => r.path.endsWith("/apply-run"));
   assert.deepEqual(run.body, { digest: "digest-9", files: ["data/learnings.md"], commands: ["node scripts/proposal-check-cli.mjs"], branch: null });
   assert.equal(run.token, TOKEN);
+}
+
+// An apply run that stopped for a command the proposal does not declare: add exactly that, and it waits for approval again.
+{
+  const stopped = api.state.proposals.find((p) => p.file === "IMP-9.yaml");
+  Object.assign(stopped, {
+    last_apply: { at: ago(0), status: "failed", undeclared_commands: ["bash .harness/evals/run.sh"] },
+    pending_commands: ["bash .harness/evals/run.sh"]
+  });
+  await go("#/proposals?view=all&p=IMP-9.yaml");
+  await until(() => text(page).includes("Add the command and send back for approval"), "the offer");
+  assert.ok(text(page).includes("the evaluation needs a command this proposal does not declare. bash .harness/evals/run.sh"), text(page));
+  button(root, "Add the command and send back for approval").click();
+  await until(() => posts().some((r) => r.path.endsWith("/declare-commands")), "the commands are added");
+  const declared = posts().find((r) => r.path.endsWith("/declare-commands"));
+  assert.deepEqual(declared.body, { digest: "digest-9", commands: ["bash .harness/evals/run.sh"] });
+  assert.equal(declared.token, TOKEN);
+  await until(() => text(page).includes("The proposal waits for your approval again"), "the notice");
+  await until(() => [...root.querySelectorAll("button")].some((b) => b.textContent.trim() === "Approve"), "Approve, again");
+  assert.ok(!text(page).includes("Add the command and send back for approval"));
+  assert.ok(text(page).includes("Runs bash .harness/evals/run.sh"), "the commands it would run are shown to whoever approves");
 }
 
 // Background findings: run a review, import a finding as a proposal, dismiss a report.

@@ -7577,6 +7577,105 @@ function patternSentence(kind, count, tasks, example) {
   return kind === "ask-user" ? `The automated review asked the same question ${where}: ${quote(example)}` : `Firstmate asked you the same thing ${where}: ${quote(example)}`;
 }
 
+// ../scripts/proposal-check.mjs
+var words = (list2) => new RegExp(`\\b(${list2.join("|")})\\b`, "gi");
+var PROSE_RULES = [
+  {
+    id: "unslop-13-em-dash",
+    pattern: /—|\s--\s/g,
+    fix: "End the sentence, or use a comma."
+  },
+  {
+    id: "unslop-7-ai-vocabulary",
+    pattern: words([
+      "additionally",
+      "crucial",
+      "delve",
+      "enduring",
+      "enhance[sd]?",
+      "fostering",
+      "garner",
+      "interplay",
+      "intricate",
+      "pivotal",
+      "showcase[sd]?",
+      "tapestry",
+      "testament",
+      "underscores?",
+      "vibrant",
+      "seamless(ly)?",
+      "robust"
+    ]),
+    fix: "Use the plain word, or cut it."
+  },
+  {
+    id: "unslop-8-fancy-is",
+    pattern: /\b(serves as|stands as|boasts)\b/gi,
+    fix: 'Say "is" or "has".'
+  },
+  {
+    id: "unslop-9-not-just",
+    pattern: /\bnot (just|only|merely) [^.]{1,80}?\bbut\b/gi,
+    fix: "State the point directly."
+  },
+  {
+    id: "unslop-23-filler",
+    pattern: /\b(in order to|due to the fact that|it is important to note that|it is worth noting that)\b/gi,
+    fix: '"To", "because", or delete.'
+  },
+  {
+    id: "unslop-26-metaphor-noun",
+    pattern: words([
+      "substrate",
+      "wedge",
+      "locus",
+      "vantage",
+      "nexus",
+      "primitives?",
+      "bedrock",
+      "scaffolding",
+      "modality",
+      "paradigm",
+      "gold-plating",
+      "ratchet",
+      "endgame",
+      "north star",
+      "flywheel"
+    ]),
+    fix: "Name the concrete thing."
+  },
+  {
+    id: "unslop-31-plain-word",
+    pattern: words(["utili[sz]e[sd]?", "leverag(e|es|ed|ing)", "facilitat(e|es|ed|ing)", "numerous", "in the event that"]),
+    fix: '"use", "help", "many", "if".'
+  },
+  {
+    id: "unslop-33-arrow",
+    pattern: /\s(->|→)\s/g,
+    fix: "Write the sentence out with a verb."
+  },
+  {
+    id: "unslop-5-vague-attribution",
+    pattern: /\b(experts (say|believe)|studies show|industry reports suggest|some (critics|people) argue)\b/gi,
+    fix: "Name the source or delete."
+  }
+];
+function pendingCommands(proposal2) {
+  const last = proposal2?.last_apply;
+  if (proposal2?.status !== "approved" || last?.status !== "failed") return [];
+  const named = Array.isArray(last.undeclared_commands) ? last.undeclared_commands : commandsInError(last.error);
+  const declared = Array.isArray(proposal2.evaluation?.commands) ? proposal2.evaluation.commands.map((c) => String(c).trim()) : [];
+  return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+}
+function commandsInError(error) {
+  const match = /^The evaluation needs a command the proposal does not declare: (.+)\. The run does not widen its own permissions;/s.exec(typeof error === "string" ? error : "");
+  return match && match[1].length < MAX_COMMAND ? [match[1]] : [];
+}
+var MAX_COMMAND = 500;
+function isCommand(value) {
+  return typeof value === "string" && value.trim() !== "" && value.trim().length <= MAX_COMMAND && !/[\u0000-\u001f\u007f]/.test(value.trim());
+}
+
 // src/view.mjs
 var isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var str = (v) => typeof v === "string" && v.trim() ? v.replace(/\s+/g, " ").trim() : null;
@@ -7664,6 +7763,7 @@ function readProposal(file, text) {
     ),
     evidence: arr(y.evidence).filter(isRecord).map((e) => ({ source: str(e.source) ?? "evidence", observation: str(e.observation) ?? "" })).filter((e) => e.observation),
     confidence: str(y.confidence),
+    pendingCommands: pendingCommands(y),
     createdAt: str(y.created_at) ?? (y.created_at instanceof Date ? y.created_at.toISOString() : null)
   };
 }
@@ -7710,6 +7810,7 @@ function proposalItem(p, o) {
     ),
     decision: o.routed ? decisionOf(o.routed, o.tasks, !!o.routed && filing) : null,
     routing,
+    applyStopped: p.pendingCommands.length ? `Apply stopped: the evaluation needs ${p.pendingCommands.length === 1 ? "a command" : "commands"} the proposal does not declare (${p.pendingCommands.join("; ")}). Add ${p.pendingCommands.length === 1 ? "it" : "them"} on the Proposals tab; the proposal then waits for your approval again.` : null,
     reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };

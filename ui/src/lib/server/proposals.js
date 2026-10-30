@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { contain, ensureDir, harnessDir, projectRoot, readDirSafe, readTextSafe, safeId } from "./paths.js";
-import { checkProposal } from "../../../../scripts/proposal-check.mjs";
+import { checkProposal, pendingCommands } from "../../../../scripts/proposal-check.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { classifySurface, deliveryFor, isFirstmateHarnessPath } from "../../../../adapters/firstmate/surfaces.mjs";
 
@@ -73,6 +73,8 @@ function normalize(id, document, source) {
     outcome: value.outcome ?? null,
     skill_draft: value.skill_draft ?? null,
     last_apply: value.last_apply ?? null,
+    // Commands the last apply run stopped for, which the person can add.
+    pending_commands: pendingCommands(value),
     upstream_change: value.upstream_change ?? null,
     reasons_to_reject: Array.isArray(value.reasons_to_reject) ? value.reasons_to_reject : [],
     provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,

@@ -31,7 +31,8 @@ fs.writeFileSync(path.join(repo, ".claude", "rules", "format.md"), "# Format\n")
 git(repo, "add", "-A");
 git(repo, "commit", "-q", "-m", "base");
 
-const { applyPlan, startApply, applyPrompt } = await import("../src/lib/server/apply-run.js");
+const { applyPlan, startApply, applyPrompt, declareCommands } = await import("../src/lib/server/apply-run.js");
+const { approveProposal } = await import("../src/lib/server/skills.js");
 const jobs = await import("../src/lib/server/jobs.js");
 const { listDecisions, readProposal } = await import("../src/lib/server/proposals.js");
 const { LAUNCH_TOKEN, hasLaunchToken } = await import("../src/lib/server/launch.js");
@@ -414,15 +415,93 @@ for (const visible of [true, false]) {
   fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
 }
 
-// --- an evaluation that needs an undeclared command fails, naming it ----------
+// --- a run recorded before undeclared_commands named the command only in its
+// error: the person can still add it, without another run -------------------
 {
-  process.env.IMPROVE_STANDIN = "undeclared";
+  const error = "The evaluation needs a command the proposal does not declare: bash .harness/evals/run.sh. The run does not widen its own permissions; add it to evaluation.commands and approve the proposal again.";
+  seed(repo, "legacy.yaml", { evaluation: { commands: [] } });
+  const file = path.join(repo, ".harness", "proposals", "legacy.yaml");
+  fs.writeFileSync(file, YAML.stringify({ ...YAML.parse(fs.readFileSync(file, "utf8")), last_apply: { at: "2026-10-27T10:00:00.000Z", by: "ui", mode: "local-apply", status: "failed", error } }));
+  assert.deepEqual(readProposal("legacy.yaml").pending_commands, ["bash .harness/evals/run.sh"]);
+  const declared = declareCommands("legacy.yaml", { digest: (await applyPlan("legacy.yaml")).digest, commands: ["bash .harness/evals/run.sh"] });
+  assert.equal(declared.ok, true, declared.error);
+  assert.deepEqual(readProposal("legacy.yaml").evaluation.commands, ["bash .harness/evals/run.sh"]);
+  assert.equal(readProposal("legacy.yaml").status, "proposed");
+}
+
+// --- an evaluation that runs scripts the proposal adds: the run stops naming
+// them, the person adds exactly those, approves again, and it applies -------
+{
+  const needs = ["bash .harness/evals/run.sh challenge", "bash .harness/evals/run.sh score ebbb7966"];
+  const files = [".harness/evals/run.sh", ".harness/objectives.yaml"];
+  seed(repo, "evals.yaml", { id: "IMP-20261027-objectives-evals", files, evaluation: { commands: [], pass_conditions: ["the challenge run shows every must-fail case failing"] } });
+  assert.deepEqual(readProposal("evals.yaml").check.findings.map((f) => f.rule), ["evaluation-commands-missing"], "the check asks for the commands before anyone approves");
+
+  process.env.IMPROVE_STANDIN = "needs";
+  process.env.IMPROVE_STANDIN_NEEDS = needs.join("\n");
+  const stopped = (await apply("evals.yaml")).job;
+  assert.equal(stopped.status, "failed");
+  assert.equal(stopped.error, `The evaluation needs commands the proposal does not declare: ${needs.join("; ")}. The run does not widen its own permissions; add them to evaluation.commands and approve the proposal again.`);
+  assert.match(stopped.hint, /No confirmed file was changed\. You can add the commands from the proposal/);
+  assert.deepEqual(stopped.result.undeclared_commands, needs);
+  assert.equal(fs.existsSync(path.join(repo, ".harness/evals/run.sh")), false);
+  let proposal = readProposal("evals.yaml");
+  assert.equal(proposal.status, "approved", "the run does not change the approval");
+  assert.deepEqual(proposal.evaluation.commands, [], "nor the commands");
+  assert.deepEqual(proposal.last_apply.undeclared_commands, needs);
+  assert.deepEqual(proposal.pending_commands, needs);
+
+  // Only exactly the named commands, on the proposal as the person saw it.
+  const digest = (await applyPlan("evals.yaml")).digest;
+  assert.equal(declareCommands("evals.yaml", {}).status, 400);
+  assert.equal(declareCommands("evals.yaml", { digest: "0".repeat(64), commands: needs }).status, 409, "a stale digest is refused");
+  assert.equal(declareCommands("evals.yaml", { digest, commands: [needs[0]] }).status, 409, "some of them are refused");
+  assert.equal(declareCommands("evals.yaml", { digest, commands: [...needs, "rm -rf /"] }).status, 409, "another command is refused");
+  assert.equal(declareCommands("missing.yaml", { digest, commands: needs }).status, 404);
+  assert.deepEqual(readProposal("evals.yaml").evaluation.commands, [], "no refused request changed the proposal");
+
+  const declared = declareCommands("evals.yaml", { digest, commands: [...needs].reverse() });
+  assert.equal(declared.ok, true, declared.error);
+  assert.deepEqual(declared.commands, needs);
+  proposal = readProposal("evals.yaml");
+  assert.equal(proposal.status, "proposed", "the proposal goes back for approval");
+  assert.equal(proposal.approval, null, "its approval is withdrawn");
+  assert.deepEqual(proposal.evaluation.commands, needs);
+  assert.deepEqual(proposal.pending_commands, []);
+  assert.deepEqual(proposal.check.findings, [], "the check is satisfied");
+  assert.deepEqual(proposal.last_apply.commands_added.commands, needs);
+  assert.equal((await applyPlan("evals.yaml")).status, 409, "no run can use them before a fresh approval");
+  const again = (await applyPlan("evals.yaml"));
+  assert.match(again.error, /This one is proposed/);
+  assert.equal(declareCommands("evals.yaml", { digest: (await import("../src/lib/server/write.js")).digestOf(read(repo, ".harness/proposals/evals.yaml")), commands: needs }).status, 409, "a second add finds nothing to add");
+
+  assert.equal(approveProposal("evals.yaml").ok, true);
+  const plan = await applyPlan("evals.yaml");
+  assert.deepEqual(plan.commands, [check("evals.yaml"), ...needs], "the confirm lists them");
+  const { job } = await apply("evals.yaml");
+  delete process.env.IMPROVE_STANDIN;
+  delete process.env.IMPROVE_STANDIN_NEEDS;
+  assert.equal(job.status, "completed", job.error);
+  assert.match(read(repo, ".harness/evals/run.sh"), /Run the formatter/);
+  assert.equal(readProposal("evals.yaml").status, "validated");
+  fs.rmSync(path.join(repo, ".harness", "evals"), { recursive: true });
+  fs.rmSync(path.join(repo, ".harness", "objectives.yaml"));
+}
+
+// --- a command a person could not read whole in a confirm is not offered -----
+{
+  process.env.IMPROVE_STANDIN = "needs";
+  process.env.IMPROVE_STANDIN_NEEDS = ["bash .harness/evals/run.sh\tsecond", `bash ${"x".repeat(600)}`].join("\n");
   seed(repo, "p.yaml");
   const { job } = await apply("p.yaml");
   delete process.env.IMPROVE_STANDIN;
+  delete process.env.IMPROVE_STANDIN_NEEDS;
   assert.equal(job.status, "failed");
-  assert.match(job.error, /needs a command the proposal does not declare: python3 \.harness\/evals\/run\.py\. The run does not widen its own permissions/);
-  assert.equal(readProposal("p.yaml").status, "approved");
+  assert.match(job.error, /needs commands the proposal does not declare: bash \.harness\/evals\/run\.sh\tsecond; bash x{495}\. /, "named, cut short");
+  assert.equal(job.result.undeclared_commands, undefined);
+  assert.deepEqual(readProposal("p.yaml").pending_commands, [], "but not offered");
+  assert.deepEqual(readProposal("p.yaml").last_apply.undeclared_commands, [], "nor read back from the error");
+  assert.doesNotMatch(job.hint, /add the commands/);
 }
 
 // --- the recheck can stop the run ---------------------------------------------

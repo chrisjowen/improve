@@ -144,20 +144,43 @@ export function lintProse(text, { field } = {}) {
  * rather than as harness.
  */
 export function readScopeFiles(text) {
+  return readBlockList(text, "scope", "files");
+}
+
+/**
+ * The lines of the top-level block `parent:` in proposal YAML text, without
+ * the header, or an empty list when there is no such block.
+ * @param {unknown} text
+ * @param {string} parent
+ * @returns {string[]}
+ */
+export function readBlock(text, parent) {
   if (typeof text !== "string") return [];
   const lines = text.split("\n");
-  const scopeAt = lines.findIndex((line) => /^scope:\s*$/.test(line));
-  if (scopeAt === -1) return [];
+  const at = lines.findIndex((line) => line.replace(/\s+#.*$/, "").trimEnd() === `${parent}:`);
+  if (at === -1) return [];
+  const end = lines.findIndex((line, index) => index > at && /^\S/.test(line));
+  return lines.slice(at + 1, end === -1 ? undefined : end);
+}
+
+/**
+ * The list `parent.key` from proposal YAML text, in the forms readScopeFiles
+ * reads. A multi-line item yields its first line.
+ * @param {unknown} text
+ * @param {string} parent
+ * @param {string} key
+ * @returns {string[]}
+ */
+export function readBlockList(text, parent, key) {
   const files = [];
   let inFiles = false;
   let filesIndent = 0;
-  for (const line of lines.slice(scopeAt + 1)) {
-    if (/^\S/.test(line)) break;
-    const inline = line.match(/^(\s+)files:\s*\[(.*)\]\s*$/);
+  for (const line of readBlock(text, parent)) {
+    const inline = line.match(new RegExp(`^(\\s+)${key}:\\s*\\[(.*)\\]\\s*(#.*)?$`));
     if (inline) {
       return inline[2].split(",").map((f) => f.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
     }
-    const header = line.match(/^(\s+)files:\s*$/);
+    const header = line.match(new RegExp(`^(\\s+)${key}:\\s*(#.*)?$`));
     if (header) { inFiles = true; filesIndent = header[1].length; continue; }
     if (!inFiles) continue;
     const item = line.match(/^(\s+)-\s+(.+?)\s*$/);
@@ -168,6 +191,82 @@ export function readScopeFiles(text) {
     }
   }
   return files;
+}
+
+const SCRIPT = /\.(sh|bash|py|mjs|cjs|js|ts|rb)$/;
+
+/**
+ * `.harness/` scripts named in `text`.
+ * @param {unknown} text
+ */
+function harnessScripts(text) {
+  return (String(text ?? "").match(/\.harness\/[^\s"'`()<>,;|&\\]+/g) ?? [])
+    .map((p) => p.replace(/[.:]+$/, ""))
+    .filter((p) => SCRIPT.test(p));
+}
+
+/**
+ * An apply from the review UI may run only the commands in
+ * `evaluation.commands`, so an evaluation whose checks run something must list
+ * it there. A proposal that has pass conditions, lists no commands, and either
+ * adds files under `.harness/evals/` or names a `.harness/` script in its
+ * evaluation gets a finding. The scripts it names in the finding are the ones
+ * a command most likely runs; evaluators run through the rig, so they are left out.
+ *
+ * @param {{ files: string[], commands: string[], passConditions: unknown[], evaluationText: string }} evaluation
+ */
+export function evaluationFindings({ files, commands, passConditions, evaluationText }) {
+  if (commands.length > 0 || passConditions.length === 0) return [];
+  const evals = files.map((f) => f.trim().replace(/^\.\//, "")).filter((f) => f.startsWith(".harness/evals/"));
+  const named = harnessScripts(evaluationText);
+  if (evals.length === 0 && named.length === 0) return [];
+  const scripts = [...new Set([...named, ...evals.filter((f) => SCRIPT.test(f) && !f.startsWith(".harness/evals/evaluators/"))])];
+  return [{
+    rule: "evaluation-commands-missing",
+    detail: `evaluation.commands is empty, but its checks run evals${scripts.length ? ` (${scripts.join(", ")})` : ""}. `
+      + "Apply from the review UI runs only the listed commands and stops at any other, so list every command the checks run, exactly as run."
+  }];
+}
+
+/**
+ * The commands an apply run stopped for that the proposal still does not
+ * declare: the ones its last failed attempt named. These are what the review
+ * UI offers to add to `evaluation.commands`. An attempt recorded before
+ * `undeclared_commands` existed named them only in its error.
+ * @param {any} proposal
+ * @returns {string[]}
+ */
+export function pendingCommands(proposal) {
+  const last = proposal?.last_apply;
+  if (proposal?.status !== "approved" || last?.status !== "failed") return [];
+  const named = Array.isArray(last.undeclared_commands) ? last.undeclared_commands : commandsInError(last.error);
+  const declared = Array.isArray(proposal.evaluation?.commands) ? proposal.evaluation.commands.map((c) => String(c).trim()) : [];
+  return [...new Set(named.filter(isCommand).map((c) => c.trim()))].filter((c) => !declared.includes(c));
+}
+
+/**
+ * The command an apply run's error says the proposal does not declare. The
+ * error held at most its first MAX_COMMAND characters, so one that long may
+ * have been cut short and is not offered.
+ * @param {unknown} error
+ * @returns {string[]}
+ */
+function commandsInError(error) {
+  const match = /^The evaluation needs a command the proposal does not declare: (.+)\. The run does not widen its own permissions;/s
+    .exec(typeof error === "string" ? error : "");
+  return match && match[1].length < MAX_COMMAND ? [match[1]] : [];
+}
+
+// One line of printable text, of a length a person can read in a confirm.
+const MAX_COMMAND = 500;
+
+/**
+ * Whether `value` can be offered as a command to declare.
+ * @param {unknown} value
+ * @returns {value is string}
+ */
+export function isCommand(value) {
+  return typeof value === "string" && value.trim() !== "" && value.trim().length <= MAX_COMMAND && !/[\u0000-\u001f\u007f]/.test(value.trim());
 }
 
 /** The prose fields a reviewer reads, flattened to [field, text] pairs. */
@@ -212,6 +311,14 @@ export function checkProposal(proposal, { isHarness = isHarnessPath } = {}) {
         + "Rewrite it as the instruction, hook, skill or permission that would have let the agent catch this."
     });
   }
+
+  const evaluation = value.evaluation && typeof value.evaluation === "object" ? value.evaluation : {};
+  findings.push(...evaluationFindings({
+    files: Array.isArray(value.scope?.files) ? value.scope.files.filter((f) => typeof f === "string") : [],
+    commands: Array.isArray(evaluation.commands) ? evaluation.commands.filter((c) => typeof c === "string" && c.trim()) : [],
+    passConditions: Array.isArray(evaluation.pass_conditions) ? evaluation.pass_conditions : [],
+    evaluationText: JSON.stringify(evaluation)
+  }));
 
   const prose = proseFields(value).flatMap(([field, text]) => lintProse(text, { field }));
   return { scope, outside, findings, prose };

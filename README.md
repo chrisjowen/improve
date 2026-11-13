@@ -57,8 +57,12 @@ only after you agree.
 ### 3. Work as usual and let it observe
 
 Keep using Claude Code as you normally would. In the background, Improve notes
-corrections, failed tools and the number of sessions. After enough of them, a
-session starts with a note that a harness review is due.
+corrections you type, failed tools and the number of sessions. It ignores
+prompts a program wrote, such as a pipeline's or Firstmate's launch
+instructions, and it keeps one record per repository however many worktrees you
+use. When tools fail unusually often, you correct the agent often, or the same
+correction comes up in several sessions, a session starts with a note that a
+harness review is due.
 
 To check at any time:
 
@@ -114,7 +118,11 @@ In Claude Code, run the command the page shows you:
 ```
 
 Claude checks the proposal again, makes the change, runs its check, and
-records the outcome. For a skill you approved in the page, **Approve and write
+records the outcome. **Apply** on the review page does the same in the
+background; if that agent cannot sign in, the page tells you, changes nothing,
+and gives you the command to run in your own session. Until a proposal is
+applied, Claude Code mentions it at the start of your sessions, and Wheelhouse
+shows it as not applied. For a skill you approved in the page, **Approve and write
 skill** saves it directly.
 
 ### 8. Check the result
@@ -177,7 +185,9 @@ effect, and never turns something it observed straight into a rule.
 
 **What does it record?**
 Short, cleaned-up notes about each session: which tools ran or failed, how many
-sessions there were, and the corrections you made, with secrets removed. They
+sessions there were, and the corrections you made, with secrets removed. During
+a review, a model reads the corrections to group the ones that say the same
+thing; that is one short Claude run. They
 stay on your machine, in Claude Code's plugin data folder.
 
 **Does it cost anything or run in the background?**

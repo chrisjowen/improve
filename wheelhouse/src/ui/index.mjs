@@ -125,7 +125,8 @@ class ImproveFirstmateView extends ImproveElement {
               h("span", { class: "row", style: "gap:0.25rem" }, icon(Lock, "icon i35"), h("span", { class: "tabular medium fg" }, privateWaiting), " private"),
               h("span", { class: "row", style: "gap:0.25rem" }, icon(GitPullRequest, "icon i35 sea"), h("span", { class: "tabular medium fg" }, sharedWaiting), " shared")
             )
-          : null
+          : null,
+        v.notApplied ? h("p", { class: "mt2 xs warn" }, notAppliedText(v.notApplied)) : null
       ),
       h(
         "section",
@@ -368,6 +369,7 @@ class ImproveHealth extends ImproveElement {
             )
           : null
       ),
+      v.notApplied ? h("p", { class: "mt2 xs" }, h("a", { class: "warn", href: `${IMPROVEMENTS}#/proposals` }, notAppliedText(v.notApplied))) : null,
       v.evidence.mix.length ? h("div", { class: "mt3" }, evidenceBar(v.evidence.mix, true)) : null,
       v.evidence.patterns.length
         ? h(
@@ -392,7 +394,12 @@ class ImproveHealth extends ImproveElement {
   }
 }
 
-/** A small header pill, only while a harness review is due or proposals wait. */
+/** @param {number} n */
+function notAppliedText(n) {
+  return n === 1 ? "1 approved improvement is not applied yet." : `${n} approved improvements are not applied yet.`;
+}
+
+/** A small header pill, only while a harness review is due, proposals wait, or approved ones are not applied. */
 class ImproveIndicator extends ImproveElement {
   extraStyle() {
     return ":host { display: contents; }";
@@ -400,9 +407,17 @@ class ImproveIndicator extends ImproveElement {
 
   /** @param {HarnessView} v */
   view(v) {
-    const label = [v.review.due ? "Review due" : null, v.waiting ? `${v.waiting} to decide` : null].filter(Boolean).join(" · ");
+    const label = [
+      v.review.due ? "Review due" : null,
+      v.waiting ? `${v.waiting} to decide` : null,
+      v.notApplied ? `${v.notApplied} not applied` : null
+    ].filter(Boolean).join(" · ");
     if (!label) return [];
-    const title = [v.review.due ? v.review.headline : null, v.waiting ? `${v.waiting} harness improvements wait for your call.` : null]
+    const title = [
+      v.review.due ? v.review.headline : null,
+      v.waiting ? `${v.waiting} harness improvements wait for your call.` : null,
+      v.notApplied ? notAppliedText(v.notApplied) : null
+    ]
       .filter(Boolean)
       .join(" ");
     return h("a", { class: "pill", href: IMPROVEMENTS, title, "aria-label": `Harness: ${label}` }, icon(Wrench, "icon i35"), label);

@@ -1,7 +1,7 @@
 {
   "name": "improve-wheelhouse",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Builds improve's Wheelhouse plugin: the server entry and the UI bundle Wheelhouse loads.",
   "type": "module",
   "scripts": {

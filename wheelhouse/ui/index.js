@@ -360,6 +360,8 @@ function proposalCard(p, o) {
   }
   if (p.applyStopped) {
     chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.applyStopped }, "Needs commands"));
+  } else if (p.notApplied) {
+    chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.landing ?? "" }, "Not applied"));
   }
   const toggle = h(
     "button",
@@ -397,7 +399,7 @@ function details(p, id) {
       { class: "xs relaxed muted" },
       [p.surfaces.length ? `Changes ${p.surfaces.join(", ")}.` : null, p.deliveryLabel, p.routing].filter(Boolean).join(" ")
     ),
-    p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : null,
+    p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : p.landing ? h("p", { class: "xs relaxed" }, p.landing) : null,
     p.why ? h(
       "p",
       { class: "xs relaxed" },
@@ -10147,7 +10149,7 @@ function _page($$anchor, $$props) {
       reset(div_12);
       template_effect(
         ($0) => {
-          set_text(text_10, `Made ${get(status).repeated_correction.count ?? ""} times. Key words: `);
+          set_text(text_10, `Made ${get(status).repeated_correction.count ?? ""} times in ${get(status).repeated_correction.sessions ?? ""} sessions. Key words: `);
           set_text(text_11, $0);
         },
         [
@@ -10166,7 +10168,7 @@ function _page($$anchor, $$props) {
     var consequent_10 = ($$anchor2) => {
       var dl = root_102();
       var dd = sibling(child(dl));
-      var text_12 = only_child(dd, true);
+      var text_12 = only_child(dd);
       var dd_1 = sibling(dd, 3);
       var text_13 = only_child(dd_1, true);
       var dd_2 = sibling(dd_1, 3);
@@ -10178,10 +10180,10 @@ function _page($$anchor, $$props) {
       reset(dl);
       template_effect(
         ($0) => {
-          set_text(text_12, get(state2).sessions_since_review ?? 0);
+          set_text(text_12, `${get(state2).sessions_since_review ?? 0 ?? ""} (${get(state2).human_sessions_since_review ?? 0 ?? ""} yours)`);
           set_text(text_13, get(state2).tool_calls_since_review ?? 0);
           set_text(text_14, get(state2).tool_failures_since_review ?? 0);
-          set_text(text_15, get(state2).corrections_since_review ?? 0);
+          set_text(text_15, get(state2).candidates_since_review ?? 0);
           set_text(text_16, $0);
         },
         [
@@ -17168,7 +17170,8 @@ var ImproveFirstmateView = class extends ImproveElement {
           { class: "mt3 row wrap xs muted", style: "gap:0.75rem" },
           h("span", { class: "row", style: "gap:0.25rem" }, icon(Lock, "icon i35"), h("span", { class: "tabular medium fg" }, privateWaiting), " private"),
           h("span", { class: "row", style: "gap:0.25rem" }, icon(GitPullRequest, "icon i35 sea"), h("span", { class: "tabular medium fg" }, sharedWaiting), " shared")
-        ) : null
+        ) : null,
+        v.notApplied ? h("p", { class: "mt2 xs warn" }, notAppliedText(v.notApplied)) : null
       ),
       h(
         "section",
@@ -17378,6 +17381,7 @@ var ImproveHealth = class extends ImproveElement {
           h("span", { class: "row", style: "gap:0.25rem" }, icon(GitPullRequest, "icon i3 sea"), `${shared} shared`)
         ) : null
       ),
+      v.notApplied ? h("p", { class: "mt2 xs" }, h("a", { class: "warn", href: `${IMPROVEMENTS}#/proposals` }, notAppliedText(v.notApplied))) : null,
       v.evidence.mix.length ? h("div", { class: "mt3" }, evidenceBar(v.evidence.mix, true)) : null,
       v.evidence.patterns.length ? h(
         "ul",
@@ -17397,15 +17401,26 @@ var ImproveHealth = class extends ImproveElement {
     );
   }
 };
+function notAppliedText(n) {
+  return n === 1 ? "1 approved improvement is not applied yet." : `${n} approved improvements are not applied yet.`;
+}
 var ImproveIndicator = class extends ImproveElement {
   extraStyle() {
     return ":host { display: contents; }";
   }
   /** @param {HarnessView} v */
   view(v) {
-    const label = [v.review.due ? "Review due" : null, v.waiting ? `${v.waiting} to decide` : null].filter(Boolean).join(" \xB7 ");
+    const label = [
+      v.review.due ? "Review due" : null,
+      v.waiting ? `${v.waiting} to decide` : null,
+      v.notApplied ? `${v.notApplied} not applied` : null
+    ].filter(Boolean).join(" \xB7 ");
     if (!label) return [];
-    const title = [v.review.due ? v.review.headline : null, v.waiting ? `${v.waiting} harness improvements wait for your call.` : null].filter(Boolean).join(" ");
+    const title = [
+      v.review.due ? v.review.headline : null,
+      v.waiting ? `${v.waiting} harness improvements wait for your call.` : null,
+      v.notApplied ? notAppliedText(v.notApplied) : null
+    ].filter(Boolean).join(" ");
     return h("a", { class: "pill", href: IMPROVEMENTS, title, "aria-label": `Harness: ${label}` }, icon(Wrench, "icon i35"), label);
   }
 };

@@ -2,6 +2,7 @@
 import path from "node:path";
 import {
   appendJsonl,
+  automatedLaunch,
   isImproveChild,
   loadConfig,
   parseJson,
@@ -9,17 +10,25 @@ import {
   projectRoot,
   readJson,
   readStdin,
+  recordCandidate,
   writeJsonAtomic
 } from "./lib.mjs";
-import { detect, fingerprint } from "./detect.mjs";
+import { detect, fingerprint, machinePrompt } from "./detect.mjs";
 import { redact } from "./redact.mjs";
 
 /**
- * UserPromptSubmit hook: record a correction when one is stated.
+ * UserPromptSubmit hook: record a candidate correction when a person states one.
  *
  * This is the first path that keeps prompt text, so the excerpt passes the
  * egress rules before it is written. The hook stays cheap: a handful of regexes
- * and an append, with no model call.
+ * and an append, with no model call. What it records is a candidate, one cheap
+ * signal; `/improve review` has a model confirm and group candidates
+ * (scripts/review-cli.mjs cluster).
+ *
+ * A prompt a program wrote is not a correction: a session launched with `-p`
+ * or by the SDK, a Firstmate worker, a background-task notification, or a
+ * known launch or collector template. Those are counted as skipped, never
+ * recorded.
  */
 // An agent this plugin started is not the human's session; see isImproveChild.
 if (isImproveChild()) process.exit(0);
@@ -34,17 +43,32 @@ try {
   const prompt = typeof input.prompt === "string" ? input.prompt
     : typeof input.message === "string" ? input.message
     : undefined;
+  const dir = projectDataDir(root);
+  const stateFile = path.join(dir, "state.json");
+
+  const skipped = automatedLaunch() ?? machinePrompt(prompt, config.capture.ignore_prompts);
+  if (skipped) {
+    const state = readJson(stateFile, {});
+    state.machine_prompts_skipped = { ...state.machine_prompts_skipped };
+    state.machine_prompts_skipped[skipped] = (state.machine_prompts_skipped[skipped] || 0) + 1;
+    state.updated_at = new Date().toISOString();
+    writeJsonAtomic(stateFile, state);
+    process.exit(0);
+  }
+
   const found = detect(prompt);
   if (!found.matched) process.exit(0);
 
   const { text: excerpt, redactions } = redact(found.excerpt);
   const key = fingerprint(excerpt);
-  const dir = projectDataDir(root);
+  const sessionId = typeof input.session_id === "string" ? input.session_id : undefined;
 
   appendJsonl(path.join(dir, "corrections.jsonl"), {
-    schema_version: 1,
+    schema_version: 2,
     occurred_at: new Date().toISOString(),
-    session_id: typeof input.session_id === "string" ? input.session_id : undefined,
+    session_id: sessionId,
+    // A candidate until a model confirms it at review time.
+    status: "candidate",
     category: found.category,
     confidence: found.confidence,
     fingerprint: key,
@@ -54,12 +78,8 @@ try {
     patterns: found.patterns
   });
 
-  // A repeat count is what makes "the same correction repeats" a real trigger.
-  const stateFile = path.join(dir, "state.json");
   const state = readJson(stateFile, {});
-  state.corrections_since_review = (state.corrections_since_review || 0) + 1;
-  state.correction_fingerprints = state.correction_fingerprints || {};
-  state.correction_fingerprints[key] = (state.correction_fingerprints[key] || 0) + 1;
+  recordCandidate(state, key, sessionId);
   state.updated_at = new Date().toISOString();
   writeJsonAtomic(stateFile, state);
 } catch (error) {

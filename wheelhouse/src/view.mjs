@@ -155,6 +155,10 @@ export function readProposal(file, text) {
   }
   const scope = isRecord(y.scope) ? y.scope : {};
   const intervention = isRecord(y.intervention) ? y.intervention : {};
+  const lastApply = isRecord(y.last_apply) ? y.last_apply : {};
+  const outcome = isRecord(y.outcome) ? y.outcome : {};
+  const upstream = isRecord(y.upstream_change) ? y.upstream_change : {};
+  const when = (/** @type {unknown} */ v) => str(v) ?? (v instanceof Date ? v.toISOString() : null);
   return {
     file,
     id: str(y.id) ?? file.replace(/\.ya?ml$/i, ""),
@@ -170,6 +174,9 @@ export function readProposal(file, text) {
       .filter((e) => e.observation),
     confidence: str(y.confidence),
     pendingCommands: pendingCommands(y),
+    lastApply: { status: str(lastApply.status), error: str(lastApply.error), at: when(lastApply.at) },
+    appliedAt: when(outcome.applied_at),
+    upstreamBranch: str(upstream.branch),
     createdAt: str(y.created_at) ?? (y.created_at instanceof Date ? y.created_at.toISOString() : null)
   };
 }
@@ -249,12 +256,40 @@ export function proposalItem(p, o) {
     ),
     decision: o.routed ? decisionOf(o.routed, o.tasks, !!o.routed && filing) : null,
     routing,
+    notApplied: notApplied(p),
+    landing: landingText(p),
     applyStopped: p.pendingCommands.length
       ? `Apply stopped: the evaluation needs ${p.pendingCommands.length === 1 ? "a command" : "commands"} the proposal does not declare (${p.pendingCommands.join("; ")}). Add ${p.pendingCommands.length === 1 ? "it" : "them"} on the Proposals tab; the proposal then waits for your approval again.`
       : null,
     reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };
+}
+
+/**
+ * Approved, and nothing has applied it. Approval records a decision and
+ * changes no file, so this is the state an approved change waits in until
+ * an apply run, or the captain's own session, lands it.
+ * @param {ReturnType<typeof readProposal>} p
+ */
+function notApplied(p) {
+  return p.status === "approved" && !p.appliedAt && !p.upstreamBranch;
+}
+
+/**
+ * Where an approved change stands, and how to land it when nothing has.
+ * @param {ReturnType<typeof readProposal>} p
+ * @returns {string | null}
+ */
+function landingText(p) {
+  if (p.status !== "approved") return null;
+  if (p.upstreamBranch) return `Approved and prepared on branch ${p.upstreamBranch}; it lands when that pull request merges.`;
+  if (p.appliedAt) return null;
+  const inSession = `apply it in Claude Code with /improve apply ${p.id}`;
+  if (p.lastApply.status === "failed" && !p.pendingCommands.length) {
+    return `Approved, not applied: the last apply run failed${p.lastApply.error ? ` (${p.lastApply.error.replace(/\.$/, "")})` : ""}. Run it again from the Proposals tab, or ${inSession}.`;
+  }
+  return `Approved, not applied. Apply it from the Proposals tab, or ${inSession}.`;
 }
 
 /** @param {Record<string, any>} obs @returns {Pattern[]} */
@@ -419,6 +454,7 @@ export function buildHarness(raw) {
     schema: "wheelhouse-improve.v1",
     review: review(raw),
     waiting: proposals.filter((p) => p.waiting).length,
+    notApplied: proposals.filter((p) => p.notApplied).length,
     proposals,
     evidence: {
       importedAt: str(obs.imported_at),

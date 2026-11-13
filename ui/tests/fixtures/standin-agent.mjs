@@ -10,12 +10,18 @@
 // .harness/evals/suite.yaml), or slow. A proposal can pick its own with "[stand-in: <mode>]" in its text,
 // so one demo shows several outcomes. IMPROVE_STANDIN_DELAY_MS spaces the
 // events out so progress shows.
+// IMPROVE_STANDIN_LOGGED_IN=0 makes `auth status` report it is not signed in.
 // IMPROVE_STANDIN_ARGS_FILE records the arguments it was given, and
 // IMPROVE_STANDIN_SEEN_FILE the files under .harness/ it can see, with modes.
 import fs from "node:fs";
 import path from "node:path";
 
 const args = process.argv.slice(2);
+// `auth status`, asked before a run: signed in unless IMPROVE_STANDIN_LOGGED_IN=0.
+if (args[0] === "auth") {
+  process.stdout.write(`${JSON.stringify({ loggedIn: process.env.IMPROVE_STANDIN_LOGGED_IN !== "0", authMethod: "stand-in" })}\n`);
+  process.exit(0);
+}
 const prompt = args[args.indexOf("-p") + 1] ?? "";
 const mode = /\[stand-in: ([a-z-]+)\]/.exec(prompt)?.[1] || process.env.IMPROVE_STANDIN || "pass";
 const delay = Number(process.env.IMPROVE_STANDIN_DELAY_MS) || 0;

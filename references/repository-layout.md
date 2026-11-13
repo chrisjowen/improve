@@ -42,16 +42,17 @@ Recommended initial `improve.json`:
 {
   "schema_version": 1,
   "review": {
-    "every_days": 90,
-    "every_sessions": 20,
-    "tool_failure_threshold": 3,
-    "every_tool_calls": 400,
-    "correction_threshold": 5,
-    "repeated_correction_threshold": 2
+    "tool_failure_rate": 0.05,
+    "min_tool_calls": 300,
+    "correction_rate": 2,
+    "min_sessions": 5,
+    "repeated_correction_sessions": 3,
+    "every_days": 90
   },
   "capture": {
     "enabled": true,
-    "corrections": true
+    "corrections": true,
+    "ignore_prompts": []
   },
   "background_dreaming": {
     "enabled": false,
@@ -61,15 +62,30 @@ Recommended initial `improve.json`:
 }
 ```
 
-Review cadence is measured in opportunities rather than calendar time wherever
-possible: `every_tool_calls`, `correction_threshold` and
-`repeated_correction_threshold` advance only when work happens, so a repository
-nobody is touching never reports itself overdue. `every_days` remains as a
-long-stop and fires only once a review has actually happened.
+A review is due when a rate crosses its threshold, counted since the last
+review. A total that only grows is never a trigger on its own, because every
+repository with any activity would stay due for good:
 
-`capture.corrections` controls the `UserPromptSubmit` hook that records stated
-corrections. It is the only path that keeps prompt text, and every excerpt
-passes the shared redaction rules before it is written.
+- `tool_failure_rate`: the share of tool calls that failed, once there have
+  been `min_tool_calls` calls;
+- `correction_rate`: candidate corrections per session a person ran, once there
+  have been `min_sessions` such sessions;
+- `repeated_correction_sessions`: one correction, grouped by shared words, came
+  up in this many separate sessions.
+
+Sessions that a program launched (`claude -p`, the SDK, a Firstmate worker)
+count as work but not as a person's sessions, and they are never told a review
+is due. `every_days` is a long-stop that fires only once a review has happened.
+`node scripts/review-cli.mjs reviewed` records a review and starts the counts
+again.
+
+`capture.corrections` controls the `UserPromptSubmit` hook that records
+candidate corrections. It is the only path that keeps prompt text, and every
+excerpt passes the shared redaction rules before it is written. It skips
+prompts a program wrote: every prompt in a session a program launched,
+background-task notifications, and known launch and collector templates.
+`capture.ignore_prompts` adds regular expressions for this repository's own
+templates.
 
 A Firstmate home adds an `adapters.firstmate` block, off by default; see
 [firstmate.md](firstmate.md). The adapter keeps its routing ledger and review

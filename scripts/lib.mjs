@@ -39,7 +39,185 @@ export function pluginDataDir() {
 }
 
 export function projectDataDir(root) {
-  return path.join(pluginDataDir(), "projects", projectId(root));
+  const base = pluginDataDir();
+  return path.join(base, "projects", projectDataId(root, { base, record: true }));
+}
+
+function readText(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The git directories for the checkout that contains `start`, read from disk.
+ *
+ * `top` is the working tree, `common` the directory every worktree of the
+ * repository shares. A linked worktree's `.git` is a file naming its own git
+ * directory, which names the shared one in `commondir`. Read rather than asked
+ * of git, because hooks run on every tool call and must stay cheap.
+ *
+ * @param {string} start
+ * @returns {{ top: string, common: string } | undefined}
+ */
+export function gitDirs(start) {
+  let dir = path.resolve(start);
+  for (;;) {
+    const dotGit = path.join(dir, ".git");
+    let stat;
+    try {
+      stat = fs.statSync(dotGit);
+    } catch {
+      stat = undefined;
+    }
+    if (stat?.isDirectory()) return { top: dir, common: dotGit };
+    if (stat?.isFile()) {
+      const match = /^gitdir:\s*(.+?)\s*$/m.exec(readText(dotGit) ?? "");
+      if (!match) return undefined;
+      const gitDir = path.resolve(dir, match[1]);
+      const common = readText(path.join(gitDir, "commondir"))?.trim();
+      return { top: dir, common: common ? path.resolve(gitDir, common) : gitDir };
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return undefined;
+    dir = parent;
+  }
+}
+
+/**
+ * The URL of a repository's `origin` remote, or of its first remote, from the
+ * shared git config.
+ *
+ * @param {string} common
+ */
+function remoteUrl(common) {
+  const text = readText(path.join(common, "config"));
+  if (!text) return undefined;
+  /** @type {Map<string, string>} */
+  const urls = new Map();
+  let remote;
+  for (const line of text.split("\n")) {
+    const section = /^\s*\[\s*remote\s+"([^"]+)"\s*\]/.exec(line);
+    if (section) {
+      remote = section[1];
+      continue;
+    }
+    if (/^\s*\[/.test(line)) {
+      remote = undefined;
+      continue;
+    }
+    const url = /^\s*url\s*=\s*(.+?)\s*$/.exec(line);
+    if (remote && url && !urls.has(remote)) urls.set(remote, url[1]);
+  }
+  return urls.get("origin") ?? urls.values().next().value;
+}
+
+/**
+ * A remote URL with its transport, user and `.git` suffix removed, so the
+ * HTTPS and SSH forms of one repository compare equal:
+ * `git@github.com:me/app.git` and `https://github.com/me/app` are both
+ * `github.com/me/app`. Undefined for a remote on this disk.
+ *
+ * @param {string} url
+ */
+export function normalizeRemote(url) {
+  const text = String(url).trim();
+  if (!text || text.startsWith("/") || text.startsWith(".") || /^file:/i.test(text)) return undefined;
+  let rest;
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\/(.+)$/i.exec(text);
+  if (scheme) rest = scheme[1].replace(/^[^@/]*@/, "");
+  else {
+    // scp-like syntax: [user@]host:path
+    const scp = /^(?:[^@/:]+@)?([^/:]+):(.+)$/.exec(text);
+    if (!scp) return undefined;
+    rest = `${scp[1]}/${scp[2].replace(/^\/+/, "")}`;
+  }
+  const [host, ...parts] = rest.split("/");
+  const repo = parts.join("/").replace(/\/+$/, "").replace(/\.git$/i, "");
+  if (!host || !repo) return undefined;
+  return `${host.toLowerCase().replace(/:\d+$/, "")}/${repo}`;
+}
+
+/**
+ * The repository `root` belongs to.
+ *
+ * Keyed by the working directory, every disposable worktree and pool slot got
+ * a bucket of its own, so a review in the main checkout never saw what its
+ * workers' sessions recorded. Every worktree of a repository shares one git
+ * directory, whose main working tree is the checkout:
+ *
+ * - `checkout`: the main working tree's path. It is also the key a main
+ *   checkout had before, so existing observations stay where they are;
+ * - `remote`: a worktree of a bare repository, such as the mirror a pipeline
+ *   checks worktrees out from, has no main working tree. It is keyed by its
+ *   normalized `origin` URL, which a checkout of the same remote maps to
+ *   itself (see `projectDataId`);
+ * - `path`: outside git, `root` itself, as before.
+ *
+ * @param {string} root
+ * @returns {{ key: string, kind: "checkout" | "remote" | "path", checkout: string | null, remote: string | null }}
+ */
+export function repositoryKey(root) {
+  const resolved = path.resolve(root);
+  const dirs = gitDirs(resolved);
+  if (!dirs) return { key: resolved, kind: "path", checkout: null, remote: null };
+  const url = remoteUrl(dirs.common);
+  const remote = (url && normalizeRemote(url)) || null;
+  // A bare repository has no main working tree; its worktrees are all linked.
+  const checkout = path.basename(dirs.common) === ".git" ? path.dirname(dirs.common) : null;
+  if (checkout) return { key: checkout, kind: "checkout", checkout, remote };
+  if (remote) return { key: `repo:${remote}`, kind: "remote", checkout: null, remote };
+  return { key: dirs.common, kind: "checkout", checkout: null, remote: null };
+}
+
+/** Where a remote's checkout is recorded, so a bare mirror's worktree finds it. */
+function aliasFile(base, remote) {
+  return path.join(base, "repositories", `${projectId(`repo:${remote}`)}.json`);
+}
+
+/**
+ * The id of `root`'s observation directory: its repository's, not its path's.
+ *
+ * With `base`, the plugin data directory, a checkout that has a remote records
+ * itself as that remote's checkout (`record`), and a worktree of a bare mirror
+ * of the same remote then uses the checkout's id. Without one recorded yet,
+ * the mirror's worktrees share an id of their own.
+ *
+ * @param {string} root
+ * @param {{ base?: string, record?: boolean }} [options]
+ */
+export function projectDataId(root, { base, record = false } = {}) {
+  const repository = repositoryKey(root);
+  const id = projectId(repository.key);
+  if (!base || !repository.remote) return id;
+  const file = aliasFile(base, repository.remote);
+  if (repository.kind === "checkout" && repository.checkout) {
+    if (record && readJson(file, {}).id !== id) {
+      try {
+        writeJsonAtomic(file, { id, checkout: repository.checkout, remote: repository.remote });
+      } catch {
+        // without the alias, a mirror's worktrees keep a bucket of their own
+      }
+    }
+    return id;
+  }
+  const alias = readJson(file, {});
+  return typeof alias.id === "string" && /^[0-9a-f]{20}$/.test(alias.id) ? alias.id : id;
+}
+
+/**
+ * Ids `root`'s observations were kept under before they were keyed by
+ * repository: its own path's. They are left where they are, never moved, and
+ * the status report names them.
+ *
+ * @param {string} root
+ */
+export function legacyDataIds(root) {
+  const resolved = path.resolve(root);
+  const current = projectId(repositoryKey(resolved).key);
+  return projectId(resolved) === current ? [] : [projectId(resolved)];
 }
 
 /**
@@ -55,13 +233,34 @@ export function isImproveChild(env = process.env) {
 }
 
 /**
+ * Why this session was launched by a program rather than a person, or
+ * undefined.
+ *
+ * Claude Code marks `-p` and SDK sessions with an `sdk-*` entrypoint and an
+ * unattended session with CLAUDE_CODE_SESSION_ATTENDED=0. Firstmate exports
+ * FM_TASK_ID to the workers it launches, whose every prompt is Firstmate's.
+ * Their prompts are not corrections from a person; their tool calls are still
+ * agent work in the repository, so only prompt capture skips them.
+ *
+ * @param {Record<string, string | undefined>} [env]
+ */
+export function automatedLaunch(env = process.env) {
+  if (isImproveChild(env)) return "an agent improve started";
+  if (/^sdk/i.test(env.CLAUDE_CODE_ENTRYPOINT ?? "")) return "a print-mode or SDK session";
+  if (env.CLAUDE_CODE_SESSION_ATTENDED === "0") return "an unattended session";
+  if (env.FM_TASK_ID) return "a Firstmate worker";
+  return undefined;
+}
+
+/**
  * The plugin data directory for `root`, from the environment or from disk.
  *
  * Claude Code exports CLAUDE_PLUGIN_DATA to hook processes only. A script a
  * skill runs, or the UI started from one, does not see it, so the status CLI
  * used to fail and the UI showed no observations. The directory lives at
  * `<config>/plugins/data/<plugin>-<marketplace>/`; look there for this
- * plugin's copy that already holds observations for `root`.
+ * plugin's copy that already holds observations for `root`'s repository, under
+ * its current key or a legacy one.
  *
  * Returns `{ dir, source }`, or undefined when nothing can be found. An empty
  * variable counts as unset, because an unsubstituted `${CLAUDE_PLUGIN_DATA}`
@@ -79,10 +278,24 @@ export function resolvePluginDataDir(root, { env = process.env, home = os.homedi
   } catch {
     return undefined;
   }
-  const id = projectId(root);
-  const holding = names.filter((name) => fs.existsSync(path.join(base, name, "projects", id)));
+  const holding = names.filter((name) => {
+    const dir = path.join(base, name);
+    return [projectDataId(root, { base: dir }), ...legacyDataIds(root)]
+      .some((id) => fs.existsSync(path.join(dir, "projects", id)));
+  });
   const chosen = holding[0] ?? (names.length === 1 ? names[0] : undefined);
   return chosen ? { dir: path.join(base, chosen), source: "discovered" } : undefined;
+}
+
+/**
+ * `root`'s observation directory inside the plugin data directory `base`,
+ * found by `resolvePluginDataDir`. Reads only: it records no alias.
+ *
+ * @param {string} base
+ * @param {string} root
+ */
+export function observationDir(base, root) {
+  return path.join(base, "projects", projectDataId(root, { base }));
 }
 
 export function ensureDir(dir) {
@@ -121,22 +334,26 @@ export function loadConfig(root) {
   const defaults = {
     schema_version: 1,
     review: {
-      // Wall-clock remains a ceiling, not the primary signal: a repository
-      // nobody is working in should not become due for review.
-      every_days: 90,
-      every_sessions: 20,
-      tool_failure_threshold: 3,
-      // Opportunity-relative counters. These advance only when work happens.
-      every_tool_calls: 400,
-      correction_threshold: 5,
-      // Twice is a repeat. Fingerprints are word sets grouped by overlap, so
-      // heavy rewording can still split a group; a low threshold keeps the
-      // trigger usable rather than theoretical.
-      repeated_correction_threshold: 2
+      // Rates over opportunities, never raw totals: a total only grows, so
+      // every repository with any activity used to be "due" for good. Each
+      // rate waits for enough opportunities that one bad hour does not count.
+      tool_failure_rate: 0.05,
+      min_tool_calls: 300,
+      // Candidate corrections per session a person ran.
+      correction_rate: 2,
+      min_sessions: 5,
+      // The same correction, in this many separate sessions. One session that
+      // repeats itself is one conversation, not a pattern.
+      repeated_correction_sessions: 3,
+      // Wall-clock is a long-stop after a review, never the signal.
+      every_days: 90
     },
     capture: {
       enabled: true,
-      corrections: true
+      corrections: true,
+      // Extra patterns (regular expressions) for prompts a program writes in
+      // this repository, so they are never recorded as corrections.
+      ignore_prompts: []
     },
     background_dreaming: {
       enabled: false,
@@ -177,62 +394,111 @@ export function similarity(a, b) {
   return shared / (left.size + right.size - shared);
 }
 
-/**
- * The most repeated correction since the last review, or undefined.
- *
- * Fingerprints are word sets, so real rewording produces different keys: "use
- * the existing helper instead of a new one" and "use the existing helper
- * instead of writing one" do not match exactly. Near-identical keys are
- * therefore grouped here, at read time, rather than by forcing the hot path to
- * be cleverer. True semantic grouping needs a model and belongs at review time.
- */
-export function topRepeatedCorrection(state, threshold = 0.6) {
-  const counts = Object.entries(state.correction_fingerprints || {});
-  if (counts.length === 0) return undefined;
+// Distinct sessions kept per correction group, and groups kept, so state.json
+// stays small however long a repository goes without a review.
+const MAX_GROUP_SESSIONS = 20;
+const MAX_GROUPS = 500;
 
-  const groups = [];
-  for (const [key, count] of counts.sort((a, b) => b[1] - a[1])) {
-    const existing = groups.find((group) => similarity(group.key, key) >= threshold);
-    if (existing) {
-      existing.count += count;
-      existing.members.push(key);
-    } else {
-      groups.push({ key, count, members: [key] });
+/**
+ * Count a candidate correction into `state`: the total since the last review,
+ * and its fingerprint's count and the sessions it was seen in.
+ *
+ * @param {Record<string, any>} state
+ * @param {string} key
+ * @param {string | undefined} sessionId
+ */
+export function recordCandidate(state, key, sessionId) {
+  state.candidates_since_review = (state.candidates_since_review || 0) + 1;
+  const groups = state.candidate_groups && typeof state.candidate_groups === "object" ? state.candidate_groups : {};
+  const group = groups[key] ?? { count: 0, sessions: [] };
+  group.count += 1;
+  if (sessionId && !group.sessions.includes(sessionId)) {
+    group.sessions = [...group.sessions, sessionId].slice(-MAX_GROUP_SESSIONS);
+  }
+  groups[key] = group;
+  const keys = Object.keys(groups);
+  if (keys.length > MAX_GROUPS) {
+    for (const old of keys.sort((x, y) => groups[x].count - groups[y].count).slice(0, keys.length - MAX_GROUPS)) {
+      if (old !== key) delete groups[old];
     }
   }
-  return groups.sort((a, b) => b.count - a.count)[0];
+  state.candidate_groups = groups;
+  return state;
+}
+
+/**
+ * The candidate correction seen in the most separate sessions since the last
+ * review, or undefined.
+ *
+ * Fingerprints are word sets, so near-identical keys are grouped here, at read
+ * time; grouping by meaning needs a model and happens at review time
+ * (`review-cli.mjs cluster`). Only candidates recorded since prompts from
+ * programs stopped being captured count: the older `correction_fingerprints`
+ * were mostly launch templates.
+ *
+ * @param {Record<string, any>} state
+ * @returns {{ key: string, count: number, sessions: number, members: string[] } | undefined}
+ */
+export function topRepeatedCorrection(state, threshold = 0.6) {
+  const entries = Object.entries(state.candidate_groups || {})
+    .filter(([, group]) => group && typeof group.count === "number");
+  if (entries.length === 0) return undefined;
+
+  const groups = [];
+  for (const [key, group] of entries.sort((a, b) => b[1].count - a[1].count)) {
+    const existing = groups.find((g) => similarity(g.key, key) >= threshold);
+    const sessions = Array.isArray(group.sessions) ? group.sessions : [];
+    if (existing) {
+      existing.count += group.count;
+      existing.members.push(key);
+      for (const id of sessions) existing.sessionIds.add(id);
+    } else {
+      groups.push({ key, count: group.count, members: [key], sessionIds: new Set(sessions) });
+    }
+  }
+  const top = groups
+    .map(({ sessionIds, ...g }) => ({ ...g, sessions: sessionIds.size }))
+    .sort((a, b) => b.sessions - a.sessions || b.count - a.count)[0];
+  return top;
 }
 
 /**
  * Why a review is due, if it is.
  *
- * Measured in opportunities rather than calendar time wherever possible. Days
- * and sessions advance whether or not anyone is working, so a quiet repository
- * used to report itself overdue; the day threshold is now a long-stop.
+ * Every trigger is a rate over opportunities, measured since the last review
+ * on evidence a person produced:
+ *
+ * - tool calls that failed, as a share of tool calls;
+ * - candidate corrections per session a person ran;
+ * - one correction coming back in several separate sessions.
+ *
+ * A total that only grows (tool calls, sessions, corrections) used to fire on
+ * its own, so 344 of 469 observed buckets were "due" and none was ever
+ * reviewed. Days since the last review are a long-stop once a review has
+ * happened. `markReviewed` resets the counts.
+ *
+ * @param {ReturnType<typeof loadConfig>} config
+ * @param {Record<string, any>} state
  */
 export function dueReasons(config, state, now = Date.now()) {
   const reasons = [];
   const review = config.review;
 
-  if ((state.tool_calls_since_review || 0) >= review.every_tool_calls) {
-    reasons.push(`${state.tool_calls_since_review} tool calls since the last harness review`);
+  const calls = state.tool_calls_since_review || 0;
+  const failures = state.tool_failures_since_review || 0;
+  if (calls >= review.min_tool_calls && failures / calls >= review.tool_failure_rate) {
+    reasons.push(`${Math.round((failures / calls) * 100)}% of tool calls failed since the last harness review (${failures} of ${calls})`);
   }
 
   const repeated = topRepeatedCorrection(state);
-  if (repeated && repeated.count >= review.repeated_correction_threshold) {
-    reasons.push(`the same correction has been made ${repeated.count} times`);
+  if (repeated && repeated.sessions >= review.repeated_correction_sessions) {
+    reasons.push(`the same correction came up in ${repeated.sessions} separate sessions`);
   }
 
-  if ((state.corrections_since_review || 0) >= review.correction_threshold) {
-    reasons.push(`${state.corrections_since_review} corrections captured since the last harness review`);
-  }
-
-  if ((state.tool_failures_since_review || 0) >= review.tool_failure_threshold) {
-    reasons.push(`${state.tool_failures_since_review} captured tool failures since the last harness review`);
-  }
-
-  if ((state.sessions_since_review || 0) >= review.every_sessions) {
-    reasons.push(`${state.sessions_since_review} sessions since the last harness review`);
+  const sessions = state.human_sessions_since_review || 0;
+  const candidates = state.candidates_since_review || 0;
+  if (sessions >= review.min_sessions && candidates / sessions >= review.correction_rate) {
+    reasons.push(`${candidates} corrections in ${sessions} sessions since the last harness review`);
   }
 
   // Long-stop. Only fires once a review has happened, so a new repository is
@@ -242,6 +508,51 @@ export function dueReasons(config, state, now = Date.now()) {
   }
 
   return reasons;
+}
+
+/**
+ * Record that a harness review ran: every count since the last review starts
+ * again from zero. The counts it had are kept in `last_review` so the review
+ * can be compared with the next one. Older counters that are no longer read
+ * (`corrections_since_review`, `correction_fingerprints`) are dropped here and
+ * nowhere else.
+ *
+ * @param {Record<string, any>} state
+ */
+export function markReviewed(state, now = Date.now()) {
+  const at = new Date(now).toISOString();
+  const {
+    tool_calls_since_review: toolCalls = 0,
+    tool_failures_since_review: toolFailures = 0,
+    sessions_since_review: sessions = 0,
+    human_sessions_since_review: humanSessions = 0,
+    candidates_since_review: candidates = 0,
+    candidate_groups: _groups,
+    corrections_since_review: _corrections,
+    correction_fingerprints: _fingerprints,
+    machine_prompts_skipped: skipped = {},
+    ...rest
+  } = state;
+  return {
+    ...rest,
+    last_reviewed_at: at,
+    last_review: {
+      at,
+      tool_calls: toolCalls,
+      tool_failures: toolFailures,
+      sessions,
+      human_sessions: humanSessions,
+      candidates,
+      machine_prompts_skipped: skipped
+    },
+    tool_calls_since_review: 0,
+    tool_failures_since_review: 0,
+    sessions_since_review: 0,
+    human_sessions_since_review: 0,
+    candidates_since_review: 0,
+    candidate_groups: {},
+    updated_at: at
+  };
 }
 
 export function eventRecord(eventName, input, root) {

@@ -327,6 +327,31 @@ const go = async (hash) => {
   el.remove();
 }
 
+// Approved but not applied: the card, the tile, the rail card and the header pill say so.
+{
+  const landing = "Approved, not applied: the last apply run failed (Not logged in). Run it again from the Proposals tab, or apply it in Claude Code with /improve apply IMP-8.";
+  const data = harness({
+    waiting: 0,
+    notApplied: 1,
+    proposals: [proposal({ file: "IMP-8.yaml", id: "IMP-8", status: "approved", statusShort: "Approved", group: "approved", waiting: false, decision: null, reviewHref: "/plugins/improve/improvements#/proposals?view=all&p=IMP-8.yaml", pendingCommands: [], applyStopped: null, notApplied: true, landing })]
+  });
+  const el = mount("improve-firstmate-view", data);
+  const chip = [...el.shadowRoot.querySelectorAll("a.chip")].find((a) => a.textContent.trim() === "Not applied");
+  assert.ok(chip, "the card flags it");
+  assert.equal(chip.getAttribute("title"), landing);
+  assert.ok(el.shadowRoot.querySelector(".tiles").textContent.includes("1 approved improvement is not applied yet."));
+  el.shadowRoot.getElementById("IMP-8.yaml").querySelector("button.details-toggle").click();
+  assert.ok(text(el).includes(landing));
+  el.remove();
+
+  const pill = mount("improve-indicator", { ...data, review: { ...data.review, due: false } });
+  assert.equal(pill.shadowRoot.querySelector("a.pill").textContent.trim(), "1 not applied");
+  pill.remove();
+  const health = mount("improve-health", data);
+  assert.ok(text(health).includes("1 approved improvement is not applied yet."));
+  health.remove();
+}
+
 // Nothing proposed yet, and problems said plainly.
 {
   const el = mount("improve-firstmate-view", harness({ proposals: [], waiting: 0, problems: ["improve could not be read: boom."] }));

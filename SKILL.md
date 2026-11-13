@@ -61,7 +61,7 @@ Modes:
 - `status`: report objectives, installed capabilities, evaluation coverage, memory health, unresolved proposals, observed failure signals, and whether a review is due.
 - `assess [focus]`: audit the existing harness or a named concern without changing it.
 - `propose [goal]`: research and prepare a concrete, evaluated improvement proposal.
-- `review`: discuss queued observations and dream reports; reject, combine, defer, or turn them into proposals.
+- `review`: discuss queued observations, correction groups and dream reports; reject, combine, defer, or turn them into proposals. When the review is done, record it with `node "${CLAUDE_PLUGIN_ROOT}/scripts/review-cli.mjs" reviewed "${CLAUDE_PROJECT_DIR}"`, so the counts that make a review due start again.
 - `apply <proposal>`: revalidate an already-approved proposal, apply its patch, run its evaluation, and record the decision and outcome. If approval is not explicit in the current conversation, ask before editing.
 - `dream [scope]`: run or commission read-only exploration for improvement opportunities. Save findings as untrusted proposals, not active rules.
 - `rollback <proposal>`: show the rollback target and consequences, obtain approval, revert only that proposal, then re-run safety checks.
@@ -87,7 +87,20 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" node "${CLAUDE_PLUGIN_ROOT}/scripts/s
 ```
 
 When the plugin data directory is not passed in, the script finds it on disk and
-reports `data_source: "discovered"`.
+reports `data_source: "discovered"`. Observations are kept per repository, so a
+run in the main checkout also sees what sessions in its worktrees recorded.
+
+Corrections in the observations are candidates: a pattern matched a person's
+prompt. Before you treat them as evidence, confirm and group them:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/review-cli.mjs" cluster "${CLAUDE_PROJECT_DIR}"
+```
+
+It has a model mark which candidates are a person correcting the agent, groups
+the ones that make the same correction in different words, and prints the
+groups with how many sessions each came up in. Add `--offline` to group by
+shared words without a model.
 
 Do not treat missing observations as success. It may mean the plugin is new or capture is unavailable.
 
@@ -245,7 +258,10 @@ no proposals exist yet.
 
 Approving a proposal in the UI records the decision and changes no file. Apply
 it with `/improve apply`, or with Apply in the UI, which runs `/improve apply` in
-a background agent after the human confirms the exact files; in a Firstmate
+a background agent after the human confirms the exact files. That agent checks
+it is signed in before it changes anything; when it cannot sign in or fails,
+the UI offers `/improve apply <id>` to run in the human's own session. A
+session-start note lists approved proposals nothing has applied yet; in a Firstmate
 home, shared files are prepared on a branch for a pull request instead. Skill drafting runs a background agent with edit tools
 denied, stores the draft on the proposal, and writes nothing until the human
 approves the reviewed diff. Both preserve invariants 5 and 10.

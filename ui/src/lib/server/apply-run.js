@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import YAML from "yaml";
-import { runAgent } from "../../../../scripts/spawn-agent.mjs";
+import { checkLogin, runAgent } from "../../../../scripts/spawn-agent.mjs";
 import { runProcess } from "../../../../scripts/run-process.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { deliveryFor } from "../../../../adapters/firstmate/surfaces.mjs";
@@ -633,6 +633,20 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
   if (digestOf(proposalText) !== plan.digest) {
     return { ok: false, error: "The proposal changed before the run started. Nothing was changed." };
   }
+  const agentCommand = command || process.env.IMPROVE_AGENT_COMMAND || "claude";
+
+  // Every UI apply run once failed here, after the files were snapshotted:
+  // the CLI the UI starts could not find the login the person's own session
+  // uses. Ask first, so a run that cannot sign in changes nothing and says
+  // where the change can land instead.
+  progress({ message: "Checking that the agent is signed in" });
+  const login = await checkLogin(agentCommand, { cwd: root });
+  if (login.loggedIn === false) {
+    const error = "The agent the review UI starts is not signed in to Claude Code, so it cannot apply this proposal. Nothing was changed.";
+    note(logFile, `${agentCommand} auth status: not signed in`);
+    recordAttempt(plan, { status: "failed", error, evaluation: null });
+    return { ok: false, error, hint: `${inSession(plan)} ${SIGN_IN}`, fallback: `/improve apply ${plan.id}` };
+  }
   const parsed = YAML.parse(proposalText) ?? {};
   const approvedAt = parsed?.approval?.approved_at ?? null;
 
@@ -678,7 +692,7 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     note(logFile, `confirmed files: ${plan.files.join(", ")}`);
 
     const agent = await runAgent({
-      command: command || process.env.IMPROVE_AGENT_COMMAND || "claude",
+      command: agentCommand,
       prompt: applyPrompt(plan, proposalText, approvedAt),
       cwd,
       timeoutMs: TIMEOUT_MS,
@@ -754,12 +768,17 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
       }
       if (stray.length) parts.push(`Inspect these, which the run changed and which were not put back: ${stray.join(", ")}.`);
       if (offer.length) parts.push("You can add the commands from the proposal; it then waits for your approval again.");
+      // The agent itself failed (it could not sign in, crashed or timed out):
+      // the person's own session can still land the change.
+      const fallback = !agent.ok && !agent.cancelled ? `/improve apply ${plan.id}` : null;
+      if (fallback) parts.push(inSession(plan));
       return {
         ok: false,
         cancelled: agent.cancelled,
         timedOut: agent.timedOut,
         error: failure,
         hint: parts.join(" "),
+        ...(fallback ? { fallback } : {}),
         ...summary,
         ...(offer.length ? { undeclared_commands: offer } : {}),
         restored: plan.mode === "local-apply" && changed.length > 0 && restoreFailed.length === 0
@@ -790,6 +809,17 @@ export async function runApply(plan, { signal, progress, logFile, changesFile, c
     if (worktree) await removeWorktree(root, worktree, logFile);
     restoreExclude();
   }
+}
+
+const SIGN_IN = "To use Apply here, sign in with `claude` then /login, and start the review UI from an environment that has your USER and HOME.";
+
+/**
+ * Where an approved change can land when the background agent cannot run it:
+ * the person's own Claude Code session, which has their login.
+ * @param {ApplyPlan} plan
+ */
+function inSession(plan) {
+  return `You can apply it in your own Claude Code session instead: run /improve apply ${plan.id} in this repository.`;
 }
 
 /**

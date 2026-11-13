@@ -26,7 +26,7 @@ shows nothing unless that file turns the Firstmate adapter on
 | --- | --- | --- |
 | `nav.page` | `<improve-improvements>` | **Improvements**, a menu item in the header: improve's review UI, every view and action of it, as tabs, plus a **Firstmate** tab |
 | `home.card` | `<improve-health>` | **Harness**, a tab on the home page's rail, counting the proposals that wait for you |
-| `header.indicator` | `<improve-indicator>` | "Review due", "3 to decide", or both, on wide screens |
+| `header.indicator` | `<improve-indicator>` | "Review due", "3 to decide", "2 not applied", or a mix of them, on wide screens |
 | `task.section` | `<improve-proposal>` | **Improvement**, on the task improve filed a proposal as: the proposal's card, opened, and a link to decide it on the Improvements page |
 
 Each element draws in its own shadow root with Wheelhouse's CSS variables, so

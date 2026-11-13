@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { formatDuration, lastMeaningfulLine, runProcess } from "./run-process.mjs";
 
 /**
@@ -91,12 +93,16 @@ export async function runAgent({
   logFile,
   onProgress
 }) {
+  // Without user settings, a login configured there (an apiKeyHelper, or a
+  // provider in `env`) would be lost too; carry over only those keys.
+  const credentials = settingSources && !settingSources.includes("user") ? credentialSettings() : undefined;
   const args = [
     "-p", prompt,
     "--output-format", "stream-json",
     "--verbose",
     ...extraArgs,
     ...(settingSources ? ["--setting-sources", settingSources.join(",")] : []),
+    ...(credentials ? ["--settings", JSON.stringify(credentials)] : []),
     ...(pluginDir ? ["--plugin-dir", pluginDir] : []),
     ...(allowEdits
       ? ["--permission-mode", "acceptEdits", ...(allowedTools.length ? ["--allowedTools", ...allowedTools] : [])]
@@ -194,7 +200,7 @@ const API_KEY_VARS = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
  * them.
  *
  * @param {NodeJS.ProcessEnv} [env]
- * @param {() => { username: string }} [userInfo]
+ * @param {() => { username: string, homedir?: string }} [userInfo]
  * @returns {NodeJS.ProcessEnv}
  */
 export function agentEnv(env = process.env, userInfo = os.userInfo) {
@@ -202,17 +208,85 @@ export function agentEnv(env = process.env, userInfo = os.userInfo) {
   if (result.IMPROVE_AGENT_USE_API_KEY !== "1") {
     for (const name of API_KEY_VARS) delete result[name];
   }
-  if (result.USER && result.LOGNAME) return result;
-  let username = "";
+  if (result.USER && result.LOGNAME && result.HOME) return result;
+  /** @type {{ username?: string, homedir?: string }} */
+  let account = {};
   try {
-    username = userInfo().username;
+    account = userInfo();
   } catch {
     // no account entry for this uid; leave the environment as it was
   }
-  if (!username) return result;
-  if (!result.USER) result.USER = username;
-  if (!result.LOGNAME) result.LOGNAME = username;
+  if (account.username) {
+    if (!result.USER) result.USER = account.username;
+    if (!result.LOGNAME) result.LOGNAME = account.username;
+  }
+  // Without HOME the CLI cannot find ~/.claude, so it reports "Not logged in".
+  if (!result.HOME && account.homedir) result.HOME = account.homedir;
   return result;
+}
+
+/** Top-level settings keys that decide how the CLI signs in. */
+const CREDENTIAL_KEYS = ["apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "forceLoginMethod", "forceLoginOrgUUID"];
+/** `env` entries that choose a provider or carry a credential. */
+const CREDENTIAL_ENV = /^(ANTHROPIC_|CLAUDE_CODE_USE_|CLAUDE_CODE_OAUTH_|AWS_|CLOUD_ML_REGION$|VERTEX_|GOOGLE_|HTTPS?_PROXY$|NO_PROXY$|NODE_EXTRA_CA_CERTS$)/i;
+
+/**
+ * The parts of the user's Claude Code settings that decide how it signs in,
+ * or undefined when there are none.
+ *
+ * An apply run loads no user settings, so their allow rules cannot widen what
+ * it may do. That also dropped a login set up in those settings: an
+ * `apiKeyHelper`, or `env` naming a provider or key. Only those keys are
+ * passed back with `--settings`; permissions, hooks and the rest stay out.
+ *
+ * @param {{ env?: NodeJS.ProcessEnv, home?: string }} [options]
+ * @returns {Record<string, unknown> | undefined}
+ */
+export function credentialSettings({ env = process.env, home = env.HOME || os.homedir() } = {}) {
+  const dir = env.CLAUDE_CONFIG_DIR || path.join(home, ".claude");
+  /** @type {any} */
+  let settings;
+  try {
+    settings = JSON.parse(fs.readFileSync(path.join(dir, "settings.json"), "utf8"));
+  } catch {
+    return undefined;
+  }
+  if (!settings || typeof settings !== "object") return undefined;
+  /** @type {Record<string, unknown>} */
+  const picked = {};
+  for (const key of CREDENTIAL_KEYS) {
+    if (typeof settings[key] === "string" && settings[key]) picked[key] = settings[key];
+  }
+  if (settings.env && typeof settings.env === "object") {
+    const kept = Object.fromEntries(
+      Object.entries(settings.env).filter(([name, value]) => CREDENTIAL_ENV.test(name) && typeof value === "string")
+    );
+    if (Object.keys(kept).length) picked.env = kept;
+  }
+  return Object.keys(picked).length ? picked : undefined;
+}
+
+/**
+ * Whether the agent CLI is signed in, asked before a run that would fail
+ * without it. `true` or `false` from `claude auth status`; `null` when the
+ * command cannot say, such as an older CLI or a stand-in, so the run goes
+ * ahead and reports its own failure as before.
+ *
+ * @param {string} command
+ * @param {{ cwd?: string, timeoutMs?: number }} [options]
+ * @returns {Promise<{ loggedIn: boolean | null, method: string | null }>}
+ */
+export async function checkLogin(command, { cwd, timeoutMs = 20_000 } = {}) {
+  const result = await runProcess(command, ["auth", "status", "--json"], { cwd, env: agentEnv(), timeoutMs });
+  if (result.spawnError || result.timedOut) return { loggedIn: null, method: null };
+  try {
+    const status = JSON.parse(String(result.stdout).trim());
+    return typeof status?.loggedIn === "boolean"
+      ? { loggedIn: status.loggedIn, method: typeof status.authMethod === "string" ? status.authMethod : null }
+      : { loggedIn: null, method: null };
+  } catch {
+    return { loggedIn: null, method: null };
+  }
 }
 
 /**

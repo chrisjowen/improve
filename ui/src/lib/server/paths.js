@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { resolvePluginDataDir } from "../../../../scripts/lib.mjs";
+import { observationDir, resolvePluginDataDir } from "../../../../scripts/lib.mjs";
 
 /**
  * Repository the UI operates on. IMPROVE_PROJECT_DIR lets the server run from
@@ -77,10 +77,14 @@ export function pluginDataDir() {
   return resolvePluginDataDir(projectRoot())?.dir;
 }
 
-/** This project's directory inside the plugin data store, or undefined. */
+/**
+ * This project's directory inside the plugin data store, or undefined. Keyed
+ * by repository, as the hooks key it, so a UI started in a worktree reads the
+ * same observations as one started in the main checkout.
+ */
 export function projectDataDir() {
   const base = pluginDataDir();
-  return base ? path.join(base, "projects", projectId(projectRoot())) : undefined;
+  return base ? observationDir(base, projectRoot()) : undefined;
 }
 
 export function projectId(root) {

@@ -236,9 +236,11 @@ export function isImproveChild(env = process.env) {
  * Why this session was launched by a program rather than a person, or
  * undefined.
  *
- * Claude Code marks `-p` and SDK sessions with an `sdk-*` entrypoint and an
+ * Claude Code marks a `-p` session with the `sdk-cli` entrypoint and an
  * unattended session with CLAUDE_CODE_SESSION_ATTENDED=0. Firstmate exports
  * FM_TASK_ID to the workers it launches, whose every prompt is Firstmate's.
+ * Other SDK entrypoints are not enough: an interactive front end built on the
+ * SDK has a person typing into it.
  * Their prompts are not corrections from a person; their tool calls are still
  * agent work in the repository, so only prompt capture skips them.
  *
@@ -246,7 +248,7 @@ export function isImproveChild(env = process.env) {
  */
 export function automatedLaunch(env = process.env) {
   if (isImproveChild(env)) return "an agent improve started";
-  if (/^sdk/i.test(env.CLAUDE_CODE_ENTRYPOINT ?? "")) return "a print-mode or SDK session";
+  if (env.CLAUDE_CODE_ENTRYPOINT === "sdk-cli") return "a print-mode session";
   if (env.CLAUDE_CODE_SESSION_ATTENDED === "0") return "an unattended session";
   if (env.FM_TASK_ID) return "a Firstmate worker";
   return undefined;
@@ -322,6 +324,52 @@ export function writeJsonAtomic(file, value) {
   fs.renameSync(temp, file);
 }
 
+const LOCK_WAIT_MS = 2_000;
+const LOCK_STALE_MS = 10_000;
+
+/**
+ * Read `file`, pass its value to `update`, and write what it returns, holding
+ * `<file>.lock` throughout so another process's update is not lost.
+ *
+ * Every worktree and pool slot of a repository shares one state.json, and
+ * hooks update it on every tool call. Without the lock, a hook that read the
+ * file just before `review-cli reviewed` wrote back the old counts and undid
+ * the review. A lock older than LOCK_STALE_MS was left by a process that died
+ * and is taken over; past LOCK_WAIT_MS the update throws.
+ *
+ * @template T
+ * @param {string} file
+ * @param {(value: any) => T} update
+ * @returns {T}
+ */
+export function updateJson(file, update) {
+  ensureDir(path.dirname(file));
+  const lock = `${file}.lock`;
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      fs.closeSync(fs.openSync(lock, "wx", 0o600));
+      break;
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) fs.rmSync(lock, { force: true });
+      } catch {
+        // released between the open and the stat; try again
+      }
+      if (Date.now() > deadline) throw new Error(`${path.basename(file)} is locked by another process`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5 + Math.floor(Math.random() * 10));
+    }
+  }
+  try {
+    const value = update(readJson(file, {}));
+    writeJsonAtomic(file, value);
+    return value;
+  } finally {
+    fs.rmSync(lock, { force: true });
+  }
+}
+
 export function relativeSafe(root, candidate) {
   if (typeof candidate !== "string" || candidate.length === 0) return undefined;
   const absolute = path.resolve(root, candidate);
@@ -350,10 +398,7 @@ export function loadConfig(root) {
     },
     capture: {
       enabled: true,
-      corrections: true,
-      // Extra patterns (regular expressions) for prompts a program writes in
-      // this repository, so they are never recorded as corrections.
-      ignore_prompts: []
+      corrections: true
     },
     background_dreaming: {
       enabled: false,

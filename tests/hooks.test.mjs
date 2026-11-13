@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const pluginRoot = path.resolve(import.meta.dirname, "..");
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "improve-plugin-"));
@@ -86,9 +86,12 @@ for (const env of [{ CLAUDE_CODE_ENTRYPOINT: "sdk-cli" }, { CLAUDE_CODE_SESSION_
   assert.equal(quiet.status, 0, quiet.stderr);
   assert.equal(quiet.stdout, "", `no nudge for ${JSON.stringify(env)}`);
 }
+// An interactive front end built on the SDK has a person typing into it.
+const sdkHosted = run("session-start.mjs", [], { session_id: "ide" }, { CLAUDE_CODE_ENTRYPOINT: "sdk-ts" });
+assert.match(sdkHosted.stdout, /review is due/, "an SDK-hosted interactive session is a person's");
 const counted = status().state;
-assert.equal(counted.sessions_since_review, 7, "every session is work done");
-assert.equal(counted.human_sessions_since_review, 4, "only a person's sessions are opportunities to correct");
+assert.equal(counted.sessions_since_review, 8, "every session is work done");
+assert.equal(counted.human_sessions_since_review, 5, "only a person's sessions are opportunities to correct");
 
 // `review-cli.mjs reviewed` records the review and starts every count again.
 const reviewed = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "review-cli.mjs"), "reviewed", project], {
@@ -135,9 +138,12 @@ assert.equal(skipped.observations.corrections, 1, "no prompt from a program is r
 assert.deepEqual(skipped.state.machine_prompts_skipped, {
   "a pipeline launch template": 1,
   "a Claude Code notification": 1,
-  "a print-mode or SDK session": 1,
+  "a print-mode session": 1,
   "a Firstmate worker": 1
 });
+// A person typing into an SDK-hosted front end is recorded.
+run("capture-prompt.mjs", [], { session_id: "s3", prompt: "no, use the existing helper rather than a new one" }, { CLAUDE_CODE_ENTRYPOINT: "sdk-py" });
+assert.equal(status().observations.corrections, 2, "an SDK-hosted person's correction is recorded");
 
 // A credential in a captured prompt must not reach disk.
 run("capture-prompt.mjs", [], {
@@ -145,6 +151,7 @@ run("capture-prompt.mjs", [], {
   prompt: "no, use the token ghp_1234567890abcdefghijklmnopqrstuvwx instead"
 });
 const correctionsFile = path.join(status().data_location, "corrections.jsonl");
+assert.equal(status().observations.corrections, 3);
 const capturedText = fs.readFileSync(correctionsFile, "utf8");
 assert.ok(!capturedText.includes("ghp_1234567890abcdefghijklmnopqrstuvwx"), "the token must be redacted");
 // Which rule fires depends on which match starts first; "token ghp_..." is
@@ -214,5 +221,37 @@ fs.writeFileSync(path.join(evalsDir, "VERSION"), "0.0.1\n");
 const stale = JSON.parse(run("status.mjs", [project], {}).stdout);
 assert.equal(stale.eval_rig.installed, "0.0.1");
 assert.equal(stale.eval_rig.drifted, true, "an older copy must be reported as drifted");
+
+// --- concurrent updates to the shared state -----------------------------------
+// Every worktree of a repository writes one state.json. Updates that race must
+// all count, and a review recorded among them must not be undone.
+{
+  const before = status().state;
+  const runAsync = (script, args, input) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(pluginRoot, "scripts", script), ...args], {
+      env: { ...process.env, ...PERSON, CLAUDE_PROJECT_DIR: project, CLAUDE_PLUGIN_DATA: data }
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("close", (code) => resolve({ code, stderr }));
+    child.stdin.end(JSON.stringify(input));
+  });
+  const calls = 24;
+  const results = await Promise.all([
+    ...Array.from({ length: calls }, (_, index) => runAsync("capture-event.mjs", ["PostToolUse"], { session_id: `c${index}`, tool_name: "Read" })),
+    runAsync("review-cli.mjs", ["reviewed", project], {})
+  ]);
+  for (const result of results) {
+    assert.equal(result.code, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /skipped/, result.stderr);
+  }
+  const after = status().state;
+  assert.notEqual(after.last_reviewed_at, before.last_reviewed_at, "the review stays recorded");
+  assert.equal(
+    after.tool_calls_since_review + after.last_review.tool_calls,
+    before.tool_calls_since_review + calls,
+    "every call is counted, before the review or after it"
+  );
+}
 
 console.log("hook tests passed");

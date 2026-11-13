@@ -99,8 +99,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/review-cli.mjs" cluster "${CLAUDE_PROJECT_DI
 
 It has a model mark which candidates are a person correcting the agent, groups
 the ones that make the same correction in different words, and prints the
-groups with how many sessions each came up in. Add `--offline` to group by
-shared words without a model.
+groups with how many sessions each came up in. If the model fails, it exits
+non-zero with the error and groups nothing.
 
 Do not treat missing observations as success. It may mean the plugin is new or capture is unavailable.
 
@@ -180,7 +180,7 @@ After explicit approval:
 5. Run deterministic validation and the proposal evaluation.
 6. Inspect the final diff for scope drift, secrets, unsafe permissions, and accidental generated files.
 7. Report measured results, uncertainty, and any manual verification still required.
-8. Record the approved decision and outcome; do not record unverified conclusions as canonical memory.
+8. Record the approved decision and outcome; do not record unverified conclusions as canonical memory. When the evaluation passes, set the proposal's `status: validated`, `outcome.applied_at` to now and `outcome.applied_by: session`, so it no longer shows as approved but not applied.
 
 ## Bootstrap shape
 

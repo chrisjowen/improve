@@ -10,7 +10,7 @@ import {
   projectRoot,
   readJson,
   resolvePluginDataDir,
-  similarity,
+  updateJson,
   writeJsonAtomic
 } from "./lib.mjs";
 import { machinePrompt } from "./detect.mjs";
@@ -21,7 +21,6 @@ const USAGE = `usage: review-cli.mjs <command> [repository] [options]
   cluster [repo]    confirm the candidate corrections since the last review
                     with a model and group them by meaning; writes clusters.json
                     next to the observations and prints it
-      --offline     group by shared words instead, without a model
       --all         every candidate on record, not only since the last review
       --command <c> the agent command (default: IMPROVE_AGENT_COMMAND, then
                     background_dreaming.command, then claude)
@@ -71,9 +70,9 @@ function readJsonl(file) {
  * filter runs again here; `dropped` counts what it removed.
  *
  * @param {string[]} dirs observation directories, current first
- * @param {{ since?: string, ignore?: unknown }} options
+ * @param {{ since?: string }} options
  */
-export function readCandidates(dirs, { since, ignore } = {}) {
+export function readCandidates(dirs, { since } = {}) {
   const sinceTime = since ? Date.parse(since) : Number.NEGATIVE_INFINITY;
   /** @type {Candidate[]} */
   const kept = [];
@@ -83,7 +82,7 @@ export function readCandidates(dirs, { since, ignore } = {}) {
       if (typeof row?.excerpt !== "string") continue;
       const at = Date.parse(row.occurred_at ?? "");
       if (Number.isFinite(at) && at < sinceTime) continue;
-      if (machinePrompt(row.excerpt, ignore)) {
+      if (machinePrompt(row.excerpt)) {
         dropped += 1;
         continue;
       }
@@ -188,32 +187,17 @@ export function readClusterAnswer(payload, candidates) {
 }
 
 /**
- * Groups by shared words, without a model. Nothing is confirmed.
- *
- * @param {Candidate[]} candidates
- */
-export function lexicalClusters(candidates, threshold = 0.5) {
-  /** @type {{ key: string, label: string, guidance: null, members: number[] }[]} */
-  const groups = [];
-  for (const candidate of candidates) {
-    const key = candidate.fingerprint;
-    const existing = key ? groups.find((g) => similarity(g.key, key) >= threshold) : undefined;
-    if (existing) existing.members.push(candidate.n);
-    else groups.push({ key, label: candidate.excerpt.slice(0, 300), guidance: null, members: [candidate.n] });
-  }
-  return describe(candidates, groups);
-}
-
-/**
  * Confirm and group the candidates, then write `clusters.json` in `dataDir`.
+ * When the model fails, the report carries its error and no clusters, and the
+ * last `clusters.json` is left as it was.
  *
- * @param {{ root: string, dataDir: string, legacyDirs?: string[], all?: boolean, offline?: boolean, command?: string, timeoutMs?: number }} options
+ * @param {{ root: string, dataDir: string, legacyDirs?: string[], all?: boolean, command?: string, timeoutMs?: number }} options
  */
-export async function clusterCorrections({ root, dataDir, legacyDirs = [], all = false, offline = false, command, timeoutMs = 10 * 60_000 }) {
+export async function clusterCorrections({ root, dataDir, legacyDirs = [], all = false, command, timeoutMs = 10 * 60_000 }) {
   const config = loadConfig(root);
   const state = readJson(path.join(dataDir, "state.json"), {});
   const since = all ? undefined : state.last_reviewed_at;
-  const { candidates, dropped } = readCandidates([dataDir, ...legacyDirs], { since, ignore: config.capture.ignore_prompts });
+  const { candidates, dropped } = readCandidates([dataDir, ...legacyDirs], { since });
   const base = {
     schema_version: 1,
     produced_at: new Date().toISOString(),
@@ -226,8 +210,6 @@ export async function clusterCorrections({ root, dataDir, legacyDirs = [], all =
   let report;
   if (candidates.length === 0) {
     report = { ...base, method: "none", confirmed: 0, clusters: [], error: null };
-  } else if (offline) {
-    report = { ...base, method: "lexical", confirmed: null, clusters: lexicalClusters(candidates), error: null };
   } else {
     const agent = await runAgent({
       command: command || process.env.IMPROVE_AGENT_COMMAND || config.background_dreaming.command || "claude",
@@ -235,13 +217,11 @@ export async function clusterCorrections({ root, dataDir, legacyDirs = [], all =
       cwd: root,
       timeoutMs
     });
-    if (agent.ok) {
-      const answer = readClusterAnswer(agent.payload, candidates);
-      report = { ...base, method: "model", ...answer, cost_usd: agent.envelope?.cost_usd ?? null, error: null };
-    } else {
-      // Grouping by words is worse than by meaning, but it is not nothing.
-      report = { ...base, method: "lexical", confirmed: null, clusters: lexicalClusters(candidates), error: agent.error ?? "The agent failed." };
+    if (!agent.ok) {
+      return { ...base, method: "model", confirmed: null, clusters: [], error: agent.error ?? "The agent failed." };
     }
+    const answer = readClusterAnswer(agent.payload, candidates);
+    report = { ...base, method: "model", ...answer, cost_usd: agent.envelope?.cost_usd ?? null, error: null };
   }
   writeJsonAtomic(path.join(dataDir, "clusters.json"), report);
   return report;
@@ -252,13 +232,12 @@ export async function clusterCorrections({ root, dataDir, legacyDirs = [], all =
  * @param {string[]} argv
  */
 export function parseArgs(argv) {
-  const options = { command: undefined, repo: undefined, all: false, offline: false, agent: undefined };
+  const options = { command: undefined, repo: undefined, all: false, agent: undefined };
   const rest = [...argv];
   options.command = rest.shift();
   while (rest.length) {
     const arg = /** @type {string} */ (rest.shift());
     if (arg === "--all") options.all = true;
-    else if (arg === "--offline") options.offline = true;
     else if (arg === "--command") options.agent = rest.shift();
     else if (!options.repo && !arg.startsWith("--")) options.repo = arg;
     else throw new Error(`unknown argument: ${arg}`);
@@ -287,10 +266,11 @@ async function main() {
   const dataDir = observationDir(data.dir, root);
 
   if (options.command === "reviewed") {
-    const stateFile = path.join(dataDir, "state.json");
-    const before = readJson(stateFile, {});
-    const after = markReviewed(before);
-    writeJsonAtomic(stateFile, after);
+    let before = {};
+    const after = updateJson(path.join(dataDir, "state.json"), (state) => {
+      before = state;
+      return markReviewed(state);
+    });
     const previous = before.last_reviewed_at ? `${Math.floor(daysSince(before.last_reviewed_at))} days ago` : "never";
     process.stdout.write(`${JSON.stringify({ reviewed_at: after.last_reviewed_at, previous_review: previous, counts: after.last_review }, null, 2)}\n`);
     return 0;
@@ -299,7 +279,7 @@ async function main() {
   const legacyDirs = legacyDataIds(root)
     .map((id) => path.join(data.dir, "projects", id))
     .filter((dir) => dir !== dataDir && fs.existsSync(dir));
-  const report = await clusterCorrections({ root, dataDir, legacyDirs, all: options.all, offline: options.offline, command: options.agent });
+  const report = await clusterCorrections({ root, dataDir, legacyDirs, all: options.all, command: options.agent });
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return report.error ? 1 : 0;
 }

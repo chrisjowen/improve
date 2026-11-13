@@ -51,8 +51,7 @@ Recommended initial `improve.json`:
   },
   "capture": {
     "enabled": true,
-    "corrections": true,
-    "ignore_prompts": []
+    "corrections": true
   },
   "background_dreaming": {
     "enabled": false,
@@ -73,7 +72,7 @@ repository with any activity would stay due for good:
 - `repeated_correction_sessions`: one correction, grouped by shared words, came
   up in this many separate sessions.
 
-Sessions that a program launched (`claude -p`, the SDK, a Firstmate worker)
+Sessions that a program launched (`claude -p`, a Firstmate worker)
 count as work but not as a person's sessions, and they are never told a review
 is due. `every_days` is a long-stop that fires only once a review has happened.
 `node scripts/review-cli.mjs reviewed` records a review and starts the counts
@@ -84,8 +83,6 @@ candidate corrections. It is the only path that keeps prompt text, and every
 excerpt passes the shared redaction rules before it is written. It skips
 prompts a program wrote: every prompt in a session a program launched,
 background-task notifications, and known launch and collector templates.
-`capture.ignore_prompts` adds regular expressions for this repository's own
-templates.
 
 A Firstmate home adds an `adapters.firstmate` block, off by default; see
 [firstmate.md](firstmate.md). The adapter keeps its routing ledger and review

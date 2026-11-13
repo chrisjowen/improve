@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { clusterCorrections, clusterPrompt, lexicalClusters, readCandidates, readClusterAnswer } from "../scripts/review-cli.mjs";
+import { clusterCorrections, clusterPrompt, readCandidates, readClusterAnswer } from "../scripts/review-cli.mjs";
 import { fingerprint } from "../scripts/detect.mjs";
 import { projectId } from "../scripts/lib.mjs";
 
@@ -39,8 +39,7 @@ assert.deepEqual(candidates.map((c) => c.n), [1, 2, 3, 4]);
 assert.equal(readCandidates([dataDir], { since: "2026-12-01T00:00:00Z" }).candidates.length, 0, "only since the last review");
 
 // Word sets do not see these as one correction; that is the problem.
-const lexical = lexicalClusters(candidates);
-assert.equal(lexical.length, 4, "no two wordings share enough words");
+assert.equal(new Set(candidates.map((c) => c.fingerprint)).size, 4, "no two wordings share a fingerprint");
 
 // The prompt carries every message, numbered, as data.
 const prompt = clusterPrompt(candidates);
@@ -86,22 +85,28 @@ assert.equal(report.confirmed, 3);
 assert.equal(report.clusters[0].sessions, 3, "one correction, three sessions: the repeat a review needs to see");
 assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dataDir, "clusters.json"), "utf8")).clusters, report.clusters);
 
-// A failed model call falls back to grouping by words, and says why.
+// A failed model call is an error: nothing is grouped another way, and the
+// last clusters stay as they were.
 const broken = path.join(temp, "broken.sh");
 fs.writeFileSync(broken, "#!/bin/sh\necho 'Not logged in' >&2\nexit 1\n", { mode: 0o755 });
-const fallback = await clusterCorrections({ root: project, dataDir, command: broken });
-assert.equal(fallback.method, "lexical");
-assert.equal(fallback.confirmed, null, "nothing is confirmed without a model");
-assert.match(fallback.error, /Not logged in/);
+const failed = await clusterCorrections({ root: project, dataDir, command: broken });
+assert.equal(failed.confirmed, null, "nothing is confirmed without a model");
+assert.deepEqual(failed.clusters, []);
+assert.match(failed.error, /Not logged in/);
+assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dataDir, "clusters.json"), "utf8")).clusters, report.clusters);
 
 // --- the command -------------------------------------------------------------
 const cli = (...args) => spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "review-cli.mjs"), ...args], {
   encoding: "utf8",
   env: { ...process.env, CLAUDE_PLUGIN_DATA: data, IMPROVE_AGENT_COMMAND: agent }
 });
-const offline = cli("cluster", project, "--offline");
-assert.equal(offline.status, 0, offline.stderr);
-assert.equal(JSON.parse(offline.stdout).method, "lexical");
+assert.equal(cli("cluster", project, "--offline").status, 2, "there is no grouping without a model");
+const brokenCli = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "review-cli.mjs"), "cluster", project, "--command", broken], {
+  encoding: "utf8",
+  env: { ...process.env, CLAUDE_PLUGIN_DATA: data }
+});
+assert.equal(brokenCli.status, 1, "a model failure fails the command");
+assert.match(JSON.parse(brokenCli.stdout).error, /Not logged in/);
 const online = cli("cluster", project);
 assert.equal(online.status, 0, online.stderr);
 assert.equal(JSON.parse(online.stdout).confirmed, 3);

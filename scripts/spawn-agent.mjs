@@ -94,15 +94,19 @@ export async function runAgent({
   onProgress
 }) {
   // Without user settings, a login configured there (an apiKeyHelper, or a
-  // provider in `env`) would be lost too; carry over only those keys.
+  // provider in `env`) would be lost too; carry over only those keys, in a
+  // file only this user can read, so no secret is in argv or the job log.
   const credentials = settingSources && !settingSources.includes("user") ? credentialSettings() : undefined;
+  const settingsDir = credentials ? fs.mkdtempSync(path.join(os.tmpdir(), "improve-settings-")) : undefined;
+  const settingsFile = settingsDir ? path.join(settingsDir, "settings.json") : undefined;
+  if (settingsFile) fs.writeFileSync(settingsFile, JSON.stringify(credentials), { encoding: "utf8", mode: 0o600 });
   const args = [
     "-p", prompt,
     "--output-format", "stream-json",
     "--verbose",
     ...extraArgs,
     ...(settingSources ? ["--setting-sources", settingSources.join(",")] : []),
-    ...(credentials ? ["--settings", JSON.stringify(credentials)] : []),
+    ...(settingsFile ? ["--settings", settingsFile] : []),
     ...(pluginDir ? ["--plugin-dir", pluginDir] : []),
     ...(allowEdits
       ? ["--permission-mode", "acceptEdits", ...(allowedTools.length ? ["--allowedTools", ...allowedTools] : [])]
@@ -119,7 +123,7 @@ export async function runAgent({
   };
   report("Starting the agent");
 
-  const result = await runProcess(command, args, {
+  const running = runProcess(command, args, {
     cwd,
     // Both markers: every hook in this plugin skips its own children, so a
     // draft or dream does not count as the human's session or corrections.
@@ -146,6 +150,9 @@ export async function runAgent({
       }
     }
   });
+  const result = await (settingsDir
+    ? running.finally(() => fs.rmSync(settingsDir, { recursive: true, force: true }))
+    : running);
 
   if (result.spawnError) {
     return {

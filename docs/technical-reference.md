@@ -70,14 +70,15 @@ can be turned off in `.harness/improve.json` (`capture.enabled`,
 are not recorded.
 
 Correction capture keeps a candidate on one cheap signal, a pattern match. It
-skips every prompt in a session a program launched (Claude Code's `sdk-*`
-entrypoint for `-p` and the SDK, `CLAUDE_CODE_SESSION_ATTENDED=0`, or a
+skips every prompt in a session a program launched (Claude Code's `sdk-cli`
+entrypoint for `-p`, `CLAUDE_CODE_SESSION_ATTENDED=0`, or a
 Firstmate worker's `FM_TASK_ID`) and prompts that are background-task
 notifications or known launch and collector templates, and counts what it
 skipped in `state.json` (`machine_prompts_skipped`). At review time
 `scripts/review-cli.mjs cluster` has a model confirm which candidates are a
 person correcting the agent and group them by meaning, and writes
-`clusters.json`; `--offline` groups them by shared words instead.
+`clusters.json`. A model failure is reported as an error, not grouped another
+way.
 
 A review is due when a rate in `.harness/improve.json` `review` crosses its
 threshold since the last review: the share of tool calls that failed, candidate

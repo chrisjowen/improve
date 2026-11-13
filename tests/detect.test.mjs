@@ -106,10 +106,6 @@ for (const prompt of [
   assert.equal(machinePrompt(prompt), undefined, prompt.slice(0, 40));
 }
 
-// A repository names its own templates in capture.ignore_prompts.
-assert.equal(machinePrompt("BUILD BOT: never deploy on a Friday", ["^BUILD BOT:"]), "a pattern in capture.ignore_prompts");
-assert.equal(machinePrompt("never deploy on a Friday", ["^BUILD BOT:"]), undefined);
-assert.equal(machinePrompt("never deploy on a Friday", ["(unclosed"]), undefined, "an invalid pattern ignores nothing");
 assert.equal(machinePrompt(undefined), undefined);
 
 console.log("machine prompt tests passed");

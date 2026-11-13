@@ -10,8 +10,7 @@
   },
   "capture": {
     "enabled": true,
-    "corrections": true,
-    "ignore_prompts": []
+    "corrections": true
   },
   "background_dreaming": {
     "enabled": false,

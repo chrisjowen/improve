@@ -8,10 +8,9 @@ import {
   parseJson,
   projectDataDir,
   projectRoot,
-  readJson,
   readStdin,
   recordCandidate,
-  writeJsonAtomic
+  updateJson
 } from "./lib.mjs";
 import { detect, fingerprint, machinePrompt } from "./detect.mjs";
 import { redact } from "./redact.mjs";
@@ -25,8 +24,8 @@ import { redact } from "./redact.mjs";
  * signal; `/improve review` has a model confirm and group candidates
  * (scripts/review-cli.mjs cluster).
  *
- * A prompt a program wrote is not a correction: a session launched with `-p`
- * or by the SDK, a Firstmate worker, a background-task notification, or a
+ * A prompt a program wrote is not a correction: a session launched with `-p`,
+ * a Firstmate worker, a background-task notification, or a
  * known launch or collector template. Those are counted as skipped, never
  * recorded.
  */
@@ -46,13 +45,14 @@ try {
   const dir = projectDataDir(root);
   const stateFile = path.join(dir, "state.json");
 
-  const skipped = automatedLaunch() ?? machinePrompt(prompt, config.capture.ignore_prompts);
+  const skipped = automatedLaunch() ?? machinePrompt(prompt);
   if (skipped) {
-    const state = readJson(stateFile, {});
-    state.machine_prompts_skipped = { ...state.machine_prompts_skipped };
-    state.machine_prompts_skipped[skipped] = (state.machine_prompts_skipped[skipped] || 0) + 1;
-    state.updated_at = new Date().toISOString();
-    writeJsonAtomic(stateFile, state);
+    updateJson(stateFile, (state) => {
+      state.machine_prompts_skipped = { ...state.machine_prompts_skipped };
+      state.machine_prompts_skipped[skipped] = (state.machine_prompts_skipped[skipped] || 0) + 1;
+      state.updated_at = new Date().toISOString();
+      return state;
+    });
     process.exit(0);
   }
 
@@ -78,10 +78,11 @@ try {
     patterns: found.patterns
   });
 
-  const state = readJson(stateFile, {});
-  recordCandidate(state, key, sessionId);
-  state.updated_at = new Date().toISOString();
-  writeJsonAtomic(stateFile, state);
+  updateJson(stateFile, (state) => {
+    recordCandidate(state, key, sessionId);
+    state.updated_at = new Date().toISOString();
+    return state;
+  });
 } catch (error) {
   process.stderr.write(`improve prompt capture skipped: ${error.message}\n`);
 }

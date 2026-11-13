@@ -84,19 +84,32 @@ try {
   fs.writeFileSync(path.join(home, ".claude", "settings.json"), JSON.stringify({ permissions: { allow: ["Bash"] }, env: { EDITOR: "vim" } }));
   assert.equal(credentialSettings({ env: {}, home }), undefined, "permissions and other env are never carried");
 
-  // runAgent passes them with --settings only when it drops user settings.
-  fs.writeFileSync(path.join(home, ".claude", "settings.json"), JSON.stringify({ apiKeyHelper: "~/bin/key.sh" }));
+  // runAgent passes them with --settings only when it drops user settings, as
+  // a file only this user can read, removed after the run: a secret in argv
+  // is visible to every local process, and the job log records the command.
+  const secret = "sk-ant-secret-value";
+  fs.writeFileSync(path.join(home, ".claude", "settings.json"), JSON.stringify({ apiKeyHelper: "~/bin/key.sh", env: { ANTHROPIC_API_KEY: secret } }));
   const argsStub = path.join(home, "claude");
   fs.writeFileSync(argsStub, `#!/usr/bin/env node
-process.stdout.write(JSON.stringify({ type: "result", subtype: "success", result: JSON.stringify({ args: process.argv.slice(2) }) }) + "\\n");
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const file = args.includes("--settings") ? args[args.indexOf("--settings") + 1] : null;
+const content = file ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
+// Reports whether the key arrived, not the key, which the log would record.
+const settings = content ? { apiKeyHelper: content.apiKeyHelper, key: content.env?.ANTHROPIC_API_KEY === "${secret}", mode: fs.statSync(file).mode & 0o777 } : null;
+process.stdout.write(JSON.stringify({ type: "result", subtype: "success", result: JSON.stringify({ args, file, settings }) }) + "\\n");
 `, { mode: 0o755 });
   const savedHome = process.env.HOME;
   try {
     process.env.HOME = home;
-    const without = await runAgent({ command: argsStub, prompt: "hi", cwd: home, settingSources: [] });
-    const args = without.payload.args;
+    const logFile = path.join(home, "job.log");
+    const without = await runAgent({ command: argsStub, prompt: "hi", cwd: home, settingSources: [], logFile });
+    const { args, file, settings } = without.payload;
     assert.equal(args[args.indexOf("--setting-sources") + 1], "");
-    assert.deepEqual(JSON.parse(args[args.indexOf("--settings") + 1]), { apiKeyHelper: "~/bin/key.sh" });
+    assert.deepEqual(settings, { apiKeyHelper: "~/bin/key.sh", key: true, mode: 0o600 }, "only this user can read the copied settings");
+    assert.equal(args.some((arg) => arg.includes(secret)), false, "no secret in the child's argv");
+    assert.equal(fs.readFileSync(logFile, "utf8").includes(secret), false, "no secret in the job log");
+    assert.equal(fs.existsSync(file), false, "the settings file is removed after the run");
     const withUser = await runAgent({ command: argsStub, prompt: "hi", cwd: home });
     assert.equal(withUser.payload.args.includes("--settings"), false, "a run that loads user settings needs no copy");
   } finally {

@@ -8,9 +8,8 @@ import {
   parseJson,
   projectDataDir,
   projectRoot,
-  readJson,
   readStdin,
-  writeJsonAtomic
+  updateJson
 } from "./lib.mjs";
 
 const eventName = process.argv[2] || "Unknown";
@@ -30,14 +29,14 @@ try {
   // Tool calls are the opportunity denominator: review cadence should follow
   // work done, not days elapsed.
   if (eventName === "PostToolUse" || eventName === "PostToolUseFailure") {
-    const stateFile = path.join(dir, "state.json");
-    const state = readJson(stateFile, {});
-    state.tool_calls_since_review = (state.tool_calls_since_review || 0) + 1;
-    if (eventName === "PostToolUseFailure") {
-      state.tool_failures_since_review = (state.tool_failures_since_review || 0) + 1;
-    }
-    state.updated_at = new Date().toISOString();
-    writeJsonAtomic(stateFile, state);
+    updateJson(path.join(dir, "state.json"), (state) => {
+      state.tool_calls_since_review = (state.tool_calls_since_review || 0) + 1;
+      if (eventName === "PostToolUseFailure") {
+        state.tool_failures_since_review = (state.tool_failures_since_review || 0) + 1;
+      }
+      state.updated_at = new Date().toISOString();
+      return state;
+    });
   }
 } catch (error) {
   process.stderr.write(`improve capture skipped: ${error.message}\n`);

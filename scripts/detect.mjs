@@ -84,25 +84,15 @@ const MACHINE_PROMPTS = [
  * Why `prompt` was written by a program, or undefined for a person's prompt.
  *
  * Content only, so it also de-noises corrections recorded before this filter
- * existed. `extra` holds a repository's own patterns, from
- * `capture.ignore_prompts` in `.harness/improve.json`.
+ * existed.
  *
  * @param {unknown} prompt
- * @param {unknown} [extra]
  * @returns {string | undefined}
  */
-export function machinePrompt(prompt, extra = []) {
+export function machinePrompt(prompt) {
   if (typeof prompt !== "string") return undefined;
   for (const [pattern, reason] of MACHINE_PROMPTS) {
     if (pattern.test(prompt)) return reason;
-  }
-  for (const source of Array.isArray(extra) ? extra : []) {
-    if (typeof source !== "string" || !source) continue;
-    try {
-      if (new RegExp(source, "im").test(prompt)) return "a pattern in capture.ignore_prompts";
-    } catch {
-      // an invalid pattern ignores nothing
-    }
   }
   return undefined;
 }

@@ -12,7 +12,7 @@ import {
   projectRoot,
   readJson,
   readStdin,
-  writeJsonAtomic
+  updateJson
 } from "./lib.mjs";
 
 // An agent this plugin started is not the human's session; see isImproveChild.
@@ -54,10 +54,12 @@ try {
   });
   child.unref();
 
-  state.dream_running = true;
-  state.last_dream_started_at = new Date().toISOString();
-  state.updated_at = state.last_dream_started_at;
-  writeJsonAtomic(stateFile, state);
+  updateJson(stateFile, (current) => {
+    current.dream_running = true;
+    current.last_dream_started_at = new Date().toISOString();
+    current.updated_at = current.last_dream_started_at;
+    return current;
+  });
 } catch (error) {
   process.stderr.write(`improve session-end skipped: ${error.message}\n`);
 }

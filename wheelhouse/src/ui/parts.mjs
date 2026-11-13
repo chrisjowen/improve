@@ -149,6 +149,8 @@ export function proposalCard(p, o) {
   }
   if (p.applyStopped) {
     chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.applyStopped }, "Needs commands"));
+  } else if (p.notApplied) {
+    chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.landing ?? "" }, "Not applied"));
   }
 
   const toggle = h(
@@ -190,7 +192,7 @@ function details(p, id) {
       { class: "xs relaxed muted" },
       [p.surfaces.length ? `Changes ${p.surfaces.join(", ")}.` : null, p.deliveryLabel, p.routing].filter(Boolean).join(" ")
     ),
-    p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : null,
+    p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : p.landing ? h("p", { class: "xs relaxed" }, p.landing) : null,
     p.why
       ? h(
           "p",

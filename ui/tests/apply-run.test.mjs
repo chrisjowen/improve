@@ -515,6 +515,47 @@ for (const visible of [true, false]) {
   assert.match(job.hint, /No confirmed file was changed/);
 }
 
+// --- an agent that is not signed in changes nothing, and says where to apply --
+// Five of seven UI apply runs once failed with "Not logged in · Please run
+// /login" after the files were already snapshotted. The run asks first.
+{
+  seed(repo, "p.yaml");
+  const argsFile = path.join(scratch, "logged-out-args.json");
+  process.env.IMPROVE_STANDIN_LOGGED_IN = "0";
+  process.env.IMPROVE_STANDIN_ARGS_FILE = argsFile;
+  const { job } = await apply("p.yaml");
+  delete process.env.IMPROVE_STANDIN_LOGGED_IN;
+  delete process.env.IMPROVE_STANDIN_ARGS_FILE;
+  assert.equal(job.status, "failed");
+  assert.match(job.error, /not signed in to Claude Code, so it cannot apply this proposal\. Nothing was changed\./);
+  assert.match(job.hint, /apply it in your own Claude Code session instead: run \/improve apply IMP-20261025-format in this repository/);
+  assert.equal(job.result.fallback, "/improve apply IMP-20261025-format");
+  assert.equal(fs.existsSync(argsFile), false, "the run never started");
+  assert.equal(read(repo, "CLAUDE.md"), "# Project\n");
+  const proposal = readProposal("p.yaml");
+  assert.equal(proposal.status, "approved", "still approved, not applied");
+  assert.match(proposal.last_apply.error, /not signed in/);
+}
+
+// --- an agent that fails mid-run also offers the person's own session --------
+{
+  const crash = path.join(scratch, "crash-agent.mjs");
+  fs.writeFileSync(crash, `#!/usr/bin/env node
+if (process.argv[2] === "auth") { console.log(JSON.stringify({ loggedIn: true })); process.exit(0); }
+console.log(JSON.stringify({ type: "result", subtype: "success", is_error: true, result: "Not logged in · Please run /login" }));
+process.exit(1);
+`, { mode: 0o755 });
+  const saved = process.env.IMPROVE_AGENT_COMMAND;
+  process.env.IMPROVE_AGENT_COMMAND = crash;
+  seed(repo, "p.yaml");
+  const { job } = await apply("p.yaml");
+  process.env.IMPROVE_AGENT_COMMAND = saved;
+  assert.equal(job.status, "failed");
+  assert.match(job.error, /could not sign in/);
+  assert.match(job.hint, /run \/improve apply IMP-20261025-format in this repository/);
+  assert.equal(job.result.fallback, "/improve apply IMP-20261025-format");
+}
+
 // --- cancel, and one agent run at a time ------------------------------------
 {
   process.env.IMPROVE_STANDIN = "slow";

@@ -47,6 +47,8 @@
  * @property {string | null} routing How routing would treat it next, when that says something the status does not.
  * @property {string[]} pendingCommands Commands its last apply run stopped for, which it does not declare yet.
  * @property {string | null} applyStopped That stop in plain words, when there are such commands.
+ * @property {boolean} notApplied Approved, and nothing has applied it: no applied outcome and no prepared branch.
+ * @property {string | null} landing Where an approved change stands, in plain words, and how to land it when it has not.
  * @property {string} reviewHref The proposal on the Improvements page's Proposals tab, where it is decided.
  * @property {string | null} openUrl The proposal in improve's own UI, when that UI is running.
  *
@@ -88,6 +90,7 @@
  * @property {"wheelhouse-improve.v1"} schema
  * @property {Review} review
  * @property {number} waiting Proposals waiting for the captain's call.
+ * @property {number} notApplied Approved proposals nothing has applied yet.
  * @property {ProposalItem[]} proposals
  * @property {{ importedAt: string | null; summary: string | null; counts: { label: string; value: number }[];
  *   mix: { key: string; label: string; value: number }[]; patterns: Pattern[] }} evidence

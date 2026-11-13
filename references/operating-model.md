@@ -55,7 +55,7 @@ For accepted proposals, set an owner, review date, and rollback signal. For reje
 
 ## `apply`
 
-Re-read the proposal and check that approval, repository state, and assumptions remain valid. Prefer evaluation-first changes. Apply a focused patch. Verify the plugin or harness with native validators when available. Compare baseline and candidate. Record the measured outcome, not the agent's self-assessment.
+Re-read the proposal and check that approval, repository state, and assumptions remain valid. Prefer evaluation-first changes. Apply a focused patch. Verify the plugin or harness with native validators when available. Compare baseline and candidate. Record the measured outcome, not the agent's self-assessment. When the change lands and passes, set `status: validated`, `outcome.applied_at` and `outcome.applied_by: session` on the proposal (see [proposal-format.md](proposal-format.md)), or it keeps showing as approved but not applied.
 
 ## `dream`
 

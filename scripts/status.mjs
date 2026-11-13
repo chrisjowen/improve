@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import path from "node:path";
-import { projectId, projectRoot, resolvePluginDataDir } from "./lib.mjs";
+import { observationDir, projectRoot, resolvePluginDataDir } from "./lib.mjs";
 import { collectStatus } from "./status-report.mjs";
 
 const root = projectRoot({ cwd: process.argv[2] || undefined });
@@ -11,7 +10,7 @@ try {
   // null rather than zero: not looking is different from finding nothing.
   const data = resolvePluginDataDir(root);
   const status = collectStatus(root, {
-    dataDir: data ? path.join(data.dir, "projects", projectId(root)) : undefined
+    dataDir: data ? observationDir(data.dir, root) : undefined
   });
   status.data_source = data?.source ?? null;
   process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);

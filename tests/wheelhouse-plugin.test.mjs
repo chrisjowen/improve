@@ -107,6 +107,28 @@ evaluation:
 last_apply:
   status: failed
   undeclared_commands: [bash .harness/evals/run.sh challenge]
+`,
+  "IMP-5.yaml": `id: IMP-5
+title: Allowlist read-only git -C commands
+status: approved
+scope:
+  files: [.claude/settings.local.json]
+last_apply:
+  at: 2026-10-27T06:00:06.000Z
+  status: failed
+  error: "The agent failed: Not logged in · Please run /login."
+outcome:
+  measurements: []
+  conclusion: null
+`,
+  "IMP-6.yaml": `id: IMP-6
+title: Port the brief scaffold
+status: approved
+scope:
+  files: [bin/fm-brief.sh]
+upstream_change:
+  branch: improve/imp-6
+  commit: abc123
 `
 };
 
@@ -114,7 +136,9 @@ const CHECKS = {
   "IMP-1.yaml": { visibility: "captain-private", surfaces: ["captain-preferences"], delivery: "local-apply", findings: [] },
   "IMP-2.yaml": { visibility: "shared-tracked", surfaces: ["contract"], delivery: "upstream-pr", findings: [] },
   "IMP-3.yaml": { visibility: "shared-tracked", surfaces: ["brief-scaffold"], delivery: "upstream-pr", findings: [] },
-  "IMP-4.yaml": { visibility: "captain-private", surfaces: ["improve-record"], delivery: "local-apply", findings: [] }
+  "IMP-4.yaml": { visibility: "captain-private", surfaces: ["improve-record"], delivery: "local-apply", findings: [] },
+  "IMP-5.yaml": { visibility: "captain-private", surfaces: ["claude-config"], delivery: "local-apply", findings: [] },
+  "IMP-6.yaml": { visibility: "shared-tracked", surfaces: ["brief-scaffold"], delivery: "upstream-pr", findings: [] }
 };
 
 function write(file, text) {
@@ -328,7 +352,7 @@ try {
   assert.deepEqual(v.evidence.patterns[0].answers, ["use defaults"]);
   assert.deepEqual(v.size, { contractFile: "AGENTS.md", contractTokens: 5200, budgetShare: 0.69, skills: 11, largestSkill: "firstmate-review" });
 
-  const [p2, p1, p3, p4] = v.proposals;
+  const [p2, p1, p3, p4, p5, p6] = v.proposals;
   assert.deepEqual(
     {
       file: p1.file,
@@ -400,6 +424,29 @@ try {
       applyStopped: "Apply stopped: the evaluation needs a command the proposal does not declare (bash .harness/evals/run.sh challenge). Add it on the Proposals tab; the proposal then waits for your approval again."
     }
   );
+  // Approved is not applied. Approval changes no file; the card says what has
+  // not landed, why the last run stopped, and how to land it.
+  assert.equal(v.notApplied, 2, "IMP-4 and IMP-5; IMP-6 waits on its branch");
+  assert.deepEqual(
+    { file: p4.file, notApplied: p4.notApplied },
+    { file: "IMP-4.yaml", notApplied: true }
+  );
+  assert.deepEqual(
+    { file: p5.file, group: p5.group, notApplied: p5.notApplied, applyStopped: p5.applyStopped, landing: p5.landing },
+    {
+      file: "IMP-5.yaml",
+      group: "approved",
+      notApplied: true,
+      applyStopped: null,
+      landing: "Approved, not applied: the last apply run failed (The agent failed: Not logged in · Please run /login). Run it again from the Proposals tab, or apply it in Claude Code with /improve apply IMP-5."
+    }
+  );
+  assert.deepEqual(
+    { file: p6.file, notApplied: p6.notApplied, landing: p6.landing },
+    { file: "IMP-6.yaml", notApplied: false, landing: "Approved and prepared on branch improve/imp-6; it lands when that pull request merges." }
+  );
+  assert.equal(p1.notApplied, false);
+  assert.equal(p1.landing, null);
   assert.deepEqual({ running: v.ui.running, deepLinks: v.ui.deepLinks, start: v.ui.start }, { running: true, deepLinks: true, start: null });
   // The running UI's own token, read back from it, for the Improvements page to drive it with.
   assert.deepEqual(

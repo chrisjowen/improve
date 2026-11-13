@@ -118,7 +118,7 @@
           <div>
             <div class="section-label">Most repeated correction</div>
             <p class="small">
-              Made {status.repeated_correction.count} times. Key words:
+              Made {status.repeated_correction.count} times in {status.repeated_correction.sessions} sessions. Key words:
               <code>{status.repeated_correction.key.replaceAll("-", " ")}</code>
             </p>
           </div>
@@ -127,10 +127,10 @@
           <div class="section-label">Since the last review</div>
           {#if observed}
             <dl class="kv small">
-              <dt>Sessions</dt><dd class="num">{state.sessions_since_review ?? 0}</dd>
+              <dt>Sessions</dt><dd class="num">{state.sessions_since_review ?? 0} ({state.human_sessions_since_review ?? 0} yours)</dd>
               <dt>Tool calls</dt><dd class="num">{state.tool_calls_since_review ?? 0}</dd>
               <dt>Tool failures</dt><dd class="num">{state.tool_failures_since_review ?? 0}</dd>
-              <dt>Corrections</dt><dd class="num">{state.corrections_since_review ?? 0}</dd>
+              <dt>Corrections</dt><dd class="num">{state.candidates_since_review ?? 0}</dd>
               <dt>Last review</dt><dd>{state.last_reviewed_at ? ago(state.last_reviewed_at) : "never"}</dd>
             </dl>
           {:else}

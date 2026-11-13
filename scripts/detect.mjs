@@ -56,6 +56,48 @@ const NOT_REUSABLE = [
 const MAX_EXCERPT = 280;
 
 /**
+ * Prompts a program wrote, not a person.
+ *
+ * Every Firstmate and pipeline launch carries boilerplate such as "Workspace
+ * boundary (important): ... Do not ...", which the directive patterns match,
+ * so most "corrections" ever captured were the fleet talking to itself: 3,636
+ * of 3,784 on one machine were two launch templates. Background-task
+ * notifications and hook feedback arrive as prompts too.
+ */
+const MACHINE_PROMPTS = [
+  // Claude Code's own envelopes: background tasks finishing, hook feedback.
+  [/^\s*<(task-notification|system-reminder|local-command-stdout|command-name|bash-stdout)>/i, "a Claude Code notification"],
+  [/<summary>\s*Stop hook feedback\s*<\/summary>/i, "hook feedback"],
+  // Launch templates of the fleet that starts agents.
+  [/^\s*\W{0,3}\s*FIRSTMATE_OP:/, "a Firstmate launch"],
+  [/^\s*Firstmate operational input waiting/i, "a Firstmate launch"],
+  [/^\s*Workspace boundary \(important\):/i, "a pipeline launch template"],
+  [/^\s*After reading the complete session-start digest\b/i, "a Firstmate launch"],
+  // Collector and grader prompts: a role, then a task, written once, sent often.
+  [/^\s*You are (collecting|reviewing|drafting|given|grading|judging|evaluating|summari[sz]ing|extracting|classifying)\b/i, "an agent role prompt"],
+  [/^\s*Question:[^\n]*\n+\s*(Exhibits|Asked|Results|Context):/i, "a retrieval prompt"],
+  // A decision button relayed as a prompt, with nothing the person typed.
+  [/^\s*Decided: [^\n]* — for: “[^\n]*”\s*$/, "a decision button"]
+];
+
+/**
+ * Why `prompt` was written by a program, or undefined for a person's prompt.
+ *
+ * Content only, so it also de-noises corrections recorded before this filter
+ * existed.
+ *
+ * @param {unknown} prompt
+ * @returns {string | undefined}
+ */
+export function machinePrompt(prompt) {
+  if (typeof prompt !== "string") return undefined;
+  for (const [pattern, reason] of MACHINE_PROMPTS) {
+    if (pattern.test(prompt)) return reason;
+  }
+  return undefined;
+}
+
+/**
  * Returns `{matched, category, confidence, patterns, excerpt}`.
  *
  * `matched` false means nothing durable was found, which is the common case and

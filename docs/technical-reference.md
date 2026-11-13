@@ -59,7 +59,7 @@ described in [references/repository-layout.md](../references/repository-layout.m
 | `SessionStart` | `session-start.mjs` | Counts sessions and adds a review-due reminder when a trigger fires |
 | `InstructionsLoaded`, `PostToolUse` (Write, Edit, Bash, PowerShell, NotebookEdit, WebFetch, WebSearch, MCP tools), `PostToolUseFailure`, `PermissionDenied`, `TaskCompleted`, `PreCompact`, `ConfigChange` | `capture-event.mjs` | Appends one sanitized event record; counts tool calls and failures |
 | `PostToolUse` (Skill, Read, Grep, Glob) | `skill-usage.mjs` | Counts when an applied repository skill is invoked or read |
-| `UserPromptSubmit` | `capture-prompt.mjs` | Records a correction when a prompt states one, after redaction |
+| `UserPromptSubmit` | `capture-prompt.mjs` | Records a candidate correction when a person's prompt states one, after redaction; skips prompts a program wrote |
 | `SessionEnd` | `session-end.mjs` | Records the session end and, only when background dreaming is enabled and due, starts a read-only dream job |
 
 An event record keeps the event name, time, session and agent ids, tool name,
@@ -69,16 +69,30 @@ can be turned off in `.harness/improve.json` (`capture.enabled`,
 `capture.corrections`). Agents the plugin starts itself (skill drafts and dreams)
 are not recorded.
 
-A review is due when any threshold in `.harness/improve.json` `review` is
-reached: tool calls, sessions, captured corrections, a repeated correction, tool
-failures, or days since the last review. The defaults are in
+Correction capture keeps a candidate on one cheap signal, a pattern match. It
+skips every prompt in a session a program launched (Claude Code's `sdk-cli`
+entrypoint for `-p`, or a Firstmate worker's `FM_TASK_ID`) and prompts that are background-task
+notifications or known launch and collector templates, and counts what it
+skipped in `state.json` (`machine_prompts_skipped`). At review time
+`scripts/review-cli.mjs cluster` has a model confirm which candidates are a
+person correcting the agent and group them by meaning, and writes
+`clusters.json`. A model failure is reported as an error, not grouped another
+way.
+
+A review is due when a rate in `.harness/improve.json` `review` crosses its
+threshold since the last review: the share of tool calls that failed, candidate
+corrections per session a person ran, or one correction coming up in several
+separate sessions. Days since the last review are a long-stop once a review has
+happened. `scripts/review-cli.mjs reviewed` records a review and resets the
+counts. Sessions a program launched get no review-due note. A person's session
+is also told which approved proposals are not applied yet. The defaults are in
 [templates/improve.json](../templates/improve.json).
 
 ## Where data lives
 
 | Data | Location |
 | --- | --- |
-| Observations (`events.jsonl`, `corrections.jsonl`, `state.json`) | Claude's plugin data directory, under `projects/<id>/`, where `<id>` is derived from the repository path. `CLAUDE_PLUGIN_DATA` reaches hook processes; elsewhere the directory is found under `~/.claude/plugins/data/`. |
+| Observations (`events.jsonl`, `corrections.jsonl`, `state.json`, `clusters.json`) | Claude's plugin data directory, under `projects/<id>/`, where `<id>` is derived from the repository's main checkout, so every worktree of the repository shares it. A worktree of a bare mirror (a pipeline's clone) uses the checkout that has the same `origin` remote, once a session there recorded it under `repositories/`. Buckets kept under a worktree's own path before 0.6.0 stay where they are. `CLAUDE_PLUGIN_DATA` reaches hook processes; elsewhere the directory is found under `~/.claude/plugins/data/`. |
 | Charter, objectives, configuration | `.harness/charter.md`, `.harness/objectives.yaml`, `.harness/improve.json` |
 | Proposals and decisions | `.harness/proposals/*.yaml`, `.harness/decisions/*.yaml` |
 | Evaluation suites and results | `.harness/evals/suites/`, `.harness/evals/results/` |

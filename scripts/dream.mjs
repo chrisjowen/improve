@@ -1,5 +1,5 @@
 import path from "node:path";
-import { ensureDir, readJson, writeJsonAtomic } from "./lib.mjs";
+import { ensureDir, readJson, updateJson, writeJsonAtomic } from "./lib.mjs";
 import { runAgent } from "./spawn-agent.mjs";
 
 /** @typedef {import("./spawn-agent.mjs").AgentResult} AgentResult */
@@ -85,14 +85,14 @@ export async function runDream({ root, dataDir, command = "claude", timeoutMs = 
   };
   writeJsonAtomic(outputFile, report);
 
-  const stateFile = path.join(dataDir, "state.json");
-  const state = readJson(stateFile, {});
-  state.dream_running = false;
-  state.last_dream_finished_at = new Date().toISOString();
-  state.last_dream_status = status;
-  state.last_dream_output = outputFile;
-  state.updated_at = state.last_dream_finished_at;
-  writeJsonAtomic(stateFile, state);
+  updateJson(path.join(dataDir, "state.json"), (state) => {
+    state.dream_running = false;
+    state.last_dream_finished_at = new Date().toISOString();
+    state.last_dream_status = status;
+    state.last_dream_output = outputFile;
+    state.updated_at = state.last_dream_finished_at;
+    return state;
+  });
 
   return { ok: Boolean(result.ok), status, timedOut: Boolean(result.timedOut), file: path.basename(outputFile), report, error: report.error, log: logFile };
 }

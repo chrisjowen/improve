@@ -42,7 +42,11 @@ approval:
 outcome:
   measurements: []
   conclusion: null
+  applied_at: null   # ISO-8601, set when the change lands
+  applied_by: null   # ui | session
 ```
+
+When the change lands and its evaluation passes, set `status: validated`, `outcome.applied_at` and `outcome.applied_by` (`session` for `/improve apply` in a person's own session, `ui` for Apply in the review UI). Until then an approved proposal counts as approved but not applied: the session-start note and Wheelhouse report it.
 
 Accompany the metadata with a human-readable explanation and an exact or previewable diff. Do not mark a proposal approved from model inference, prior generic authorization, or an unattended job.
 

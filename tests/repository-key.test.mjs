@@ -65,7 +65,7 @@ assert.equal(projectDataId(loose), projectId(loose));
 
 // --- hooks in a worktree write to the checkout's bucket -----------------------
 const data = path.join(temp, "plugin-data");
-const PERSON = { FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_CODE_SESSION_ATTENDED: "1", IMPROVE_AGENT_CHILD: "", IMPROVE_DREAM_CHILD: "" };
+const PERSON = { FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli", IMPROVE_AGENT_CHILD: "", IMPROVE_DREAM_CHILD: "" };
 const hook = (script, args, root, input) => {
   const ran = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", script), ...args], {
     input: JSON.stringify(input),
@@ -108,6 +108,19 @@ assert.deepEqual(repositoryKey(run), { key: "repo:github.com/me/app", kind: "rem
 assert.equal(projectDataId(run, { base: data }), projectId(checkout), "the mirror finds the checkout's bucket");
 hook("capture-event.mjs", ["PostToolUse"], run, { session_id: "pipeline", tool_name: "Bash" });
 assert.deepEqual(fs.readdirSync(path.join(data, "projects")), [projectId(checkout)], "still one bucket");
+
+// A second clone of the same remote does not take the alias from the first
+// while the first still exists; once it is deleted, the second records itself.
+const clone = path.join(temp, "clone");
+git(temp, "clone", "-q", checkout, clone);
+git(clone, "remote", "set-url", "origin", "git@github.com:me/app.git");
+hook("session-start.mjs", [], clone, { session_id: "clone" });
+assert.equal(projectDataId(run, { base: data }), projectId(checkout), "the first checkout keeps the alias");
+const moved = path.join(temp, "app-moved");
+fs.renameSync(checkout, moved);
+hook("session-start.mjs", [], clone, { session_id: "clone-again" });
+assert.equal(projectDataId(run, { base: data }), projectId(clone), "a deleted checkout's alias is taken over");
+fs.renameSync(moved, checkout);
 
 // Before any checkout recorded itself, a mirror's worktrees still share one id.
 const other = path.join(temp, "other.git");

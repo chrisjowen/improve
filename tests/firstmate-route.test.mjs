@@ -21,7 +21,7 @@ fs.mkdirSync(showDir);
 // A person's session: the suite may itself run in a Firstmate worker or a
 // print-mode pipeline, whose sessions are never offered a review.
 const baseEnv = {
-  ...process.env, FM_HOME: "", FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_CODE_SESSION_ATTENDED: "1",
+  ...process.env, FM_HOME: "", FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli",
   CLAUDE_PROJECT_DIR: home, FM_STUB_LOG: stubLog, FM_STUB_SHOW_DIR: showDir
 };
 const cli = (args, env = {}) => spawnSync(

@@ -11,7 +11,7 @@ const data = path.join(temp, "data");
 fs.mkdirSync(project, { recursive: true });
 
 // A person's session, whatever lane the suite itself runs in.
-const PERSON = { FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_CODE_SESSION_ATTENDED: "1", IMPROVE_AGENT_CHILD: "", IMPROVE_DREAM_CHILD: "" };
+const PERSON = { FM_TASK_ID: "", CLAUDE_CODE_ENTRYPOINT: "cli", IMPROVE_AGENT_CHILD: "", IMPROVE_DREAM_CHILD: "" };
 
 function run(script, args, input, extraEnv = {}) {
   return spawnSync(process.execPath, [path.join(pluginRoot, "scripts", script), ...args], {
@@ -81,7 +81,7 @@ assert.match(triggered.stdout, /review is due \(8% of tool calls failed since th
 
 // A session a program launched is counted as work, but nobody there can be
 // offered a review, so it gets no nudge.
-for (const env of [{ CLAUDE_CODE_ENTRYPOINT: "sdk-cli" }, { CLAUDE_CODE_SESSION_ATTENDED: "0" }, { FM_TASK_ID: "fix-login" }]) {
+for (const env of [{ CLAUDE_CODE_ENTRYPOINT: "sdk-cli" }, { FM_TASK_ID: "fix-login" }]) {
   const quiet = run("session-start.mjs", [], { session_id: "auto" }, env);
   assert.equal(quiet.status, 0, quiet.stderr);
   assert.equal(quiet.stdout, "", `no nudge for ${JSON.stringify(env)}`);
@@ -89,9 +89,11 @@ for (const env of [{ CLAUDE_CODE_ENTRYPOINT: "sdk-cli" }, { CLAUDE_CODE_SESSION_
 // An interactive front end built on the SDK has a person typing into it.
 const sdkHosted = run("session-start.mjs", [], { session_id: "ide" }, { CLAUDE_CODE_ENTRYPOINT: "sdk-ts" });
 assert.match(sdkHosted.stdout, /review is due/, "an SDK-hosted interactive session is a person's");
+const unattended = run("session-start.mjs", [], { session_id: "away" }, { CLAUDE_CODE_SESSION_ATTENDED: "0" });
+assert.match(unattended.stdout, /review is due/, "CLAUDE_CODE_SESSION_ATTENDED alone does not mark a program");
 const counted = status().state;
 assert.equal(counted.sessions_since_review, 8, "every session is work done");
-assert.equal(counted.human_sessions_since_review, 5, "only a person's sessions are opportunities to correct");
+assert.equal(counted.human_sessions_since_review, 6, "only a person's sessions are opportunities to correct");
 
 // `review-cli.mjs reviewed` records the review and starts every count again.
 const reviewed = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "review-cli.mjs"), "reviewed", project], {

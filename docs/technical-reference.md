@@ -71,8 +71,7 @@ are not recorded.
 
 Correction capture keeps a candidate on one cheap signal, a pattern match. It
 skips every prompt in a session a program launched (Claude Code's `sdk-cli`
-entrypoint for `-p`, `CLAUDE_CODE_SESSION_ATTENDED=0`, or a
-Firstmate worker's `FM_TASK_ID`) and prompts that are background-task
+entrypoint for `-p`, or a Firstmate worker's `FM_TASK_ID`) and prompts that are background-task
 notifications or known launch and collector templates, and counts what it
 skipped in `state.json` (`machine_prompts_skipped`). At review time
 `scripts/review-cli.mjs cluster` has a model confirm which candidates are a

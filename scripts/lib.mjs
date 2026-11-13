@@ -182,8 +182,10 @@ function aliasFile(base, remote) {
  *
  * With `base`, the plugin data directory, a checkout that has a remote records
  * itself as that remote's checkout (`record`), and a worktree of a bare mirror
- * of the same remote then uses the checkout's id. Without one recorded yet,
- * the mirror's worktrees share an id of their own.
+ * of the same remote then uses the checkout's id. The first checkout recorded
+ * keeps the alias until it is deleted, so two clones of one remote do not take
+ * it from each other on every hook call. Without one recorded yet, the
+ * mirror's worktrees share an id of their own.
  *
  * @param {string} root
  * @param {{ base?: string, record?: boolean }} [options]
@@ -194,7 +196,9 @@ export function projectDataId(root, { base, record = false } = {}) {
   if (!base || !repository.remote) return id;
   const file = aliasFile(base, repository.remote);
   if (repository.kind === "checkout" && repository.checkout) {
-    if (record && readJson(file, {}).id !== id) {
+    const recorded = readJson(file, {});
+    const held = typeof recorded.checkout === "string" && fs.existsSync(recorded.checkout);
+    if (record && recorded.id !== id && !held) {
       try {
         writeJsonAtomic(file, { id, checkout: repository.checkout, remote: repository.remote });
       } catch {
@@ -236,8 +240,7 @@ export function isImproveChild(env = process.env) {
  * Why this session was launched by a program rather than a person, or
  * undefined.
  *
- * Claude Code marks a `-p` session with the `sdk-cli` entrypoint and an
- * unattended session with CLAUDE_CODE_SESSION_ATTENDED=0. Firstmate exports
+ * Claude Code marks a `-p` session with the `sdk-cli` entrypoint. Firstmate exports
  * FM_TASK_ID to the workers it launches, whose every prompt is Firstmate's.
  * Other SDK entrypoints are not enough: an interactive front end built on the
  * SDK has a person typing into it.
@@ -249,7 +252,6 @@ export function isImproveChild(env = process.env) {
 export function automatedLaunch(env = process.env) {
   if (isImproveChild(env)) return "an agent improve started";
   if (env.CLAUDE_CODE_ENTRYPOINT === "sdk-cli") return "a print-mode session";
-  if (env.CLAUDE_CODE_SESSION_ATTENDED === "0") return "an unattended session";
   if (env.FM_TASK_ID) return "a Firstmate worker";
   return undefined;
 }

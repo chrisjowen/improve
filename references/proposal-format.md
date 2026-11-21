@@ -40,11 +40,33 @@ approval:
   approved_by: null
   approved_at: null
 outcome:
-  measurements: []
+  measurements: []   # filled after the change lands (see below)
   conclusion: null
   applied_at: null   # ISO-8601, set when the change lands
   applied_by: null   # ui | session
+replay: null         # written by replay-cli score; see below
+rollback_of: null    # set on a rollback the regression check drafted
 ```
+
+When the change can be replayed, put it as it would land in `.harness/proposals/<name>.candidate/` beside the proposal: `lesson.md` for a CLAUDE.md or AGENTS.md lesson, and `skills/`, `agents/`, `commands/` or `hooks/` in plugin shape. `candidate.json` may set `workspace`, `cases` and `targets`. `scripts/replay-cli.mjs score <id>` then runs the replay suite with and without it and writes the `replay` block, before anyone approves:
+
+```yaml
+replay:
+  scored_at: ISO-8601
+  candidate: .harness/proposals/<name>.candidate
+  candidate_digest: sha256 of the candidate's files
+  runs: 3
+  max_cost_usd: 5
+  cost_usd: 1.23
+  validation: { cases: 4, with: 0.83, without: 0.42, delta: 0.42, se: 0.12, cases_skipped: [] }
+  gate: { verdict: pass | fail | incomplete, k: 2, threshold: 0.24, regressions: [], reasons: [] }
+  test: { cases: 2, with: 0.83, without: 0.5, delta: 0.33, confirms: true, scored_at: ISO-8601 }  # sealed; null until the gate passes
+  per_case: [ { name, with, without, delta, se } ]
+  results: [ .harness/evals/replay/results/<id>/<stamp>-validation.json ]
+  regression_check: { ran_at: ISO-8601, losing: [] } | { skipped: true, reason: "..." } | null
+```
+
+After the change lands, `replay-cli outcome <id>` (also run by Apply in the review UI and, in the background, at session start) fills `outcome.measurements` with how often the targeted correction came back per N sessions and how often sessions followed the rule, before and since, and `outcome.conclusion` with what that shows. It adds `outcome.measured_at`, and `outcome.settled: true` once enough sessions have run. Apply in the review UI keeps its own evaluation under `outcome.evaluation`. See [replay.md](replay.md).
 
 When the change lands and its evaluation passes, set `status: validated`, `outcome.applied_at` and `outcome.applied_by` (`session` for `/improve apply` in a person's own session, `ui` for Apply in the review UI). Until then an approved proposal counts as approved but not applied: the session-start note and Wheelhouse report it.
 

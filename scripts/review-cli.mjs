@@ -141,7 +141,10 @@ function describe(candidates, groups) {
         sessions: new Set(members.map((c) => c.session_id).filter(Boolean)).size,
         first_seen: times[0] ?? null,
         last_seen: times.at(-1) ?? null,
-        examples: members.slice(0, 3).map((c) => c.excerpt)
+        examples: members.slice(0, 3).map((c) => c.excerpt),
+        // Where each member was typed, so a replay case can resume the session
+        // and a later count can tell the same correction coming back.
+        members: members.map((c) => ({ session_id: c.session_id, occurred_at: c.occurred_at, fingerprint: c.fingerprint, excerpt: c.excerpt }))
       };
     })
     .filter((group) => group.count > 0)

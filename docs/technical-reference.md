@@ -26,6 +26,17 @@ technical detail that used to live in the README.
 /improve dream retrieval and context
 ```
 
+Scripts a mode runs, also usable directly:
+
+```bash
+node scripts/review-cli.mjs cluster [repo]        # confirm and group corrections
+node scripts/replay-cli.mjs export [repo]          # build the replay suite
+node scripts/replay-cli.mjs score <proposal> [repo] # replay A/B and the gate
+node scripts/replay-cli.mjs regress [repo]         # re-check kept changes
+node scripts/replay-cli.mjs outcome <proposal>|--all [repo]
+node scripts/replay-cli.mjs status [repo]
+```
+
 The fully qualified skill name is `/improve:improve`. Claude Code also accepts
 bare `/improve` when no other command uses that name.
 
@@ -35,9 +46,9 @@ bare `/improve` when no other command uses that name.
 | --- | --- |
 | `.claude-plugin/` | Plugin manifest (`plugin.json`) and the single-plugin marketplace (`marketplace.json`) |
 | `SKILL.md` | The `/improve` skill: modes, invariants and approval gates |
-| `references/` | Detailed rules the skill reads on demand: operating model, harness model, proposal format, writing rules, repository layout, evaluation and memory, eval rig, Firstmate |
+| `references/` | Detailed rules the skill reads on demand: operating model, harness model, proposal format, writing rules, repository layout, evaluation and memory, eval rig, replay, Firstmate |
 | `hooks/hooks.json` | The passive capture hooks |
-| `scripts/` | Hook scripts, the status report, the proposal check, dreaming and the UI launcher |
+| `scripts/` | Hook scripts, the status report, the proposal check, correction clustering, replay A/B, dreaming and the UI launcher |
 | `agents/` | `harness-researcher`, a read-only investigator used by assess, propose, review and dream |
 | `templates/` | Starting `charter.md`, `objectives.yaml` and `improve.json` for `init` |
 | `assets/eval-rig/` | The evaluation starter copied into a repository on approval |
@@ -56,8 +67,8 @@ described in [references/repository-layout.md](../references/repository-layout.m
 
 | Event | Script | What it does |
 | --- | --- | --- |
-| `SessionStart` | `session-start.mjs` | Counts sessions and adds a review-due reminder when a trigger fires |
-| `InstructionsLoaded`, `PostToolUse` (Write, Edit, Bash, PowerShell, NotebookEdit, WebFetch, WebSearch, MCP tools), `PostToolUseFailure`, `PermissionDenied`, `TaskCompleted`, `PreCompact`, `ConfigChange` | `capture-event.mjs` | Appends one sanitized event record; counts tool calls and failures |
+| `SessionStart` | `session-start.mjs` | Counts sessions and adds a review-due reminder when a trigger fires; starts the outcome measurement of kept changes in the background, at most every six hours |
+| `InstructionsLoaded`, `PostToolUse` (Write, Edit, Bash, PowerShell, NotebookEdit, WebFetch, WebSearch, MCP tools), `PostToolUseFailure`, `PermissionDenied`, `TaskCompleted`, `PreCompact`, `ConfigChange` | `capture-event.mjs` | Appends one sanitized event record; counts tool calls and failures; on `ConfigChange`, starts the replay regression check in the background when it is due |
 | `PostToolUse` (Skill, Read, Grep, Glob) | `skill-usage.mjs` | Counts when an applied repository skill is invoked or read |
 | `UserPromptSubmit` | `capture-prompt.mjs` | Records a candidate correction when a person's prompt states one, after redaction; skips prompts a program wrote |
 | `SessionEnd` | `session-end.mjs` | Records the session end and, only when background dreaming is enabled and due, starts a read-only dream job |
@@ -96,6 +107,7 @@ is also told which approved proposals are not applied yet. The defaults are in
 | Charter, objectives, configuration | `.harness/charter.md`, `.harness/objectives.yaml`, `.harness/improve.json` |
 | Proposals and decisions | `.harness/proposals/*.yaml`, `.harness/decisions/*.yaml` |
 | Evaluation suites and results | `.harness/evals/suites/`, `.harness/evals/results/` |
+| Replay suite, A/B results, regression check | `.harness/evals/replay/` (`suite.json`, `cases/`, `results/`, `sealed.json`, `regression.json`) |
 | UI run records and logs | plugin data `projects/<id>/jobs/` |
 | Firstmate import | plugin data `projects/<id>/firstmate/observations.json`; adapter state in `.harness/firstmate/` |
 
@@ -122,6 +134,24 @@ node scripts/proposal-check-cli.mjs .harness/proposals/<id>.yaml
 The check classifies `scope.files`. A proposal that lists a file outside the
 harness is flagged `codebase` or `mixed`, and one that lists no files is flagged
 `unknown`.
+
+## Replay A/B
+
+`scripts/replay-cli.mjs export` turns each confirmed correction group into a
+`claude plugin eval` case that resumes the session just before the turn the
+person corrected (`context.history_file`), with graders derived from the
+correction, and each recurring tool failure into a deterministic case. A
+proposal's candidate (`.harness/proposals/<name>.candidate/`) is packaged as a
+temporary plugin, a CLAUDE.md lesson as a SessionStart `additionalContext`
+hook, and `score` runs the validation split with
+`--ablation with-without --runs 3 --json --max-cost-usd`. The gate accepts
+only a delta above `k` standard errors with no validation case regressing, then
+scores the sealed test split once. A `ConfigChange` starts a regression check
+of kept changes, which drafts a rollback proposal for one that now loses. After
+a change lands, `outcome` fills its `outcome` block from the sessions since.
+The review UI and Wheelhouse show WITH, WITHOUT, the delta and the gate on each
+scored proposal, and the suite's size and the last regression check. See
+[references/replay.md](../references/replay.md).
 
 ## Evaluation rig
 

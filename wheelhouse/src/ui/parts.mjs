@@ -147,6 +147,10 @@ export function proposalCard(p, o) {
   } else if (p.routing && p.waiting) {
     chips.push(h("span", { class: "chip dashed", title: p.routing }, "Not filed yet"));
   }
+  if (p.replayShort) {
+    chips.push(h("span", { class: `chip ${p.replay?.verdict === "pass" ? "soft-success" : "soft-warning"}`, title: p.replayText ?? "" }, p.replayShort));
+  }
+  if (p.rollbackOf) chips.push(h("span", { class: "chip soft-warning", title: `Drafted by the regression check: ${p.rollbackOf} now loses on the replay suite.` }, `Rolls back ${p.rollbackOf}`));
   if (p.applyStopped) {
     chips.push(h("a", { class: "chip soft-warning", href: p.reviewHref, title: p.applyStopped }, "Needs commands"));
   } else if (p.notApplied) {
@@ -193,6 +197,7 @@ function details(p, id) {
       [p.surfaces.length ? `Changes ${p.surfaces.join(", ")}.` : null, p.deliveryLabel, p.routing].filter(Boolean).join(" ")
     ),
     p.applyStopped ? h("p", { class: "xs relaxed" }, p.applyStopped) : p.landing ? h("p", { class: "xs relaxed" }, p.landing) : null,
+    p.replayText ? h("p", { class: "xs relaxed" }, p.replayText) : null,
     p.why
       ? h(
           "p",

@@ -352,6 +352,26 @@ const go = async (hash) => {
   health.remove();
 }
 
+// A scored proposal shows its replay delta and gate on the card, and the
+// sentence in its details; the rail card says when a kept change now loses.
+{
+  const replayText = "Replay A/B on 3 validation cases: 0.90 with the change, 0.40 without, Δ +0.50 ± 0.10. The gate passed.";
+  const data = harness({
+    proposals: [proposal({ file: "IMP-7.yaml", replayShort: "Δ +0.50 · gate passed", replayText, replay: { verdict: "pass" } })],
+    replay: { cases: 3, validation: 2, test: 1, regressionAt: null, losing: [{ proposal: "IMP-1", delta: -0.33, rollback: "IMP-8.yaml" }], text: "Replay suite: 3 cases. Regression check: 1 kept change checked, IMP-1 losing (Δ -0.33)." }
+  });
+  const el = mount("improve-firstmate-view", data);
+  const chip = [...el.shadowRoot.querySelectorAll("span.chip")].find((s) => s.textContent.trim() === "Δ +0.50 · gate passed");
+  assert.ok(chip, "the card shows the delta and the gate");
+  assert.equal(chip.getAttribute("title"), replayText);
+  el.shadowRoot.getElementById("IMP-7.yaml").querySelector("button.details-toggle").click();
+  assert.ok(text(el).includes(replayText));
+  el.remove();
+  const health = mount("improve-health", data);
+  assert.ok(text(health).includes("IMP-1 losing (Δ -0.33)"));
+  health.remove();
+}
+
 // Nothing proposed yet, and problems said plainly.
 {
   const el = mount("improve-firstmate-view", harness({ proposals: [], waiting: 0, problems: ["improve could not be read: boom."] }));

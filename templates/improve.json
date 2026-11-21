@@ -17,5 +17,22 @@
     "every_days": 30,
     "command": "claude",
     "timeout_minutes": 20
+  },
+  "replay": {
+    "enabled": true,
+    "runs": 3,
+    "max_cost_usd": 5,
+    "k": 2,
+    "tolerance": 0,
+    "allow_tools": [],
+    "regression": {
+      "on_config_change": true,
+      "min_interval_minutes": 60,
+      "max_cost_usd": 2
+    },
+    "outcome": {
+      "per_sessions": 20,
+      "window_days": 30
+    }
   }
 }

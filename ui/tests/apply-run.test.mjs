@@ -190,6 +190,10 @@ const read = (root, file) => fs.readFileSync(path.join(root, file), "utf8");
   const proposal = readProposal("p.yaml");
   assert.equal(proposal.status, "validated");
   assert.equal(proposal.outcome.applied_by, "ui");
+  // The run's own evaluation is kept, and the outcome is measured at once: this
+  // proposal names no replay case it targets, so it says it was not measured.
+  assert.equal(proposal.outcome.evaluation.checks.length, 2);
+  assert.match(proposal.outcome.conclusion, /^Not measured: the proposal names no replay case it targets/);
   const decision = listDecisions({ file: "p.yaml" })[0];
   assert.deepEqual(decision.applied_files, ["CLAUDE.md", ".claude/rules/format.md"]);
 

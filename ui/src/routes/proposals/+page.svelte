@@ -11,7 +11,7 @@
   import { api } from "$lib/client/api.js";
   import { summary, refreshSummary } from "$lib/client/summary.svelte.js";
   import { jobs, refreshJobs, settled } from "$lib/client/jobs.svelte.js";
-  import { STATUS, ago, when, plural, scopeLabel, showScope, waiting } from "$lib/client/format.js";
+  import { GATE, STATUS, ago, when, plural, score, scopeLabel, sealedTest, showScope, signed, waiting } from "$lib/client/format.js";
 
   /** @type {[string, string, (proposal: any) => boolean][]} */
   const VIEWS = [
@@ -212,6 +212,32 @@
     }
   }
 
+  const replayJob = $derived(selected
+    ? jobs.list.find((job) => job.kind === "replay" && job.detail?.proposal === selected.file && job.status === "running")
+    : null);
+  const lastReplayJob = $derived(selected
+    ? jobs.list.find((job) => job.kind === "replay" && job.detail?.proposal === selected.file)
+    : null);
+  const canReplay = $derived(Boolean(selected?.candidate && !selected.candidate.error && ["draft", "proposed"].includes(selected.status)));
+
+  /** Score the candidate with and without it, before anyone approves. */
+  async function replay() {
+    notice = null;
+    busy = "replay";
+    try {
+      const { job } = await api(`/api/proposals/${encodeURIComponent(selected.file)}/replay`, { method: "POST" });
+      busy = null;
+      await refreshJobs();
+      await settled(job.id);
+      await refreshSummary();
+    } catch (cause) {
+      const error = /** @type {any} */ (cause);
+      notice = { tone: "bad", text: error.message, hint: error.hint };
+    } finally {
+      busy = null;
+    }
+  }
+
   /**
    * @param {string} kind
    * @param {{ overwrite?: boolean }} [options]
@@ -305,6 +331,7 @@
               <span class="row small faint">
                 <Pill tone={s.tone}>{s.label}</Pill>
                 {#if proposal.malformed}<Pill tone="bad">Unreadable</Pill>{/if}
+                {#if proposal.replay?.gate?.verdict}<Pill tone={GATE[proposal.replay.gate.verdict]?.tone ?? ""}>Δ {signed(proposal.replay.validation?.delta)}</Pill>{/if}
                 {#if showScope(proposal.check)}
                   <Pill tone={scopeLabel(proposal.check).tone}>{scopeLabel(proposal.check).label}</Pill>
                 {/if}
@@ -334,6 +361,8 @@
             {#if selected.confidence}<Pill plain>Confidence: {selected.confidence}</Pill>{/if}
             {#if selected.provenance?.kind === "background-dream"}<Pill tone="warn">From a background review, unverified</Pill>{/if}
             {#if selected.provenance?.kind === "objectives-editor"}<Pill plain>Filed from Objectives</Pill>{/if}
+            {#if selected.rollback_of}<Pill tone="warn">Rollback of {selected.rollback_of}, drafted by the regression check</Pill>{/if}
+            {#if selected.replay?.gate?.verdict}<Pill tone={GATE[selected.replay.gate.verdict]?.tone ?? ""}>{GATE[selected.replay.gate.verdict]?.label ?? selected.replay.gate.verdict}: {signed(selected.replay.validation?.delta)}</Pill>{/if}
           </div>
           <h2 style="font-size:18px">{selected.title}</h2>
           <p class="small faint">
@@ -437,6 +466,64 @@
                     <dd><ul class="confirm-commands small mono">{#each selected.evaluation.commands as command}<li><code>{command}</code></li>{/each}</ul></dd>
                   {/if}
                 </dl>
+              </div>
+            {/if}
+
+            {#if selected.replay || canReplay || replayJob}
+              {@const r = selected.replay}
+              <div>
+                <div class="spread" style="margin-bottom:8px">
+                  <div class="section-label" style="margin:0">Replay A/B</div>
+                  {#if canReplay && !replayJob}
+                    <button class="small" onclick={replay} disabled={busy !== null}>
+                      <Icon name="play" size={13} />{busy === "replay" ? "Starting…" : r ? "Score again" : "Score with replay"}
+                    </button>
+                  {/if}
+                </div>
+                {#if replayJob}
+                  <div class="panel"><JobCard job={replayJob} /></div>
+                {:else if lastReplayJob && lastReplayJob.status !== "completed"}
+                  <div class="panel"><JobCard job={lastReplayJob} /></div>
+                {/if}
+                {#if r}
+                  {@const verdict = GATE[r.gate?.verdict] ?? { label: r.gate?.verdict ?? "Unknown", tone: "" }}
+                  <div class="row" style="margin-bottom:8px">
+                    <Pill tone={verdict.tone}>{verdict.label}</Pill>
+                    <span class="small faint">{plural(r.validation?.cases ?? 0, "validation case")}, {plural(r.runs ?? 0, "run")} each · ${r.cost_usd ?? 0} of ${r.max_cost_usd ?? "?"} · {ago(r.scored_at)}{#if r.workspace} · in a fresh checkout{/if}</span>
+                  </div>
+                  <dl class="kv">
+                    <dt>With the change</dt><dd class="num">{score(r.validation?.with)}</dd>
+                    <dt>Without it</dt><dd class="num">{score(r.validation?.without)}</dd>
+                    <dt>Δ</dt><dd class="num">{signed(r.validation?.delta)} ± {score(r.validation?.se)}{#if typeof r.gate?.threshold === "number"} <span class="faint">(passes above {score(r.gate.threshold)})</span>{/if}</dd>
+                    <dt>Sealed test split</dt><dd>{sealedTest(r.test)}</dd>
+                  </dl>
+                  {#if r.gate?.reasons?.length}<p class="small" style="margin-top:6px">{r.gate.reasons.join(" ")}</p>{/if}
+                  {#if r.validation?.cases_skipped?.length}
+                    <p class="small muted" style="margin-top:4px">Skipped: {r.validation.cases_skipped.map((/** @type {any} */ s) => `${s.case} (${s.reason})`).join("; ")}.</p>
+                  {/if}
+                  {#if r.per_case?.length}
+                    <details style="margin-top:6px">
+                      <summary class="small muted">Per case</summary>
+                      <div class="table-wrap evidence" style="margin-top:6px">
+                        <table>
+                          <thead><tr><th>Case</th><th>With</th><th>Without</th><th>Δ</th></tr></thead>
+                          <tbody>
+                            {#each r.per_case as row}
+                              <tr class:regressed={r.gate?.regressions?.includes(row.name)}>
+                                <td class="mono small">{row.name}</td><td class="num">{score(row.with)}</td><td class="num">{score(row.without)}</td><td class="num">{signed(row.delta)}</td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  {/if}
+                {:else if !replayJob && selected.candidate}
+                  <p class="small muted">
+                    The candidate in <code>{selected.candidate.dir}</code> ({selected.candidate.kinds.join(", ")}) has not been scored.
+                    Scoring runs the replay suite with and without it through <code>claude plugin eval</code>, capped by <code>replay.max_cost_usd</code>.
+                  </p>
+                {/if}
               </div>
             {/if}
 
@@ -571,22 +658,22 @@
                   {/if}
                 </p>
                 <div class="row">
-                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null || Boolean(draftJob)}>
+                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>
                     <Icon name="x" size={14} />{busy === "reject" ? "Rejecting…" : "Reject"}
                   </button>
                   {#if confirmOverwrite}
-                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob)}>Overwrite the hand-written file</button>
+                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>Overwrite the hand-written file</button>
                   {/if}
                   {#if selected.harness_edit}
-                    <button class="primary" onclick={() => decide("write")} disabled={busy !== null || Boolean(editBlocked)}>
+                    <button class="primary" onclick={() => decide("write")} disabled={busy !== null || Boolean(editBlocked) || Boolean(replayJob)}>
                       <Icon name="check" size={14} />{busy === "write" ? "Writing…" : "Approve and write"}
                     </button>
                   {:else if selected.skill_draft && diff && !diff.error}
-                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || diff.blocked}>
+                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob) || diff.blocked}>
                       <Icon name="check" size={14} />{busy === "apply" ? "Writing…" : "Approve and write skill"}
                     </button>
                   {:else}
-                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null || Boolean(draftJob)}>
+                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>
                       <Icon name="check" size={14} />{busy === "approve" ? "Approving…" : "Approve"}
                     </button>
                   {/if}
@@ -684,6 +771,7 @@
   .confirm-files { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .confirm-commands { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
   .evidence th, .evidence td { padding: 8px 12px; }
+  .regressed td { color: var(--bad); }
   @media (max-width: 960px) {
     .split { grid-template-columns: 1fr; }
     .list-pane { position: static; max-height: none; }

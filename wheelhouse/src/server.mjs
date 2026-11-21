@@ -383,14 +383,16 @@ async function harness(ctx) {
     );
   }
 
-  const [detectR, importR, inventoryR, routeR, decisionsR, names, stateText] = await Promise.all([
+  const [detectR, importR, inventoryR, routeR, decisionsR, names, stateText, replaySuite, regression] = await Promise.all([
     run(["detect"]),
     run(["import"]),
     run(["inventory"]),
     run(["route"]),
     run(["decisions"]),
     ctx.listDir(".harness/proposals", { root: "home" }),
-    ctx.readFile(".harness/firstmate/review-state.json", { root: "home", maxBytes: 64 * 1024 })
+    ctx.readFile(".harness/firstmate/review-state.json", { root: "home", maxBytes: 64 * 1024 }),
+    ctx.readFile(".harness/evals/replay/suite.json", { root: "home", maxBytes: 1024 * 1024 }),
+    ctx.readFile(".harness/evals/replay/regression.json", { root: "home", maxBytes: 256 * 1024 })
   ]);
   const detect = json(detectR);
   let reviewState = null;
@@ -438,6 +440,8 @@ async function harness(ctx) {
     due: dueR ? json(dueR) : null,
     tasks: ctx.tasks,
     ui: uiState,
+    replaySuite,
+    regression,
     problems,
     now: Date.now()
   };

@@ -49,6 +49,12 @@
  * @property {string | null} applyStopped That stop in plain words, when there are such commands.
  * @property {boolean} notApplied Approved, and nothing has applied it: no applied outcome and no prepared branch.
  * @property {string | null} landing Where an approved change stands, in plain words, and how to land it when it has not.
+ * @property {{ verdict: string | null; with: number | null; without: number | null; delta: number | null; se: number | null;
+ *   cases: number; threshold: number | null; testDelta: number | null; scoredAt: string | null } | null} replay
+ *   The replay A/B: WITH, WITHOUT and the delta on the validation split, and the gate's verdict.
+ * @property {string | null} replayText The replay A/B in one sentence.
+ * @property {string | null} replayShort The delta and the gate, for a chip.
+ * @property {string | null} rollbackOf The kept change a drafted rollback would revert.
  * @property {string} reviewHref The proposal on the Improvements page's Proposals tab, where it is decided.
  * @property {string | null} openUrl The proposal in improve's own UI, when that UI is running.
  *
@@ -97,7 +103,16 @@
  * @property {string[]} inventory Short sentences about the harness's size (AGENTS.md, skills).
  * @property {HarnessSize | null} size
  * @property {string[]} problems What could not be read, in plain words.
+ * @property {ReplayStatus | null} replay The replay suite and the last regression check.
  * @property {ImproveUi} ui
+ *
+ * @typedef {object} ReplayStatus
+ * @property {number} cases
+ * @property {number} validation
+ * @property {number} test
+ * @property {string | null} regressionAt When the kept changes were last checked.
+ * @property {{ proposal: string; delta: number | null; rollback: string | null }[]} losing Kept changes that now lose.
+ * @property {string} text All of it in plain words.
  *
  * @typedef {object} ProposalSection A routed proposal, for its Firstmate task's page.
  * @property {"wheelhouse-improve-proposal.v1"} schema

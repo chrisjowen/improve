@@ -64,7 +64,7 @@ Modes:
 - `review`: discuss queued observations, correction groups and dream reports; reject, combine, defer, or turn them into proposals. When the review is done, record it with `node "${CLAUDE_PLUGIN_ROOT}/scripts/review-cli.mjs" reviewed "${CLAUDE_PROJECT_DIR}"`, so the counts that make a review due start again.
 - `apply <proposal>`: revalidate an already-approved proposal, apply its patch, run its evaluation, and record the decision and outcome. If approval is not explicit in the current conversation, ask before editing.
 - `dream [scope]`: run or commission read-only exploration for improvement opportunities. Save findings as untrusted proposals, not active rules.
-- `rollback <proposal>`: show the rollback target and consequences, obtain approval, revert only that proposal, then re-run safety checks.
+- `rollback <proposal>`: show the rollback target and consequences, obtain approval, revert only that proposal, then re-run safety checks. The replay regression check drafts a rollback proposal (`rollback_of: <id>`) when a kept change now loses; it is a proposal like any other and is applied only after approval.
 
 Read [references/operating-model.md](references/operating-model.md) for the detailed lifecycle and approval gates when running `init`, `propose`, `apply`, `dream`, or `rollback`.
 
@@ -101,6 +101,19 @@ It has a model mark which candidates are a person correcting the agent, groups
 the ones that make the same correction in different words, and prints the
 groups with how many sessions each came up in. If the model fails, it exits
 non-zero with the error and groups nothing.
+
+Then add the groups to the repository's replay suite, one case per group that
+replays the turn the person had to correct, plus a case for each tool failure
+that came back in several sessions:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/replay-cli.mjs" export "${CLAUDE_PROJECT_DIR}"
+```
+
+The cases go to `.harness/evals/replay/`. Show the human what it wrote; the
+redacted histories hold session text, so they review them before committing.
+Read [references/replay.md](references/replay.md) for how cases, graders and
+splits are made.
 
 Do not treat missing observations as success. It may mean the plugin is new or capture is unavailable.
 
@@ -144,6 +157,7 @@ Every proposal must include:
 - proposed diff or sufficiently precise design;
 - permissions, dependencies, storage, and operational impact;
 - evaluation plan and baseline comparison, with every command its checks run in `evaluation.commands`;
+- when the change can be replayed (a CLAUDE.md or AGENTS.md lesson, a skill, an agent, a command or a hook), the change as it would land in `.harness/proposals/<name>.candidate/`, and its replay verdict;
 - expected benefit, cost, and risks;
 - rollout and rollback;
 - owner and review date;
@@ -158,6 +172,21 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/proposal-check-cli.mjs" .harness/proposals/<
 ```
 
 Fix every scope failure, finding and writing finding it reports, then run it again.
+
+When the proposal has a candidate and the replay suite has cases, score it
+before showing it. It runs the suite with and without the change through
+`claude plugin eval`, capped by `replay.max_cost_usd`, applies the acceptance
+gate, and writes WITH, WITHOUT, the delta and the verdict to the proposal's
+`replay` block:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/replay-cli.mjs" score <id> "${CLAUDE_PROJECT_DIR}"
+```
+
+Report the verdict with the proposal. A failed or incomplete gate is evidence
+against the change, not a step to work around: say so, and revise or withdraw
+the proposal rather than tuning it until it passes. The sealed test split runs
+once per proposal and is never rerun. See [references/replay.md](references/replay.md).
 
 Prefer interventions in this order when their expected value is comparable:
 
@@ -181,6 +210,7 @@ After explicit approval:
 6. Inspect the final diff for scope drift, secrets, unsafe permissions, and accidental generated files.
 7. Report measured results, uncertainty, and any manual verification still required.
 8. Record the approved decision and outcome; do not record unverified conclusions as canonical memory. When the evaluation passes, set the proposal's `status: validated`, `outcome.applied_at` to now and `outcome.applied_by: session`, so it no longer shows as approved but not applied.
+9. Measure the outcome: `node "${CLAUDE_PLUGIN_ROOT}/scripts/replay-cli.mjs" outcome <id> "${CLAUDE_PROJECT_DIR}"` fills `outcome.measurements` and `outcome.conclusion` with how often the targeted correction comes back and how often sessions follow the rule, before and since. Session start keeps it up to date until it is settled.
 
 ## Bootstrap shape
 
@@ -272,7 +302,7 @@ Discuss a harness review when one or more of these triggers occurs:
 
 - configured time or session cadence is due;
 - the same correction, tool failure, or review defect repeats;
-- an accepted change later causes a regression, incident, or rollback;
+- an accepted change later causes a regression, incident, or rollback, including a rollback proposal the replay regression check drafted;
 - cost, latency, retries, or human intervention materially increase;
 - a new architecture, repository, language, model, tool, or delivery system appears;
 - instructions, skills, hooks, or policies conflict or become stale;

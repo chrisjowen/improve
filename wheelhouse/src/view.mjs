@@ -30,6 +30,7 @@ import { pendingCommands } from "../../scripts/proposal-check.mjs";
  * @typedef {import("./types.mjs").Pattern} Pattern
  * @typedef {import("./types.mjs").ProposalDecision} ProposalDecision
  * @typedef {import("./types.mjs").ProposalItem} ProposalItem
+ * @typedef {import("./types.mjs").ReplayStatus} ReplayStatus
  * @typedef {import("./types.mjs").Visibility} Visibility
  *
  * @typedef {{ id: string; status: string; statusLabel?: string; attention?: { owner?: string } | null }} TaskSummary
@@ -61,6 +62,8 @@ import { pendingCommands } from "../../scripts/proposal-check.mjs";
  * @property {unknown} due `cli.mjs due`, or null when it was not run (it would have started the count).
  * @property {TaskSummary[]} tasks
  * @property {ImproveUi} ui
+ * @property {string | null} [replaySuite] `.harness/evals/replay/suite.json`, when it could be read.
+ * @property {string | null} [regression] `.harness/evals/replay/regression.json`, when it could be read.
  * @property {string[]} problems
  * @property {number} now
  */
@@ -159,6 +162,10 @@ export function readProposal(file, text) {
   const outcome = isRecord(y.outcome) ? y.outcome : {};
   const upstream = isRecord(y.upstream_change) ? y.upstream_change : {};
   const when = (/** @type {unknown} */ v) => str(v) ?? (v instanceof Date ? v.toISOString() : null);
+  const replay = isRecord(y.replay) ? y.replay : null;
+  const validation = isRecord(replay?.validation) ? replay.validation : {};
+  const gate = isRecord(replay?.gate) ? replay.gate : {};
+  const test = isRecord(replay?.test) ? replay.test : {};
   return {
     file,
     id: str(y.id) ?? file.replace(/\.ya?ml$/i, ""),
@@ -177,6 +184,20 @@ export function readProposal(file, text) {
     lastApply: { status: str(lastApply.status), error: str(lastApply.error), at: when(lastApply.at) },
     appliedAt: when(outcome.applied_at),
     upstreamBranch: str(upstream.branch),
+    replay: replay
+      ? {
+          verdict: str(gate.verdict),
+          with: num(validation.with),
+          without: num(validation.without),
+          delta: num(validation.delta),
+          se: num(validation.se),
+          cases: num(validation.cases) ?? 0,
+          threshold: num(gate.threshold),
+          testDelta: num(test.delta),
+          scoredAt: when(replay.scored_at)
+        }
+      : null,
+    rollbackOf: str(y.rollback_of),
     createdAt: str(y.created_at) ?? (y.created_at instanceof Date ? y.created_at.toISOString() : null)
   };
 }
@@ -261,6 +282,8 @@ export function proposalItem(p, o) {
     applyStopped: p.pendingCommands.length
       ? `Apply stopped: the evaluation needs ${p.pendingCommands.length === 1 ? "a command" : "commands"} the proposal does not declare (${p.pendingCommands.join("; ")}). Add ${p.pendingCommands.length === 1 ? "it" : "them"} on the Proposals tab; the proposal then waits for your approval again.`
       : null,
+    replayText: replayText(p.replay),
+    replayShort: p.replay?.verdict ? `Δ ${signed(p.replay.delta)} · ${GATE_SHORT[p.replay.verdict] ?? p.replay.verdict}` : null,
     reviewHref: proposalHref(p.file),
     openUrl: openUrl(o.ui, p.file)
   };
@@ -272,6 +295,61 @@ export function proposalItem(p, o) {
  * an apply run, or the captain's own session, lands it.
  * @param {ReturnType<typeof readProposal>} p
  */
+/** @param {number | null} v */
+const signed = (v) => (v === null ? "n/a" : v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2));
+/** @param {number | null} v */
+const two = (v) => (v === null ? "n/a" : v.toFixed(2));
+
+/** @type {Record<string, string>} */
+const GATE_SHORT = { pass: "gate passed", fail: "gate failed", incomplete: "not decided" };
+
+/**
+ * The replay A/B in one sentence: WITH, WITHOUT, the delta and the gate.
+ * @param {ReturnType<typeof readProposal>["replay"]} r
+ */
+function replayText(r) {
+  if (!r) return null;
+  const verdict = r.verdict === "pass" ? "The gate passed." : r.verdict === "fail" ? "The gate failed." : "Not enough to decide.";
+  const test = r.testDelta === null ? "" : ` The sealed test split gave ${signed(r.testDelta)}.`;
+  return `Replay A/B on ${r.cases} validation ${r.cases === 1 ? "case" : "cases"}: ${two(r.with)} with the change, ${two(r.without)} without, Δ ${signed(r.delta)} ± ${two(r.se)}. ${verdict}${test}`;
+}
+
+/**
+ * The replay suite and the last regression check, from their files.
+ * @param {string | null} suiteText @param {string | null} regressionText
+ * @returns {ReplayStatus | null}
+ */
+export function replayStatus(suiteText, regressionText) {
+  /** @param {string | null} t */
+  const read = (t) => {
+    try {
+      const v = t ? JSON.parse(t) : null;
+      return isRecord(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  const suite = read(suiteText);
+  const regression = read(regressionText);
+  if (!suite && !regression) return null;
+  const cases = arr(suite?.cases).filter(isRecord);
+  const changes = arr(regression?.changes).filter(isRecord);
+  const losing = changes.filter((c) => c.losing === true).map((c) => ({ proposal: str(c.proposal) ?? "a kept change", delta: num(c.delta), rollback: str(c.rollback_proposal) }));
+  const count = cases.length;
+  const ranAt = str(regression?.ran_at);
+  return {
+    cases: count,
+    validation: cases.filter((c) => c.split === "validation").length,
+    test: cases.filter((c) => c.split === "test").length,
+    regressionAt: ranAt,
+    losing,
+    text: [
+      `Replay suite: ${count} ${count === 1 ? "case" : "cases"}.`,
+      ranAt ? `Regression check: ${changes.length} kept ${changes.length === 1 ? "change" : "changes"} checked${losing.length ? `, ${losing.map((l) => `${l.proposal} losing (Δ ${signed(l.delta)})`).join(", ")}` : ", none losing"}.` : "No regression check has run."
+    ].join(" ")
+  };
+}
+
 function notApplied(p) {
   return p.status === "approved" && !p.appliedAt && !p.upstreamBranch;
 }
@@ -466,6 +544,7 @@ export function buildHarness(raw) {
     inventory: inventoryLines(raw.inventory),
     size: sizeOf(raw.inventory),
     problems,
+    replay: replayStatus(raw.replaySuite ?? null, raw.regression ?? null),
     ui: raw.ui
   };
 }

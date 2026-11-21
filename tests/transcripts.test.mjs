@@ -77,6 +77,26 @@ const later = cutHistory(rows, typedAt);
 assert.ok(!JSON.stringify(later.rows).includes("ghp_abcdefghijklmnopqrstuvwxyz0123456789"));
 assert.ok(Object.values(later.redactions).reduce((a, b) => a + b, 0) >= 1);
 
+// A secret that straddles the clip cutoff is still redacted, not cut in half.
+// At the default 2000-char cutoff, only 20 characters of the secret land
+// before it: fewer than the 20 the github_token rule needs after "ghp_", so a
+// clip-before-redact bug would leave that fragment unredacted.
+const secret = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+const straddling = transcript("bbbbbbbb-2222")
+  .meta()
+  .user("set up the project")
+  .tool("Bash", { command: "env" }, `${"x".repeat(1980)}${secret}`)
+  .say("Done.")
+  .user("add a login page");
+const straddlingFile = straddling.write(configDir);
+const straddlingRows = readTranscript(straddlingFile);
+const straddlingLoginAt = straddlingRows.findIndex((r) => humanPrompt(r)?.text === "add a login page");
+const straddlingHistory = cutHistory(straddlingRows, straddlingLoginAt);
+const straddlingJson = JSON.stringify(straddlingHistory.rows);
+assert.ok(!straddlingJson.includes(secret), "the whole secret is redacted");
+assert.ok(!straddlingJson.includes("ghp_abcdef"), "no unredacted fragment of the secret leaks past the cutoff");
+assert.ok(Object.values(straddlingHistory.redactions).reduce((a, b) => a + b, 0) >= 1, "the redaction is counted");
+
 // At most the last few turns a person started.
 const windowed = cutHistory(rows, typedAt, { maxPrompts: 1 });
 assert.equal(humanPrompt(windowed.rows[0])?.text, "add a login page", "one turn: the window starts at the last prompt");

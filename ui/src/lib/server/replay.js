@@ -73,13 +73,13 @@ export function startReplay(file, proposal) {
       onLine: (line) => context.progress({ message: line.slice(0, 200) })
     }).then(
       (result) => ({
-        ok: result.gate.verdict !== "incomplete",
+        ok: result.gate.verdict === "pass",
         verdict: result.gate.verdict,
         with: result.validation.with,
         without: result.validation.without,
         delta: result.validation.delta,
         cost_usd: result.cost_usd,
-        error: result.gate.verdict === "incomplete" ? result.gate.reasons.join(" ") : undefined
+        error: result.gate.verdict !== "pass" ? result.gate.reasons.join(" ") : undefined
       }),
       (error) => ({ ok: false, error: /** @type {Error} */ (error).message })
     )

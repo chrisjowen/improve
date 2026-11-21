@@ -380,10 +380,17 @@ export async function scoreProposal({ root, file, dataDir, command, signal, logF
   const id = topScalar(text, "id") ?? file.replace(/\.ya?ml$/i, "");
 
   // Before every later proposal is scored, the changes already kept are
-  // checked again when anything changed since the last check.
+  // checked again when anything changed since the last check. The same lock
+  // `maybeStartRegression` uses keeps this from racing a background check.
   let regression = null;
+  let regressionSkipped = null;
   if (regressFirst && regressionDue(root, dataDir).due) {
-    regression = await regress({ root, dataDir, trigger: "before-scoring", command, signal, logFile, onLine, now });
+    const minutes = Number(config.regression.min_interval_minutes) || 0;
+    if (!dataDir || claimRegressionLock(dataDir, Date.now(), minutes)) {
+      regression = await regress({ root, dataDir, trigger: "before-scoring", command, signal, logFile, onLine, now });
+    } else {
+      regressionSkipped = "a regression check is already running or ran recently";
+    }
   }
 
   const started = now();
@@ -458,10 +465,16 @@ export async function scoreProposal({ root, file, dataDir, command, signal, logF
     test,
     per_case: validation.scores.map((c) => ({ name: c.name, with: c.with.mean, without: c.without.mean, delta: c.delta, se: c.se })),
     results: kept,
-    regression_check: regression ? { ran_at: regression.ran_at, losing: regression.changes.filter((c) => c.losing).map((c) => c.proposal) } : null
+    regression_check: regression
+      ? { ran_at: regression.ran_at, losing: regression.changes.filter((c) => c.losing).map((c) => c.proposal) }
+      : (regressionSkipped ? { skipped: true, reason: regressionSkipped } : null)
   };
   // Re-read: a long run must not write back a proposal someone edited meanwhile.
   const current = readText(proposalPath) ?? text;
+  const currentStatus = topScalar(current, "status");
+  if (!SCORABLE.has(currentStatus)) {
+    throw new Error(`${file} is ${currentStatus} now. Replay scores a proposal before it is approved, so the score just run is discarded.`);
+  }
   fs.writeFileSync(proposalPath, setBlock(current, "replay", block));
   return { file, id, ...block };
 }
@@ -677,18 +690,15 @@ export function draftRollback(root, change, entry, at) {
 }
 
 /**
- * Start the regression check in the background when the harness
- * configuration changed, unless one ran recently or is running. Returns why
- * it did or did not start.
+ * Claim the `replay_regression_running` lock in `dataDir`'s state, unless one
+ * is already running or ran within `minutes`. `regress` clears the lock when
+ * it finishes, whoever claimed it.
  *
- * @param {{ root: string, dataDir: string, now?: number, start?: (args: string[]) => void }} options
+ * @param {string} dataDir
+ * @param {number} now
+ * @param {number} minutes
  */
-export function maybeStartRegression({ root, dataDir, now = Date.now(), start = startWorker }) {
-  const config = replayConfig(root);
-  if (!config.enabled || !config.regression.on_config_change) return { started: false, reason: "turned off" };
-  const due = regressionDue(root, dataDir);
-  if (!due.due) return { started: false, reason: due.reason };
-  const minutes = Number(config.regression.min_interval_minutes) || 0;
+function claimRegressionLock(dataDir, now, minutes) {
   let go = false;
   updateJson(path.join(dataDir, "state.json"), (state) => {
     const startedAt = Date.parse(state.replay_regression_started_at ?? "");
@@ -701,7 +711,23 @@ export function maybeStartRegression({ root, dataDir, now = Date.now(), start = 
     }
     return state;
   });
-  if (!go) return { started: false, reason: "a regression check is running or ran recently" };
+  return go;
+}
+
+/**
+ * Start the regression check in the background when the harness
+ * configuration changed, unless one ran recently or is running. Returns why
+ * it did or did not start.
+ *
+ * @param {{ root: string, dataDir: string, now?: number, start?: (args: string[]) => void }} options
+ */
+export function maybeStartRegression({ root, dataDir, now = Date.now(), start = startWorker }) {
+  const config = replayConfig(root);
+  if (!config.enabled || !config.regression.on_config_change) return { started: false, reason: "turned off" };
+  const due = regressionDue(root, dataDir);
+  if (!due.due) return { started: false, reason: due.reason };
+  const minutes = Number(config.regression.min_interval_minutes) || 0;
+  if (!claimRegressionLock(dataDir, now, minutes)) return { started: false, reason: "a regression check is running or ran recently" };
   start(["regress", root, dataDir, "config-change"]);
   return { started: true, reason: due.reason };
 }

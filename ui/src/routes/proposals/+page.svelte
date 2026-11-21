@@ -658,22 +658,22 @@
                   {/if}
                 </p>
                 <div class="row">
-                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null || Boolean(draftJob)}>
+                  <button class="danger" onclick={() => decide("reject")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>
                     <Icon name="x" size={14} />{busy === "reject" ? "Rejecting…" : "Reject"}
                   </button>
                   {#if confirmOverwrite}
-                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob)}>Overwrite the hand-written file</button>
+                    <button class="danger" onclick={() => decide("apply", { overwrite: true })} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>Overwrite the hand-written file</button>
                   {/if}
                   {#if selected.harness_edit}
-                    <button class="primary" onclick={() => decide("write")} disabled={busy !== null || Boolean(editBlocked)}>
+                    <button class="primary" onclick={() => decide("write")} disabled={busy !== null || Boolean(editBlocked) || Boolean(replayJob)}>
                       <Icon name="check" size={14} />{busy === "write" ? "Writing…" : "Approve and write"}
                     </button>
                   {:else if selected.skill_draft && diff && !diff.error}
-                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || diff.blocked}>
+                    <button class="primary" onclick={() => decide("apply")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob) || diff.blocked}>
                       <Icon name="check" size={14} />{busy === "apply" ? "Writing…" : "Approve and write skill"}
                     </button>
                   {:else}
-                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null || Boolean(draftJob)}>
+                    <button class="primary" onclick={() => decide("approve")} disabled={busy !== null || Boolean(draftJob) || Boolean(replayJob)}>
                       <Icon name="check" size={14} />{busy === "approve" ? "Approving…" : "Approve"}
                     </button>
                   {/if}

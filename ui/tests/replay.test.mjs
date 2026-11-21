@@ -69,5 +69,25 @@ assert.deepEqual([after.replay.validation.with, after.replay.validation.without,
 assert.equal(after.replay.test.cases, 1);
 assert.ok(listProposals().find((p) => p.file === "IMP-1.yaml").replay, "the list carries it too");
 
+// A candidate that regresses the gate is a failed job, not a green "completed"
+// one: the review UI's job list must not show a losing change as a success.
+write(".harness/proposals/IMP-4.yaml", proposal("proposed").replace("IMP-1", "IMP-4"));
+write(".harness/proposals/IMP-4.candidate/lesson.md", "Use bun.\n");
+process.env.STANDIN_SCORES = JSON.stringify({ "*": { with: [0, 0, 0], without: [1, 1, 1] } });
+const startedFail = requestReplay("IMP-4.yaml");
+assert.ok(startedFail.job, startedFail.error);
+const endFail = Date.now() + 20_000;
+let jobFail;
+for (;;) {
+  jobFail = jobs.getJob(startedFail.job.id);
+  if (jobFail.status !== "running") break;
+  if (Date.now() > endFail) throw new Error("replay job still running");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+}
+assert.equal(jobFail.result.verdict, "fail");
+assert.equal(jobFail.status, "failed", "a losing gate is never reported as a completed job");
+assert.ok(jobFail.error, "the job's error explains why the gate failed");
+assert.equal(readProposal("IMP-4.yaml").replay.gate.verdict, "fail", "the real verdict still lands on the proposal");
+
 fs.rmSync(repo, { recursive: true, force: true });
 console.log("ui replay tests passed");

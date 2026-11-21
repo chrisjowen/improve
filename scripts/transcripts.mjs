@@ -214,9 +214,10 @@ function redactDeep(value, counts) {
  *   case does not carry a day's session.
  * - Thinking blocks are dropped: their signatures would not survive
  *   redaction, and a resumed session does not need earlier turns' thinking.
- * - Each tool result keeps its first `maxResultChars` characters.
- * - Every string passes the shared redaction rules; `redactions` counts what
+ * - Every string passes the shared redaction rules before anything is cut, so
+ *   a secret straddling a cut point is still caught; `redactions` counts what
  *   fired, so missing text is not mistaken for clean text.
+ * - Each tool result then keeps its first `maxResultChars` characters.
  *
  * @param {any[]} rows
  * @param {number} end
@@ -251,14 +252,19 @@ export function cutHistory(rows, end, { maxPrompts = 4, maxResultChars = 2000 } 
     const copy = { ...row, parentUuid: out.length === 0 ? null : (ancestor && keptIds.has(ancestor) ? ancestor : out.at(-1).uuid) };
     const content = copy.message?.content;
     if (Array.isArray(content)) {
-      const blocks = content
-        .filter((block) => block?.type !== "thinking" && block?.type !== "redacted_thinking")
-        .map((block) => (block?.type === "tool_result" ? { ...block, content: clip(block.content, maxResultChars) } : block));
+      const blocks = content.filter((block) => block?.type !== "thinking" && block?.type !== "redacted_thinking");
       if (blocks.length === 0) continue;
       copy.message = { ...copy.message, content: blocks };
     }
     delete copy.toolUseResult;
-    out.push(redactDeep(copy, counts));
+    const redacted = redactDeep(copy, counts);
+    if (Array.isArray(redacted.message?.content)) {
+      redacted.message = {
+        ...redacted.message,
+        content: redacted.message.content.map((block) => (block?.type === "tool_result" ? { ...block, content: clip(block.content, maxResultChars) } : block))
+      };
+    }
+    out.push(redacted);
   }
   // Relinking skipped rows can leave a parent that is no longer kept.
   const ids = new Set(out.map((row) => row.uuid));

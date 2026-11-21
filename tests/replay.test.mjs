@@ -254,6 +254,38 @@ const later = await scoreProposal({ root, file: "IMP-later.yaml", dataDir });
 assert.ok(later.regression_check, "the regression check ran first");
 assert.equal(calls()[0].lesson, "Use bun for installs and scripts, never npm.\n", "the kept change was replayed before the new one");
 
+// A background regression check already holds the lock: scoring inline does
+// not also run one, so the two never double-spend the regression budget or
+// race to write regression.json.
+const regressionBefore = fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8");
+fs.writeFileSync(path.join(dataDir, "state.json"), JSON.stringify({
+  last_config_change_at: new Date(Date.now() + 9000).toISOString(),
+  replay_regression_running: true,
+  replay_regression_started_at: new Date().toISOString()
+}));
+write(harness("proposals", "IMP-later2.yaml"), proposal("IMP-later2", "draft"));
+write(harness("proposals", "IMP-later2.candidate", "lesson.md"), "Later lesson two.\n");
+const lockedState = JSON.parse(fs.readFileSync(path.join(dataDir, "state.json"), "utf8"));
+const skipped = await scoreProposal({ root, file: "IMP-later2.yaml", dataDir });
+assert.deepEqual(skipped.regression_check, { skipped: true, reason: "a regression check is already running or ran recently" });
+assert.equal(fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8"), regressionBefore, "the inline path never ran its own regression check");
+assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dataDir, "state.json"), "utf8")).replay_regression_started_at, lockedState.replay_regression_started_at, "the other check's lock is left alone");
+
+// If a proposal is approved while its eval is still running, the verdict is
+// discarded rather than written onto an already-decided proposal.
+write(harness("proposals", "IMP-race.yaml"), proposal("IMP-race", "draft"));
+write(harness("proposals", "IMP-race.candidate", "lesson.md"), "Race lesson.\n");
+let raceNowCalls = 0;
+const racingNow = () => {
+  raceNowCalls += 1;
+  if (raceNowCalls === 2) {
+    fs.writeFileSync(harness("proposals", "IMP-race.yaml"), fs.readFileSync(harness("proposals", "IMP-race.yaml"), "utf8").replace(/^status: draft$/m, "status: approved"));
+  }
+  return new Date();
+};
+await assert.rejects(scoreProposal({ root, file: "IMP-race.yaml", dataDir, now: racingNow }), /IMP-race\.yaml is approved now/);
+assert.doesNotMatch(fs.readFileSync(harness("proposals", "IMP-race.yaml"), "utf8"), /^replay:$/m, "the in-flight score was never written");
+
 // The ConfigChange hook, end to end: it records the change and the worker it
 // starts writes a fresh regression report.
 const hookData = path.join(temp, "hookdata");

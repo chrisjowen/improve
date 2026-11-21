@@ -63,6 +63,7 @@ replay:
   test: { cases: 2, with: 0.83, without: 0.5, delta: 0.33, confirms: true, scored_at: ISO-8601 }  # sealed; null until the gate passes
   per_case: [ { name, with, without, delta, se } ]
   results: [ .harness/evals/replay/results/<id>/<stamp>-validation.json ]
+  regression_check: { ran_at: ISO-8601, losing: [] } | { skipped: true, reason: "..." } | null
 ```
 
 After the change lands, `replay-cli outcome <id>` (also run by Apply in the review UI and, in the background, at session start) fills `outcome.measurements` with how often the targeted correction came back per N sessions and how often sessions followed the rule, before and since, and `outcome.conclusion` with what that shows. It adds `outcome.measured_at`, and `outcome.settled: true` once enough sessions have run. Apply in the review UI keeps its own evaluation under `outcome.evaluation`. See [replay.md](replay.md).

@@ -141,7 +141,8 @@ The gate passes when:
 
 The `replay` block holds `validation` (cases, with, without, delta, se),
 `gate` (verdict, threshold, regressions, reasons), `test`, `per_case`, the
-cost, and the result files.
+cost, the result files, and `regression_check` (when a check ran or was
+skipped because another was already running or ran recently).
 
 ## Regression checks
 
@@ -158,6 +159,11 @@ It runs:
 - before a later proposal is scored, when anything changed since the last
   check;
 - on demand: `replay-cli.mjs regress`.
+
+All three share one lock, so only one check runs at a time. Scoring a
+proposal while another check is running or ran recently records why it was
+skipped instead of running its own; `replay-cli.mjs regress` does the same,
+printing why and exiting non-zero.
 
 A kept change that now loses (its delta is below zero, or a case regressed)
 gets a rollback proposal drafted: `IMP-<date>-rollback-<id>.yaml`, status

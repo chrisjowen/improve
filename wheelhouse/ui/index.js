@@ -13066,7 +13066,9 @@ function _page2($$anchor, $$props) {
               {
                 var consequent_73 = ($$anchor5) => {
                   var button_5 = root_642();
-                  template_effect(($0) => button_5.disabled = $0, [() => get(busy) !== null || Boolean(get(draftJob))]);
+                  template_effect(($0) => button_5.disabled = $0, [
+                    () => get(busy) !== null || Boolean(get(draftJob)) || Boolean(get(replayJob))
+                  ]);
                   delegated("click", button_5, () => decide("apply", { overwrite: true }));
                   append2($$anchor5, button_5);
                 };
@@ -13087,7 +13089,9 @@ function _page2($$anchor, $$props) {
                       button_6.disabled = $0;
                       set_text(text_83, get(busy) === "write" ? "Writing\u2026" : "Approve and write");
                     },
-                    [() => get(busy) !== null || Boolean(get(editBlocked))]
+                    [
+                      () => get(busy) !== null || Boolean(get(editBlocked)) || Boolean(get(replayJob))
+                    ]
                   );
                   delegated("click", button_6, () => decide("write"));
                   append2($$anchor5, button_6);
@@ -13104,7 +13108,7 @@ function _page2($$anchor, $$props) {
                       set_text(text_84, get(busy) === "apply" ? "Writing\u2026" : "Approve and write skill");
                     },
                     [
-                      () => get(busy) !== null || Boolean(get(draftJob)) || get(diff).blocked
+                      () => get(busy) !== null || Boolean(get(draftJob)) || Boolean(get(replayJob)) || get(diff).blocked
                     ]
                   );
                   delegated("click", button_7, () => decide("apply"));
@@ -13121,7 +13125,9 @@ function _page2($$anchor, $$props) {
                       button_8.disabled = $0;
                       set_text(text_85, get(busy) === "approve" ? "Approving\u2026" : "Approve");
                     },
-                    [() => get(busy) !== null || Boolean(get(draftJob))]
+                    [
+                      () => get(busy) !== null || Boolean(get(draftJob)) || Boolean(get(replayJob))
+                    ]
                   );
                   delegated("click", button_8, () => decide("approve"));
                   append2($$anchor5, button_8);
@@ -13142,7 +13148,9 @@ function _page2($$anchor, $$props) {
                   button_4.disabled = $0;
                   set_text(text_82, get(busy) === "reject" ? "Rejecting\u2026" : "Reject");
                 },
-                [() => get(busy) !== null || Boolean(get(draftJob))]
+                [
+                  () => get(busy) !== null || Boolean(get(draftJob)) || Boolean(get(replayJob))
+                ]
               );
               bind_value(textarea, () => get(reason), ($$value) => set(reason, $$value));
               delegated("click", button_4, () => decide("reject"));

@@ -5,6 +5,7 @@ import { contain, ensureDir, harnessDir, projectRoot, readDirSafe, readTextSafe,
 import { checkProposal, pendingCommands } from "../../../../scripts/proposal-check.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { classifySurface, deliveryFor, isFirstmateHarnessPath } from "../../../../adapters/firstmate/surfaces.mjs";
+import { candidateOf } from "./replay.js";
 
 const PROPOSAL_STATUSES = new Set([
   "draft", "proposed", "approved", "applying", "validated", "rejected", "rolled-back"
@@ -76,6 +77,12 @@ function normalize(id, document, source) {
     // Commands the last apply run stopped for, which the person can add.
     pending_commands: pendingCommands(value),
     upstream_change: value.upstream_change ?? null,
+    // Replay A/B: WITH, WITHOUT, delta and the gate's verdict, and the
+    // candidate it scored; a rollback drafted by the regression check names
+    // the change it rolls back.
+    replay: value.replay && typeof value.replay === "object" ? value.replay : null,
+    candidate: candidateOf(id),
+    rollback_of: typeof value.rollback_of === "string" ? value.rollback_of : null,
     reasons_to_reject: Array.isArray(value.reasons_to_reject) ? value.reasons_to_reject : [],
     provenance: value.provenance && typeof value.provenance === "object" ? value.provenance : null,
     // An edit filed from the Objectives page: what it edits, not the bytes,

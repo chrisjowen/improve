@@ -134,8 +134,20 @@ know.
 ![Objectives with their latest score and trend](docs/screenshots/objectives.webp)
 
 Run `/improve status` or another review later to see whether the problem has
-stopped repeating. If a change did not help, `/improve rollback <proposal>`
-undoes it.
+stopped repeating. Once a change lands, its outcome on the proposal says how
+often the correction came back since, and how often sessions followed the rule.
+If a change did not help, `/improve rollback <proposal>` undoes it.
+
+### Replay: does a change actually help?
+
+Before you approve a change, Claude can replay it. The sessions where you had
+to correct the agent are run again from just before the turn you corrected,
+once with the change and once without, through `claude plugin eval`. The
+proposal then shows the score with the change, without it, the difference, and
+whether that difference beats the noise. Every replay has a cost ceiling you
+set in `.harness/improve.json`. When a change you kept later starts scoring
+worse than the harness without it, Claude drafts a proposal to roll it back for
+you to decide. See [references/replay.md](references/replay.md).
 
 ## Using it with Firstmate
 

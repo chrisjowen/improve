@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import path from "node:path";
 import {
   appendJsonl,
@@ -46,6 +47,14 @@ try {
   // tasks dispatched and days since the last review. Off by default.
   const firstmate = detectFirstmate(root);
   syncReviewState(root, firstmate);
+
+  // A kept change's outcome is measured from the sessions since it landed,
+  // in the background and at most every few hours. Loaded only when a
+  // proposal exists, so a repository without any pays nothing.
+  if (fs.existsSync(path.join(root, ".harness", "proposals"))) {
+    const { maybeMeasureOutcomes } = await import("./replay.mjs");
+    maybeMeasureOutcomes({ root, dataDir: dir });
+  }
   if (automated) process.exit(0);
 
   const context = [];

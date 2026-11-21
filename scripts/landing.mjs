@@ -16,7 +16,7 @@ import { readBlock } from "./proposal-check.mjs";
  * @param {string} text
  * @param {string} key
  */
-function topScalar(text, key) {
+export function topScalar(text, key) {
   const line = text.split("\n").find((l) => l.startsWith(`${key}:`));
   if (!line) return undefined;
   const value = line.slice(key.length + 1).replace(/\s+#.*$/, "").trim().replace(/^["']|["']$/g, "");
@@ -29,7 +29,7 @@ function topScalar(text, key) {
  * @param {string} parent
  * @param {string} key
  */
-function blockScalar(text, parent, key) {
+export function blockScalar(text, parent, key) {
   const lines = readBlock(text, parent);
   for (const [index, line] of lines.entries()) {
     const match = new RegExp(`^( {1,4})${key}:\\s*(.*?)\\s*$`).exec(line);

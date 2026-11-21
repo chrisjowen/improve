@@ -27,6 +27,11 @@ Compare repeated trials for:
 - current harness;
 - proposed change.
 
+The replay suite does this for changes `claude plugin eval` can load: real
+corrected turns replayed with and without the proposed change, an acceptance
+gate on a validation split, a sealed test split scored once, and regression
+checks on kept changes. See [replay.md](replay.md).
+
 Keep hidden or rotating holdouts. Count aborted, timed-out, and over-budget runs. Never permit the candidate harness to edit its own grader or reference answer during a run.
 
 Tie every suite to a charter objective and one or more observable success

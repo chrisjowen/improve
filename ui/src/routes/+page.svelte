@@ -6,7 +6,7 @@
   import { api } from "$lib/client/api.js";
   import { summary, findingCount } from "$lib/client/summary.svelte.js";
   import { jobs } from "$lib/client/jobs.svelte.js";
-  import { ago, plural, score, scopeLabel, showScope, waiting } from "$lib/client/format.js";
+  import { ago, plural, score, scopeLabel, showScope, signed, waiting } from "$lib/client/format.js";
 
   let objectives = $state([]);
   $effect(() => {
@@ -20,6 +20,7 @@
   const state = $derived(status?.state ?? {});
   const recent = $derived(jobs.list.slice(0, 5));
   const findings = $derived(findingCount());
+  const replay = $derived(status?.replay);
 
   const headline = $derived.by(() => {
     if (!status) return "";
@@ -154,6 +155,24 @@
             <dt>Background reviews</dt>
             <dd>{status?.background_dreaming_enabled ? "on, after sessions" : "off; run one from Background findings"}</dd>
           </dl>
+        </div>
+        <div>
+          <div class="section-label">Replay suite</div>
+          {#if !replay?.suite?.cases}
+            <p class="small muted">No replay cases yet. <code>replay-cli.mjs export</code> builds them from confirmed corrections and repeated tool failures.</p>
+          {:else}
+            <dl class="kv small">
+              <dt>Cases</dt>
+              <dd class="num">{replay.suite.cases} ({replay.suite.validation} validation, {replay.suite.test} sealed test)</dd>
+              <dt>Regression check</dt>
+              <dd>
+                {#if replay.regression}
+                  {ago(replay.regression.ran_at)}, {plural(replay.regression.checked, "kept change")}{#if replay.regression.losing.length}<span style="color:var(--bad)">; losing: {replay.regression.losing.map((/** @type {any} */ l) => `${l.proposal} (${signed(l.delta)})`).join(", ")}</span>{/if}
+                {:else}never run{/if}
+                {#if replay.regression_due?.due}<span class="faint"> · due: {replay.regression_due.reason}</span>{/if}
+              </dd>
+            </dl>
+          {/if}
         </div>
       </div>
     </section>

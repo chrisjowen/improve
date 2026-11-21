@@ -19,6 +19,10 @@ Propose this only after adapting it to the repository. Omit unused sections.
     runner/                  # orchestration and language bridges
     tasks/                   # representative cases and fixtures
     results/                 # normally generated or separately retained
+    replay/                  # replay suite from real corrections (references/replay.md)
+      suite.json             # every case, its split and where it came from
+      cases/                 # claude plugin eval cases with redacted histories
+      results/               # replay A/B and regression results
   memory/
     observations/            # append-only or ignored raw observations
     candidates/              # unapproved extracted learnings
@@ -57,6 +61,11 @@ Recommended initial `improve.json`:
     "enabled": false,
     "every_days": 30,
     "command": "claude"
+  },
+  "replay": {
+    "max_cost_usd": 5,
+    "allow_tools": [],
+    "regression": { "on_config_change": true, "max_cost_usd": 2 }
   }
 }
 ```
@@ -87,5 +96,9 @@ background-task notifications, and known launch and collector templates.
 A Firstmate home adds an `adapters.firstmate` block, off by default; see
 [firstmate.md](firstmate.md). The adapter keeps its routing ledger and review
 state under `.harness/firstmate/`.
+
+`replay` sets the cost ceilings and the gate for replay A/B, the regression
+check that runs on `ConfigChange`, and the outcome measurement. The keys and
+defaults are in [replay.md](replay.md).
 
 Keep background dreaming disabled until the human reviews its command, runtime permissions, cost, data exposure, output location, and stopping conditions.

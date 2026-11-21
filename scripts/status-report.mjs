@@ -9,6 +9,7 @@ import {
 } from "./lib.mjs";
 import { detectFirstmate } from "../adapters/firstmate/home.mjs";
 import { periodicDueReasons } from "../adapters/firstmate/schedule.mjs";
+import { regressionDue, replayStatus } from "./replay.mjs";
 
 /**
  * The read-only status summary, shared by `status.mjs` and the UI.
@@ -29,6 +30,7 @@ export function collectStatus(root, { dataDir, pluginRoot } = {}) {
     eval_rig: evalRig(root, pluginRoot),
     transcripts: transcripts(root),
     coverage: coverage(root),
+    replay: { ...replayStatus(root), regression_due: regressionDue(root, dataDir) },
     review_due_reasons: state ? dueReasons(config, state) : null,
     repeated_correction: state ? topRepeatedCorrection(state) ?? null : null,
     state: state ?? null,

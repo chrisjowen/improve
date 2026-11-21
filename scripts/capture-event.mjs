@@ -38,6 +38,18 @@ try {
       return state;
     });
   }
+
+  // A harness change can make a change kept earlier stop helping, so the
+  // replay suite runs again for the kept changes, in the background. Loaded
+  // only here: this hook runs on every tool call.
+  if (eventName === "ConfigChange") {
+    updateJson(path.join(dir, "state.json"), (state) => {
+      state.last_config_change_at = new Date().toISOString();
+      return state;
+    });
+    const { maybeStartRegression } = await import("./replay.mjs");
+    maybeStartRegression({ root, dataDir: dir });
+  }
 } catch (error) {
   process.stderr.write(`improve capture skipped: ${error.message}\n`);
 }

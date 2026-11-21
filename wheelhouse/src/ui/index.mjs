@@ -370,6 +370,7 @@ class ImproveHealth extends ImproveElement {
           : null
       ),
       v.notApplied ? h("p", { class: "mt2 xs" }, h("a", { class: "warn", href: `${IMPROVEMENTS}#/proposals` }, notAppliedText(v.notApplied))) : null,
+      v.replay ? h("p", { class: `mt2 xs ${v.replay.losing.length ? "warn" : "muted"}` }, v.replay.text) : null,
       v.evidence.mix.length ? h("div", { class: "mt3" }, evidenceBar(v.evidence.mix, true)) : null,
       v.evidence.patterns.length
         ? h(

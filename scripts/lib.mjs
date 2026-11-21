@@ -409,6 +409,34 @@ export function loadConfig(root) {
       // A read-only review of a large repository can take a while; past this
       // it is stopped and reported as timed out rather than left running.
       timeout_minutes: 20
+    },
+    // Replay A/B: the cases in .harness/evals/replay/ run with and without a
+    // proposal's candidate through `claude plugin eval`. Every run has a cost
+    // ceiling; nothing here spends without one.
+    replay: {
+      enabled: true,
+      command: "claude",
+      runs: 3,
+      max_cost_usd: 5,
+      model: null,
+      concurrency: 2,
+      // Accept only when the validation delta is above k standard errors and
+      // no validation case is lower WITH than WITHOUT by more than tolerance.
+      k: 2,
+      tolerance: 0,
+      // Tools `claude plugin eval` withholds unless granted, such as Bash.
+      // Graders that need one are dropped at export when it is not granted.
+      allow_tools: [],
+      regression: {
+        on_config_change: true,
+        min_interval_minutes: 60,
+        max_cost_usd: 2
+      },
+      outcome: {
+        per_sessions: 20,
+        window_days: 30,
+        similarity: 0.6
+      }
     }
   };
   const repoConfig = readJson(path.join(root, ".harness", "improve.json"), {});
@@ -420,6 +448,12 @@ export function loadConfig(root) {
     background_dreaming: {
       ...defaults.background_dreaming,
       ...(repoConfig.background_dreaming || {})
+    },
+    replay: {
+      ...defaults.replay,
+      ...(repoConfig.replay || {}),
+      regression: { ...defaults.replay.regression, ...(repoConfig.replay?.regression || {}) },
+      outcome: { ...defaults.replay.outcome, ...(repoConfig.replay?.outcome || {}) }
     }
   };
 }

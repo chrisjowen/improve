@@ -619,6 +619,52 @@ try {
     path.join(pluginRoot, "adapters", "firstmate", "cli.mjs")
   ]);
   assert.ok(fs.existsSync(path.join(pluginRoot, "adapters", "firstmate", "cli.mjs")));
+
+  // Replay A/B: a scored proposal carries WITH, WITHOUT, the delta and the
+  // gate on its card; the rail card says the suite's size and whether a kept
+  // change now loses on it.
+  setHome();
+  write(path.join(home, ".harness", "proposals", "IMP-7.yaml"), `id: IMP-7
+title: Tell workers to use bun
+status: proposed
+scope:
+  files: [AGENTS.md]
+replay:
+  scored_at: "2026-11-21T00:00:00.000Z"
+  validation:
+    cases: 3
+    with: 0.9
+    without: 0.4
+    delta: 0.5
+    se: 0.1
+  gate:
+    verdict: "pass"
+    threshold: 0.2
+  test:
+    delta: 0.33
+`);
+  write(path.join(home, ".harness", "proposals", "IMP-8.yaml"), `id: IMP-8
+title: Roll back IMP-1
+status: proposed
+rollback_of: IMP-1
+scope:
+  files: [data/captain.md]
+`);
+  write(path.join(home, ".harness", "evals", "replay", "suite.json"), JSON.stringify({ cases: [{ name: "a", split: "validation" }, { name: "b", split: "validation" }, { name: "c", split: "test" }] }));
+  write(path.join(home, ".harness", "evals", "replay", "regression.json"), JSON.stringify({ ran_at: "2026-11-21T02:00:00.000Z", changes: [{ proposal: "IMP-1", delta: -0.33, losing: true, rollback_proposal: "IMP-8.yaml" }, { proposal: "IMP-0", delta: 0.2, losing: false }] }));
+  const scoredView = (await provider("harness")(context())).value;
+  const scored = scoredView.proposals.find((p) => p.id === "IMP-7");
+  assert.deepEqual(scored.replay, { verdict: "pass", with: 0.9, without: 0.4, delta: 0.5, se: 0.1, cases: 3, threshold: 0.2, testDelta: 0.33, scoredAt: "2026-11-21T00:00:00.000Z" });
+  assert.equal(scored.replayShort, "Δ +0.50 · gate passed");
+  assert.equal(scored.replayText, "Replay A/B on 3 validation cases: 0.90 with the change, 0.40 without, Δ +0.50 ± 0.10. The gate passed. The sealed test split gave +0.33.");
+  assert.equal(scoredView.proposals.find((p) => p.id === "IMP-8").rollbackOf, "IMP-1");
+  assert.equal(scoredView.proposals.find((p) => p.id === "IMP-2").replay, null, "an unscored proposal has no replay");
+  assert.deepEqual(
+    { cases: scoredView.replay.cases, validation: scoredView.replay.validation, test: scoredView.replay.test, losing: scoredView.replay.losing },
+    { cases: 3, validation: 2, test: 1, losing: [{ proposal: "IMP-1", delta: -0.33, rollback: "IMP-8.yaml" }] }
+  );
+  assert.equal(scoredView.replay.text, "Replay suite: 3 cases. Regression check: 2 kept changes checked, IMP-1 losing (Δ -0.33).");
+  assert.equal(r.value.replay, null, "a home without a replay suite shows none");
 } finally {
   for (const s of [ui, oldUi, slowUi, elsewhereUi, linkedUi, other]) s.server.close();
   fs.rmSync(dir, { recursive: true, force: true });

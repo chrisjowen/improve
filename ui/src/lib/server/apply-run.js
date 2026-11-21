@@ -7,7 +7,8 @@ import { checkLogin, runAgent } from "../../../../scripts/spawn-agent.mjs";
 import { runProcess } from "../../../../scripts/run-process.mjs";
 import { detectFirstmate } from "../../../../adapters/firstmate/home.mjs";
 import { deliveryFor } from "../../../../adapters/firstmate/surfaces.mjs";
-import { contain, pluginRoot, projectId, projectRoot, readTextSafe } from "./paths.js";
+import { contain, pluginRoot, projectDataDir, projectId, projectRoot, readTextSafe } from "./paths.js";
+import { measureOutcome } from "../../../../scripts/replay.mjs";
 import { jobsDir, startJob } from "./jobs.js";
 import { readProposal, readProposalText, recordDecision, updateStatus, writeProposal } from "./proposals.js";
 import { isCommand, pendingCommands } from "../../../../scripts/proposal-check.mjs";
@@ -368,10 +369,11 @@ function compare(before, after) {
 
 /**
  * Paths outside the confirmed files whose content the run changed, including
- * files that were already uncommitted before it. Only records the UI writes
+ * files that were already uncommitted before it. Only records improve writes
  * while a run is going and the evaluation's outputs are exempt: other
- * proposals, decisions, its job directory, and what `output` accepts. This
- * proposal, improve.json and evaluation inputs are not.
+ * proposals, decisions, its job directory, the replay results a background
+ * regression check writes, and what `output` accepts. This proposal,
+ * improve.json and evaluation inputs are not.
  *
  * @param {Map<string, string | null>} before
  * @param {Map<string, string | null>} after
@@ -385,6 +387,8 @@ function strayPaths(before, after, plan, root, output) {
   /** @param {string} p */
   const record = (p) => (p.startsWith(".harness/proposals/") && p !== `.harness/proposals/${plan.file}`)
     || p.startsWith(".harness/decisions/")
+    || p === ".harness/evals/replay/regression.json"
+    || p.startsWith(".harness/evals/replay/results/")
     || output(p)
     || Boolean(ownJobs && p.startsWith(ownJobs));
   return [...new Set([...before.keys(), ...after.keys()])]
@@ -954,13 +958,26 @@ function recordApplied(plan, { evaluation, files }) {
   });
   updateStatus(plan.file, "validated", {
     outcome: {
-      measurements: evaluation?.checks ?? [],
+      // The apply run's own evaluation; the measured outcome follows below.
+      evaluation: { summary: evaluation?.summary ?? "Evaluation passed.", checks: evaluation?.checks ?? [] },
+      measurements: [],
       conclusion: evaluation?.summary ?? "Evaluation passed.",
       applied_at: new Date().toISOString(),
       applied_by: "ui"
     },
     last_apply: { at: new Date().toISOString(), by: "ui", mode: plan.mode, status: "applied", evaluation }
   });
+  // How often the targeted correction comes back, and how often sessions
+  // follow the rule, from the sessions before it landed; sessions after it
+  // fill in as they run.
+  const dataDir = projectDataDir();
+  if (dataDir) {
+    try {
+      measureOutcome({ root: projectRoot(), dataDir, file: plan.file });
+    } catch {
+      // the outcome is measured again at the next session start
+    }
+  }
 }
 
 /**

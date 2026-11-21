@@ -128,3 +128,33 @@ export function showScope(check) {
 export function waiting(proposal) {
   return proposal.status === "proposed" || proposal.status === "draft";
 }
+
+/**
+ * A replay delta with its sign, such as "+0.33".
+ * @param {number | null | undefined} value
+ */
+export function signed(value) {
+  if (typeof value !== "number") return "–";
+  return value > 0 ? `+${value.toFixed(2)}` : value.toFixed(2);
+}
+
+/**
+ * The replay gate's verdict in words.
+ * @type {Record<string, { label: string, tone: string }>}
+ */
+export const GATE = {
+  pass: { label: "Gate passed", tone: "ok" },
+  fail: { label: "Gate failed", tone: "bad" },
+  incomplete: { label: "Not enough to decide", tone: "warn" }
+};
+
+/**
+ * What the sealed test split said, in one line.
+ * @param {any} test
+ */
+export function sealedTest(test) {
+  if (!test) return "Not run: it runs once, only after the gate passes.";
+  if (typeof test.delta !== "number") return test.note ?? "Not run.";
+  const line = `${score(test.with)} with, ${score(test.without)} without (${signed(test.delta)}) on ${plural(test.cases ?? 0, "case")}`;
+  return test.confirms === false ? `${line}. It does not confirm the gain.` : line;
+}

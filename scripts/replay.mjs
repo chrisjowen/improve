@@ -698,7 +698,7 @@ export function draftRollback(root, change, entry, at) {
  * @param {number} now
  * @param {number} minutes
  */
-function claimRegressionLock(dataDir, now, minutes) {
+export function claimRegressionLock(dataDir, now, minutes) {
   let go = false;
   updateJson(path.join(dataDir, "state.json"), (state) => {
     const startedAt = Date.parse(state.replay_regression_started_at ?? "");

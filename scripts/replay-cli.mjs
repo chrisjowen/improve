@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadConfig, observationDir, projectRoot, readJson, resolvePluginDataDir } from "./lib.mjs";
 import { exportSuite } from "./replay-cases.mjs";
-import { measureAll, measureOutcome, regress, regressionDue, replayStatus, resolveProposal, scoreProposal } from "./replay.mjs";
+import { claimRegressionLock, measureAll, measureOutcome, regress, regressionDue, replayConfig, replayStatus, resolveProposal, scoreProposal } from "./replay.mjs";
 
 const USAGE = `usage: replay-cli.mjs <command> [arguments] [repository]
 
@@ -117,6 +117,13 @@ async function main() {
       return result.gate.verdict === "pass" ? 0 : 1;
     }
     case "regress": {
+      if (dataDir) {
+        const minutes = Number(replayConfig(root).regression.min_interval_minutes) || 0;
+        if (!claimRegressionLock(dataDir, Date.now(), minutes)) {
+          process.stderr.write("A regression check is already running or ran recently.\n");
+          return 1;
+        }
+      }
       const result = await regress({ root, dataDir, trigger: "manual", onLine: (line) => process.stderr.write(`${line}\n`) });
       print(result);
       return 0;

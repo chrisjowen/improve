@@ -403,6 +403,22 @@ const usage = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "rep
 assert.equal(usage.status, 2);
 assert.match(usage.stderr, /usage: replay-cli\.mjs/);
 
+// The CLI's own `regress` command takes the same lock as the inline and
+// background paths, so it never races a check already in flight.
+const cliEnv = { ...process.env, CLAUDE_PLUGIN_DATA: path.join(temp, "data") };
+fs.writeFileSync(path.join(dataDir, "state.json"), JSON.stringify({}));
+const cliRegressionBefore = fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8");
+const cliRegress = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "replay-cli.mjs"), "regress", root], { encoding: "utf8", env: cliEnv });
+assert.equal(cliRegress.status, 0, cliRegress.stderr);
+assert.notEqual(fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8"), cliRegressionBefore, "an unlocked regress runs");
+
+fs.writeFileSync(path.join(dataDir, "state.json"), JSON.stringify({ replay_regression_running: true, replay_regression_started_at: new Date().toISOString() }));
+const regressionLocked = fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8");
+const cliRegressLocked = spawnSync(process.execPath, [path.join(pluginRoot, "scripts", "replay-cli.mjs"), "regress", root], { encoding: "utf8", env: cliEnv });
+assert.notEqual(cliRegressLocked.status, 0, "a regress already running or recent refuses to run a second one");
+assert.match(cliRegressLocked.stderr, /already running or ran recently/);
+assert.equal(fs.readFileSync(harness("evals", "replay", "regression.json"), "utf8"), regressionLocked, "the locked attempt never ran");
+
 fs.rmSync(temp, { recursive: true, force: true });
 console.log("replay ok");
 
